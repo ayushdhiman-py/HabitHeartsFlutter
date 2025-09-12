@@ -1,18 +1,12 @@
 import 'dart:math';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/api_service.dart';
 import '../models/user.dart' as habit_hearts_user;
 
 class UserService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
   // Get user document
   Future<habit_hearts_user.User?> getUser(String uid) async {
     try {
-      DocumentSnapshot snapshot = await _firestore.collection('users').doc(uid).get();
-      if (snapshot.exists) {
-        return habit_hearts_user.User.fromJson(snapshot.data() as Map<String, dynamic>);
-      }
-      return null;
+      return await ApiService.getUser(uid);
     } catch (e) {
       print('Error getting user: $e');
       return null;
@@ -22,7 +16,15 @@ class UserService {
   // Create or update user document
   Future<void> setUser(habit_hearts_user.User user) async {
     try {
-      await _firestore.collection('users').doc(user.uid).set(user.toJson());
+      // Check if user exists
+      final existingUser = await getUser(user.uid);
+      if (existingUser != null) {
+        // Update existing user
+        await ApiService.updateUser(user);
+      } else {
+        // Create new user
+        await ApiService.createUser(user);
+      }
     } catch (e) {
       print('Error setting user: $e');
     }
@@ -38,27 +40,8 @@ class UserService {
   // Link users
   Future<void> linkUsers(String currentUserUid, String partnerCode) async {
     try {
-      // Find user with the partner code
-      QuerySnapshot snapshot = await _firestore
-          .collection('users')
-          .where('uniqueCode', isEqualTo: partnerCode)
-          .limit(1)
-          .get();
-
-      if (snapshot.docs.isNotEmpty) {
-        DocumentSnapshot partnerDoc = snapshot.docs.first;
-        String partnerUid = partnerDoc.id;
-
-        // Update current user's linkedUsers array
-        await _firestore.collection('users').doc(currentUserUid).update({
-          'linkedUsers': FieldValue.arrayUnion([partnerUid])
-        });
-
-        // Update partner's linkedUsers array
-        await _firestore.collection('users').doc(partnerUid).update({
-          'linkedUsers': FieldValue.arrayUnion([currentUserUid])
-        });
-      }
+      // This functionality would need to be implemented in the backend API
+      print('Linking users functionality needs to be implemented in the backend API');
     } catch (e) {
       print('Error linking users: $e');
     }
@@ -67,15 +50,8 @@ class UserService {
   // Unlink users
   Future<void> unlinkUsers(String currentUserUid, String partnerUid) async {
     try {
-      // Update current user's linkedUsers array
-      await _firestore.collection('users').doc(currentUserUid).update({
-        'linkedUsers': FieldValue.arrayRemove([partnerUid])
-      });
-
-      // Update partner's linkedUsers array
-      await _firestore.collection('users').doc(partnerUid).update({
-        'linkedUsers': FieldValue.arrayRemove([currentUserUid])
-      });
+      // This functionality would need to be implemented in the backend API
+      print('Unlinking users functionality needs to be implemented in the backend API');
     } catch (e) {
       print('Error unlinking users: $e');
     }

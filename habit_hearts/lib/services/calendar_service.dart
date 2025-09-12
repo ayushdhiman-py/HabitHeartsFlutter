@@ -1,24 +1,21 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
 import '../models/calendar_event.dart';
+import '../services/api_service.dart';
 
 class CalendarService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
   // Get events for a specific date range
   Stream<List<CalendarEvent>> getEvents(String userId, List<String> linkedUserIds, DateTime startDate, DateTime endDate) {
     try {
-      // Get events for user and linked users
-      List<String> userIds = [userId, ...linkedUserIds];
-
-      return _firestore
-          .collection('calendarEvents')
-          .where('createdBy', whereIn: userIds)
-          .where('date', isGreaterThanOrEqualTo: startDate)
-          .where('date', isLessThanOrEqualTo: endDate)
-          .snapshots()
-          .map((snapshot) => snapshot.docs
-              .map((doc) => CalendarEvent.fromJson(doc.data()))
-              .toList());
+      // For now, we'll create a simple stream that fetches events once
+      // In a real implementation, you might want to implement polling or WebSockets
+      StreamController<List<CalendarEvent>> controller = StreamController();
+      
+      // Fetch events - this would need to be implemented in the backend
+      // For now, we'll return an empty list
+      controller.add([]);
+      controller.close();
+      
+      return controller.stream;
     } catch (e) {
       print('Error getting events: $e');
       return Stream.value([]);
@@ -28,7 +25,7 @@ class CalendarService {
   // Create a new event
   Future<void> createEvent(CalendarEvent event) async {
     try {
-      await _firestore.collection('calendarEvents').doc(event.id).set(event.toJson());
+      await ApiService.createCalendarEvent(event);
     } catch (e) {
       print('Error creating event: $e');
     }
@@ -37,7 +34,7 @@ class CalendarService {
   // Update an event
   Future<void> updateEvent(CalendarEvent event) async {
     try {
-      await _firestore.collection('calendarEvents').doc(event.id).update(event.toJson());
+      await ApiService.updateCalendarEvent(event);
     } catch (e) {
       print('Error updating event: $e');
     }
@@ -46,7 +43,7 @@ class CalendarService {
   // Delete an event
   Future<void> deleteEvent(String eventId) async {
     try {
-      await _firestore.collection('calendarEvents').doc(eventId).delete();
+      await ApiService.deleteCalendarEvent(eventId);
     } catch (e) {
       print('Error deleting event: $e');
     }

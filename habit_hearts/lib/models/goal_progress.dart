@@ -40,4 +40,24 @@ class GoalProgress {
       updatedAt: DateTime.fromMillisecondsSinceEpoch(json['updatedAt']),
     );
   }
+
+  GoalProgress copyWith({
+    String? id,
+    String? goalId,
+    String? date,
+    bool? completed,
+    String? userId,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return GoalProgress(
+      id: id ?? this.id,
+      goalId: goalId ?? this.goalId,
+      date: date ?? this.date,
+      completed: completed ?? this.completed,
+      userId: userId ?? this.userId,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
 }

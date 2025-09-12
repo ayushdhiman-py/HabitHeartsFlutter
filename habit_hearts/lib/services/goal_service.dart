@@ -1,22 +1,21 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
 import '../models/goal.dart';
+import '../services/api_service.dart';
 
 class GoalService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
   // Get goals for user and linked users
   Stream<List<Goal>> getGoals(String userId, List<String> linkedUserIds) {
     try {
-      // Get goals for user and linked users
-      List<String> userIds = [userId, ...linkedUserIds];
-
-      return _firestore
-          .collection('goals')
-          .where('createdBy', whereIn: userIds)
-          .snapshots()
-          .map((snapshot) => snapshot.docs
-              .map((doc) => Goal.fromJson(doc.data()))
-              .toList());
+      // For now, we'll create a simple stream that fetches goals once
+      // In a real implementation, you might want to implement polling or WebSockets
+      StreamController<List<Goal>> controller = StreamController();
+      
+      // Fetch goals - this would need to be implemented in the backend
+      // For now, we'll return an empty list
+      controller.add([]);
+      controller.close();
+      
+      return controller.stream;
     } catch (e) {
       print('Error getting goals: $e');
       return Stream.value([]);
@@ -26,7 +25,7 @@ class GoalService {
   // Create a new goal
   Future<void> createGoal(Goal goal) async {
     try {
-      await _firestore.collection('goals').doc(goal.id).set(goal.toJson());
+      await ApiService.createGoal(goal);
     } catch (e) {
       print('Error creating goal: $e');
     }
@@ -35,7 +34,7 @@ class GoalService {
   // Update a goal
   Future<void> updateGoal(Goal goal) async {
     try {
-      await _firestore.collection('goals').doc(goal.id).update(goal.toJson());
+      await ApiService.updateGoal(goal);
     } catch (e) {
       print('Error updating goal: $e');
     }
@@ -44,7 +43,7 @@ class GoalService {
   // Delete a goal
   Future<void> deleteGoal(String goalId) async {
     try {
-      await _firestore.collection('goals').doc(goalId).delete();
+      await ApiService.deleteGoal(goalId);
     } catch (e) {
       print('Error deleting goal: $e');
     }
@@ -53,10 +52,12 @@ class GoalService {
   // Toggle goal completion
   Future<void> toggleGoalCompletion(Goal goal) async {
     try {
-      await _firestore.collection('goals').doc(goal.id).update({
-        'completed': !goal.completed,
-        'updatedAt': DateTime.now().millisecondsSinceEpoch,
-      });
+      // Update the goal with toggled completion status
+      Goal updatedGoal = goal.copyWith(
+        completed: !goal.completed,
+        updatedAt: DateTime.now().millisecondsSinceEpoch,
+      );
+      await updateGoal(updatedGoal);
     } catch (e) {
       print('Error toggling goal completion: $e');
     }

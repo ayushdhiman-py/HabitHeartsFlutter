@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'providers/habit_hearts_auth_provider.dart';
+import 'providers/theme_provider.dart';
+import 'providers/goals_provider.dart';
 import 'screens/login_screen.dart';
 import 'theme/app_theme.dart';
 
@@ -21,6 +23,8 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => HabitHeartsAuthProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => GoalsProvider()),
       ],
       child: const MyApp(),
     ),

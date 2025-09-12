@@ -64,4 +64,36 @@ class Task {
       endTime: json['endTime'],
     );
   }
+
+  Task copyWith({
+    String? id,
+    String? text,
+    String? description,
+    DateTime? dueDate,
+    bool? completed,
+    String? createdBy,
+    String? creatorName,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? status,
+    String? emoji,
+    String? startTime,
+    String? endTime,
+  }) {
+    return Task(
+      id: id ?? this.id,
+      text: text ?? this.text,
+      description: description ?? this.description,
+      dueDate: dueDate ?? this.dueDate,
+      completed: completed ?? this.completed,
+      createdBy: createdBy ?? this.createdBy,
+      creatorName: creatorName ?? this.creatorName,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      status: status ?? this.status,
+      emoji: emoji ?? this.emoji,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+    );
+  }
 }
