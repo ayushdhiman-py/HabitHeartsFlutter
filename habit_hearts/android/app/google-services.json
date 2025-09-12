@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "545998989450",
+    "project_id": "habithearts",
+    "storage_bucket": "habithearts.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:545998989450:android:64f966d0f60843e2796573",
+        "android_client_info": {
+          "package_name": "com.habithearts"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "545998989450-1p93orjk94g3tkf6gov7vpskt114hbig.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.habithearts",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "545998989450-ierli7eqdnkr5slmsm3vl2dcke96a7rn.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAof9wyKPDlazP3tYM_2WopQj1DuJ_IY2M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "545998989450-ierli7eqdnkr5slmsm3vl2dcke96a7rn.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

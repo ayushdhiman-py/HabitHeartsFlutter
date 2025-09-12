@@ -1,0 +1,33 @@
+name: habit_hearts
+description: A habit tracking and relationship app for couples.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.2
+  provider: ^6.1.0
+  firebase_core: ^2.27.0
+  firebase_auth: ^4.9.0
+  cloud_firestore: ^4.8.0
+  firebase_storage: ^11.2.0
+  google_sign_in: ^5.4.0
+  cached_network_image: ^3.3.0
+  flutter_svg: ^2.0.0
+  font_awesome_flutter: ^10.5.0
+  intl: ^0.18.0
+  table_calendar: ^3.0.0
+  shared_preferences: ^2.2.0
+  animations: ^2.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true
