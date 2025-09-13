@@ -388,6 +388,35 @@ app.delete('/api/goals/:id', async (req, res) => {
   }
 });
 
+// DELETE endpoint for removing a user's progress for a specific goal
+app.delete('/api/users/:userId/goal-progress/:goalId', async (req, res) => {
+  const { userId, goalId } = req.params;
+
+  try {
+    const userRef = db.collection('users').doc(userId);
+    const userDoc = await userRef.get();
+
+    if (!userDoc.exists) {
+      return res.status(404).send('User not found');
+    }
+
+    // The path to the specific goal in the goalProgress map
+    const goalProgressField = `goalProgress.${goalId}`;
+
+    // Use FieldValue.delete() to remove the key from the map
+    await userRef.update({
+      [goalProgressField]: admin.firestore.FieldValue.delete()
+    });
+
+    console.log(`Successfully deleted progress for goal ${goalId} for user ${userId}`);
+    res.status(200).send(`Progress for goal ${goalId} deleted successfully.`);
+
+  } catch (error) {
+    console.error('Error deleting goal progress:', error);
+    res.status(500).send('Error deleting goal progress');
+  }
+});
+
 // Calendar event endpoints
 app.get('/api/calendarEvents/:userId', async (req, res) => {
   try {
@@ -401,7 +430,9 @@ app.get('/api/calendarEvents/:userId', async (req, res) => {
     }
     
     if (endDate) {
-      query = query.where('date', '<=', new Date(endDate));
+      const end = new Date(endDate);
+      end.setUTCHours(23, 59, 59, 999); // Set to the end of the day
+      query = query.where('date', '<=', end);
     }
     
     const snapshot = await query.get();
@@ -411,13 +442,17 @@ app.get('/api/calendarEvents/:userId', async (req, res) => {
       // Convert Firestore Timestamps to milliseconds
       const createdAt = data.createdAt ? data.createdAt.toMillis() : Date.now();
       const updatedAt = data.updatedAt ? data.updatedAt.toMillis() : Date.now();
-      
+      const eventDate = data.date ? data.date.toMillis() : null;
+      const eventEndDate = data.endDate ? data.endDate.toMillis() : null;
+
       // Remove the original 'id' field from the data to avoid conflict with the document ID
       const { id, ...dataWithoutId } = data;
 
       return {
         id: doc.id,
         ...dataWithoutId,
+        date: eventDate,
+        endDate: eventEndDate,
         createdAt,
         updatedAt
       };
@@ -452,13 +487,17 @@ app.post('/api/calendarEvents', async (req, res) => {
       id: docRef.id, 
       title: eventData.title,
       description: eventData.description,
-      isAllDay: eventData.isAllDay,
+      date: eventData.date ? eventData.date.toMillis() : null,
+      endDate: eventData.endDate ? eventData.endDate.toMillis() : null,
+      startTime: eventData.startTime,
+      endTime: eventData.endTime,
+      completed: eventData.completed,
       createdBy: eventData.createdBy,
-      // Convert back to milliseconds for the response
+      creatorName: eventData.creatorName,
       createdAt: eventData.createdAt ? eventData.createdAt.toMillis() : Date.now(),
       updatedAt: eventData.updatedAt ? eventData.updatedAt.toMillis() : Date.now(),
-      date: eventData.date ? eventData.date.toMillis() : null,
-      endDate: eventData.endDate ? eventData.endDate.toMillis() : null
+      status: eventData.status,
+      emoji: eventData.emoji
     });
   } catch (error) {
     console.error('Error creating calendar event:', error);
@@ -501,147 +540,273 @@ app.delete('/api/calendarEvents/:id', async (req, res) => {
   }
 });
 
-// Goal progress endpoints
-app.get('/api/goalProgress/:goalId', async (req, res) => {
+// Removed old goalProgress endpoints - now using bit-based approach in user documents
+
+// Toggle goal progress endpoint (NEW: Bit-based approach)
+app.post('/api/user/:userId/goal/:goalId/toggle', async (req, res) => {
   try {
-    const { goalId } = req.params;
-    const snapshot = await db.collection('goalProgress')
-      .where('goalId', '==', goalId)
-      .get();
-    
-    const progress = snapshot.docs.map(doc => {
-      const data = doc.data();
-      // Convert Firestore Timestamps to milliseconds
-      const createdAt = data.createdAt ? data.createdAt.toMillis() : Date.now();
-      const updatedAt = data.updatedAt ? data.updatedAt.toMillis() : Date.now();
-      
-      return {
-        id: doc.id,
-        ...data,
-        createdAt,
-        updatedAt
+    const { userId, goalId } = req.params;
+    const { completed } = req.body; // true for done, false for not done
+    const today = new Date();
+    const yearMonth = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}`;
+    const day = today.getDate();
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+
+    // Get user document
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (!userDoc.exists) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const userData = userDoc.data();
+    const goalProgress = userData.goalProgress || {};
+
+    // Initialize goal progress if it doesn't exist
+    if (!goalProgress[goalId]) {
+      goalProgress[goalId] = {
+        monthlyData: {},
+        currentStreak: 0,
+        longestStreak: 0,
+        lastUpdated: admin.firestore.FieldValue.serverTimestamp()
       };
+    }
+
+    // Get current bit string or initialize
+    let bitString = goalProgress[goalId].monthlyData[yearMonth] || '0'.repeat(daysInMonth);
+    
+    // Ensure bit string has correct length
+    if (bitString.length < daysInMonth) {
+      bitString = bitString.padEnd(daysInMonth, '0');
+    } else if (bitString.length > daysInMonth) {
+      bitString = bitString.substring(0, daysInMonth);
+    }
+
+    // Update the specific day
+    const index = day - 1;
+    if (index >= 0 && index < bitString.length) {
+      const bits = bitString.split('');
+      bits[index] = completed ? '1' : '0';
+      bitString = bits.join('');
+    }
+
+    // Update monthly data
+    goalProgress[goalId].monthlyData[yearMonth] = bitString;
+    goalProgress[goalId].lastUpdated = admin.firestore.FieldValue.serverTimestamp();
+
+    // Recalculate streaks
+    const streaks = calculateStreaks(goalProgress[goalId], today);
+    goalProgress[goalId].currentStreak = streaks.currentStreak;
+    goalProgress[goalId].longestStreak = streaks.longestStreak;
+
+    // Update user document
+    await db.collection('users').doc(userId).update({
+      goalProgress,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
-    
-    res.status(200).json(progress);
-  } catch (error) {
-    console.error('Error getting goal progress:', error);
-    res.status(500).json({ message: 'Error getting goal progress' });
-  }
-});
 
-app.post('/api/goalProgress', async (req, res) => {
-  try {
-    const progressData = req.body;
-    // Convert milliseconds to Firestore Timestamps
-    if (progressData.createdAt) {
-      progressData.createdAt = admin.firestore.Timestamp.fromMillis(progressData.createdAt);
-    }
-    if (progressData.updatedAt) {
-      progressData.updatedAt = admin.firestore.Timestamp.fromMillis(progressData.updatedAt);
-    }
-    
-    const docRef = await db.collection('goalProgress').add(progressData);
-    res.status(201).json({ 
-      id: docRef.id, 
-      goalId: progressData.goalId,
-      date: progressData.date,
-      completed: progressData.completed,
-      userId: progressData.userId,
-      // Convert back to milliseconds for the response
-      createdAt: progressData.createdAt ? progressData.createdAt.toMillis() : Date.now(),
-      updatedAt: progressData.updatedAt ? progressData.updatedAt.toMillis() : Date.now()
+    res.status(200).json({ 
+      message: 'Goal progress updated successfully',
+      completed: completed,
+      currentStreak: streaks.currentStreak,
+      longestStreak: streaks.longestStreak
     });
-  } catch (error) {
-    console.error('Error creating goal progress:', error);
-    res.status(500).json({ message: 'Error creating goal progress' });
-  }
-});
-
-app.put('/api/goalProgress/:id', async (req, res) => {
-  try {
-    const progressData = req.body;
-    // Convert milliseconds to Firestore Timestamps
-    if (progressData.createdAt) {
-      progressData.createdAt = admin.firestore.Timestamp.fromMillis(progressData.createdAt);
-    }
-    if (progressData.updatedAt) {
-      progressData.updatedAt = admin.firestore.Timestamp.fromMillis(progressData.updatedAt);
-    }
-    
-    await db.collection('goalProgress').doc(req.params.id).update(progressData);
-    res.status(200).json({ message: 'Goal progress updated successfully' });
-  } catch (error) {
-    console.error('Error updating goal progress:', error);
-    res.status(500).json({ message: 'Error updating goal progress' });
-  }
-});
-
-app.delete('/api/goalProgress/:id', async (req, res) => {
-  try {
-    await db.collection('goalProgress').doc(req.params.id).delete();
-    res.status(200).json({ message: 'Goal progress deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting goal progress:', error);
-    res.status(500).json({ message: 'Error deleting goal progress' });
-  }
-});
-
-// Toggle goal progress endpoint
-app.post('/api/goalProgress/toggle', async (req, res) => {
-  try {
-    const { goalId, date, userId } = req.body;
-    
-    // Check if progress already exists for this date
-    const snapshot = await db.collection('goalProgress')
-      .where('goalId', '==', goalId)
-      .where('date', '==', date)
-      .where('userId', '==', userId)
-      .limit(1)
-      .get();
-
-    if (!snapshot.empty) {
-      // Update existing progress
-      const doc = snapshot.docs[0];
-      const progress = doc.data();
-      const updatedAt = admin.firestore.FieldValue.serverTimestamp();
-      await db.collection('goalProgress').doc(doc.id).update({
-        completed: !progress.completed,
-        updatedAt,
-      });
-      res.status(200).json({ 
-        message: 'Goal progress updated successfully',
-        updatedAt: new Date().getTime() // Return milliseconds for consistency
-      });
-    } else {
-      // Create new progress
-      const createdAt = admin.firestore.FieldValue.serverTimestamp();
-      const updatedAt = admin.firestore.FieldValue.serverTimestamp();
-      const newProgress = {
-        goalId,
-        date,
-        userId,
-        completed: true,
-        createdAt,
-        updatedAt,
-      };
-      
-      const docRef = await db.collection('goalProgress').add(newProgress);
-      res.status(201).json({ 
-        id: docRef.id, 
-        ...newProgress,
-        // Convert timestamps to milliseconds
-        createdAt: new Date().getTime(),
-        updatedAt: new Date().getTime()
-      });
-    }
   } catch (error) {
     console.error('Error toggling goal progress:', error);
     res.status(500).json({ message: 'Error toggling goal progress' });
   }
 });
 
+// Helper function to calculate streaks
+function calculateStreaks(progressData, today) {
+  const yearMonth = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}`;
+  const day = today.getDate();
+  
+  // Calculate current streak (counting backwards from today)
+  let currentStreak = 0;
+  let currentDate = new Date(today);
+  
+  while (true) {
+    const currentYearMonth = `${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}`;
+    const currentDay = currentDate.getDate();
+    
+    // Check if we have data for this month
+    if (!progressData.monthlyData[currentYearMonth]) break;
+    
+    const bitString = progressData.monthlyData[currentYearMonth];
+    const index = currentDay - 1;
+    
+    // Check if index is valid and day is completed
+    if (index >= 0 && index < bitString.length && bitString[index] === '1') {
+      currentStreak++;
+      // Move to previous day
+      currentDate.setDate(currentDate.getDate() - 1);
+      // If we moved to previous month, continue
+    } else {
+      break;
+    }
+  }
+  
+  // For longest streak, we would need to check all months
+  // This is a simplified version - in practice you might want to store this separately
+  const longestStreak = Math.max(currentStreak, progressData.longestStreak || 0);
+  
+  return { currentStreak, longestStreak };
+}
+
+// Migration endpoint to convert old goalProgress documents to new bit-based format
+app.post('/api/migrateGoalProgress', async (req, res) => {
+  try {
+    console.log('Starting migration of goal progress data to bit-based format');
+    
+    // Get all users
+    const usersSnapshot = await db.collection('users').get();
+    let migratedUsers = 0;
+    
+    for (const userDoc of usersSnapshot.docs) {
+      const userData = userDoc.data();
+      const userId = userDoc.id;
+      
+      // Skip if user already has goalProgress in new format
+      if (userData.goalProgress) {
+        console.log(`User ${userId} already has new format goalProgress, skipping`);
+        continue;
+      }
+      
+      // Initialize goalProgress for this user
+      const goalProgress = {};
+      
+      // Get all goals for this user
+      const goalsSnapshot = await db.collection('goals')
+        .where('createdBy', '==', userId)
+        .get();
+      
+      for (const goalDoc of goalsSnapshot.docs) {
+        const goalId = goalDoc.id;
+        
+        // Get all progress documents for this goal and user
+        const progressSnapshot = await db.collection('goalProgress')
+          .where('goalId', '==', goalId)
+          .where('userId', '==', userId)
+          .get();
+        
+        if (!progressSnapshot.empty) {
+          // Initialize goal progress summary
+          goalProgress[goalId] = {
+            monthlyData: {},
+            currentStreak: 0,
+            longestStreak: 0,
+            lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+          };
+          
+          // Group progress by month
+          const monthlyProgress = {};
+          
+          for (const progressDoc of progressSnapshot.docs) {
+            const progressData = progressDoc.data();
+            const date = new Date(progressData.date);
+            const yearMonth = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+            const day = date.getDate();
+            
+            // Initialize month if not exists
+            if (!monthlyProgress[yearMonth]) {
+              const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+              monthlyProgress[yearMonth] = {
+                daysInMonth: daysInMonth,
+                completedDays: []
+              };
+            }
+            
+            // Add completed day
+            if (progressData.completed) {
+              monthlyProgress[yearMonth].completedDays.push(day);
+            }
+          }
+          
+          // Convert to bit strings
+          for (const [yearMonth, monthData] of Object.entries(monthlyProgress)) {
+            const { daysInMonth, completedDays } = monthData;
+            let bitString = '0'.repeat(daysInMonth);
+            
+            // Set completed days to 1
+            for (const day of completedDays) {
+              if (day >= 1 && day <= daysInMonth) {
+                const index = day - 1;
+                const bits = bitString.split('');
+                bits[index] = '1';
+                bitString = bits.join('');
+              }
+            }
+            
+            goalProgress[goalId].monthlyData[yearMonth] = bitString;
+          }
+          
+          // Calculate initial streaks
+          const today = new Date();
+          const streaks = calculateStreaks(goalProgress[goalId], today);
+          goalProgress[goalId].currentStreak = streaks.currentStreak;
+          goalProgress[goalId].longestStreak = streaks.longestStreak;
+        }
+      }
+      
+      // Update user document with new goalProgress format
+      if (Object.keys(goalProgress).length > 0) {
+        await db.collection('users').doc(userId).update({
+          goalProgress,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        console.log(`Migrated goal progress for user ${userId}`);
+        migratedUsers++;
+      }
+    }
+    
+    res.status(200).json({ 
+      message: 'Migration completed successfully',
+      migratedUsers: migratedUsers
+    });
+  } catch (error) {
+    console.error('Error migrating goal progress:', error);
+    res.status(500).json({ message: 'Error migrating goal progress', error: error.message });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+
+// Function to check if migration is needed and run it
+async function checkAndRunMigration() {
+  try {
+    console.log('Checking if migration is needed...');
+    
+    // Check if any user still has old format (no goalProgress field or empty)
+    const usersSnapshot = await db.collection('users').limit(1).get();
+    if (usersSnapshot.empty) {
+      console.log('No users found, no migration needed');
+      return;
+    }
+    
+    // Check first user to see if migration is needed
+    const firstUser = usersSnapshot.docs[0];
+    const userData = firstUser.data();
+    
+    // If user doesn't have goalProgress field or it's empty, migration might be needed
+    if (!userData.goalProgress || Object.keys(userData.goalProgress).length === 0) {
+      // Check if there are any old goalProgress documents
+      const oldProgressSnapshot = await db.collection('goalProgress').limit(1).get();
+      if (!oldProgressSnapshot.empty) {
+        console.log('Old goalProgress documents found, migration needed');
+        // Note: In production, you might want to run this manually via API
+        // For now, we'll just log that it's needed
+      } else {
+        console.log('No old goalProgress documents found, no migration needed');
+      }
+    } else {
+      console.log('Users already have new format goalProgress, no migration needed');
+    }
+  } catch (error) {
+    console.error('Error checking migration status:', error);
+  }
+}
+
+app.listen(PORT, async () => {
   console.log(`Server is running on port ${PORT}`);
+  await checkAndRunMigration();
 });

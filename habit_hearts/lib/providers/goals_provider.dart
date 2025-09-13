@@ -1,18 +1,23 @@
 import 'package:flutter/material.dart';
 import '../models/goal.dart';
-import '../models/goal_progress.dart';
 import '../services/api_service.dart';
 import 'package:provider/provider.dart';
 import '../providers/habit_hearts_auth_provider.dart';
+import '../models/user.dart' as habit_hearts_user;
+import '../models/user.dart' as habit_hearts_user;
 
 class GoalsProvider with ChangeNotifier {
   List<Goal> _goals = [];
-  List<GoalProgress> _goalProgress = [];
   bool _isLoading = false;
+  Map<String, Map<String, String>> _userGoalProgress = {}; // goalId -> {yearMonth -> bitString}
+  Map<String, int> _currentStreaks = {}; // goalId -> streak count
+  Map<String, int> _longestStreaks = {}; // goalId -> streak count
 
   List<Goal> get goals => _goals;
-  List<GoalProgress> get goalProgress => _goalProgress;
   bool get isLoading => _isLoading;
+  Map<String, Map<String, String>> get userGoalProgress => _userGoalProgress;
+  Map<String, int> get currentStreaks => _currentStreaks;
+  Map<String, int> get longestStreaks => _longestStreaks;
 
   // Load goals and progress from API
   Future<void> loadGoals(String userId) async {
@@ -30,10 +35,19 @@ class GoalsProvider with ChangeNotifier {
       final goals = await ApiService.getGoals(userId);
       _goals = goals;
       
-      // Load progress for all goals in parallel
-      final allProgressFutures = _goals.map((goal) => ApiService.getGoalProgress(goal.id)).toList();
-      final allProgressLists = await Future.wait(allProgressFutures);
-      _goalProgress = allProgressLists.expand((list) => list).toList();
+      // Load user's goal progress data
+      final userData = await ApiService.getUserGoalProgress(userId);
+      if (userData != null && userData.goalProgress != null) {
+        _userGoalProgress.clear();
+        _currentStreaks.clear();
+        _longestStreaks.clear();
+        
+        userData.goalProgress.forEach((goalId, progressSummary) {
+          _userGoalProgress[goalId] = Map<String, String>.from(progressSummary.monthlyData);
+          _currentStreaks[goalId] = progressSummary.currentStreak;
+          _longestStreaks[goalId] = progressSummary.longestStreak;
+        });
+      }
     } catch (e) {
       print('Error loading goals: $e');
     } finally {
@@ -48,9 +62,6 @@ class GoalsProvider with ChangeNotifier {
       final newGoal = await ApiService.createGoal(goal);
       if (newGoal != null) {
         _goals.add(newGoal);
-        // Fetch progress for the newly added goal
-        final progress = await ApiService.getGoalProgress(newGoal.id);
-        _goalProgress.addAll(progress);
         notifyListeners();
       }
     } catch (e) {
@@ -79,11 +90,33 @@ class GoalsProvider with ChangeNotifier {
   // Delete a goal
   Future<void> deleteGoal(BuildContext context, String goalId) async {
     try {
-      final success = await ApiService.deleteGoal(goalId);
-      if (success) {
-        _goals.removeWhere((goal) => goal.id == goalId);
-        _goalProgress.removeWhere((progress) => progress.goalId == goalId);
-        notifyListeners();
+      // Get the user ID from the auth provider
+      final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
+      final userId = authProvider.user?.uid;
+
+      if (userId == null) {
+        throw Exception("User not logged in. Cannot delete goal progress.");
+      }
+
+      // Step 1: Delete the user's progress for this goal from the 'users' table.
+      // Note: This requires a new function in your ApiService and backend.
+      final progressDeletionSuccess = await ApiService.removeGoalProgressForUser(userId, goalId);
+
+      if (progressDeletionSuccess) {
+        // Step 2: Delete the actual goal document from the 'goals' table.
+        final goalDeletionSuccess = await ApiService.deleteGoal(goalId);
+
+        if (goalDeletionSuccess) {
+          // Update local state to reflect the deletion in the UI
+          _goals.removeWhere((goal) => goal.id == goalId);
+          _userGoalProgress.remove(goalId);
+          _currentStreaks.remove(goalId);
+          _longestStreaks.remove(goalId);
+          notifyListeners();
+        }
+      } else {
+        // Handle the case where progress deletion failed
+        print('Error deleting goal progress for goalId: $goalId');
       }
     } catch (e) {
       print('Error deleting goal: $e');
@@ -91,162 +124,74 @@ class GoalsProvider with ChangeNotifier {
     }
   }
 
-  // Add or update goal progress
-  Future<bool> updateGoalProgress(GoalProgress progress) async {
+  // Toggle goal progress for a specific date (NEW: Bit-based approach)
+  Future<bool> toggleGoalProgressForUser(String userId, String goalId, bool completed) async {
     try {
-      bool success;
-      final existingIndex = _goalProgress.indexWhere(
-        (p) => p.goalId == progress.goalId && p.date == progress.date,
-      );
+      final result = await ApiService.toggleGoalProgressForUser(userId, goalId, completed);
       
-      if (existingIndex >= 0) {
-        success = await ApiService.updateGoalProgress(progress);
-        if (success) {
-          _goalProgress[existingIndex] = progress;
+      if (result != null) {
+        // Update local state with new data
+        if (result['currentStreak'] != null) {
+          _currentStreaks[goalId] = result['currentStreak'];
         }
-      } else {
-        success = await ApiService.createGoalProgress(progress);
-        if (success) {
-          _goalProgress.add(progress);
+        if (result['longestStreak'] != null) {
+          _longestStreaks[goalId] = result['longestStreak'];
         }
+        
+        // Reload all goals and progress to ensure consistency
+        await loadGoals(userId);
+        return true;
       }
       
-      if (success) {
-        notifyListeners();
-      }
-      return success;
+      return false;
     } catch (e) {
-      print('Error updating goal progress: $e');
+      print('Error toggling goal progress for user: $e');
       return false;
     }
   }
 
-  // Toggle goal progress for a specific date
-  Future<bool> toggleGoalProgress(String goalId, String date, String userId) async {
-    try {
-      final success = await ApiService.toggleGoalProgress(goalId, date, userId);
-      
-      if (success) {
-        // Update local state by reloading progress for this goal
-        final progressList = await ApiService.getGoalProgress(goalId);
-        
-        // Remove existing progress for this goal
-        _goalProgress.removeWhere((p) => p.goalId == goalId);
-        
-        // Add updated progress
-        _goalProgress.addAll(progressList);
-        
-        notifyListeners();
-      }
-      
-      return success;
-    } catch (e) {
-      print('Error toggling goal progress: $e');
-      return false;
-    }
+  // Check if a goal is completed for a specific date
+  bool isGoalCompletedForDate(String goalId, DateTime date) {
+    final yearMonth = '${date.year}-${date.month.toString().padLeft(2, '0')}';
+    final day = date.day;
+    
+    if (!_userGoalProgress.containsKey(goalId)) return false;
+    if (!_userGoalProgress[goalId]!.containsKey(yearMonth)) return false;
+    
+    final bitString = _userGoalProgress[goalId]![yearMonth]!;
+    if (day < 1 || day > bitString.length) return false;
+    
+    final index = day - 1;
+    return index < bitString.length && bitString[index] == '1';
   }
 
-  // Set goal progress for a specific date to a specific status
-  Future<bool> setGoalProgress(String goalId, String date, String userId, bool completed) async {
-    try {
-      print('Setting goal progress for goal $goalId on date $date to $completed for user $userId');
-      
-      // Optimistically update the UI
-      final optimisticProgress = GoalProgress(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        goalId: goalId,
-        date: date,
-        completed: completed,
-        userId: userId,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-      
-      // Check if progress already exists for this date and goal
-      final existingIndex = _goalProgress.indexWhere(
-        (p) => p.goalId == goalId && p.date == date && p.userId == userId,
-      );
-      
-      if (existingIndex >= 0) {
-        // Update existing progress
-        final existingProgress = _goalProgress[existingIndex];
-        final updatedProgress = existingProgress.copyWith(
-          completed: completed,
-          updatedAt: DateTime.now(),
-        );
-        _goalProgress[existingIndex] = updatedProgress;
-      } else {
-        // Add new progress
-        _goalProgress.add(optimisticProgress);
-      }
-      
-      notifyListeners();
-      
-      // Now make the actual API call
-      bool success;
-      if (existingIndex >= 0) {
-        // Update existing progress
-        final existingProgress = _goalProgress[existingIndex];
-        success = await ApiService.updateGoalProgress(existingProgress);
-      } else {
-        // Create new progress
-        success = await ApiService.createGoalProgress(optimisticProgress);
-      }
-      
-      if (!success) {
-        // Revert the optimistic update if the API call fails
-        if (existingIndex >= 0) {
-          // Revert to previous state
-          final existingProgress = _goalProgress[existingIndex];
-          final revertedProgress = existingProgress.copyWith(
-            completed: !completed, // Revert to previous state
-            updatedAt: DateTime.now(),
-          );
-          _goalProgress[existingIndex] = revertedProgress;
-        } else {
-          // Remove the newly added progress
-          _goalProgress.removeWhere(
-            (p) => p.goalId == goalId && p.date == date && p.userId == userId,
-          );
-        }
-        notifyListeners();
-      }
-      
-      return success;
-    } catch (e) {
-      print('Error setting goal progress: $e');
-      return false;
-    }
+  // Get current streak for a goal
+  int getCurrentStreak(String goalId) {
+    return _currentStreaks[goalId] ?? 0;
   }
 
-  // Get progress for a specific goal and date
-  GoalProgress? getProgressForDate(String goalId, String date) {
-    try {
-      return _goalProgress.firstWhere(
-        (p) => p.goalId == goalId && p.date == date,
-      );
-    } catch (e) {
-      return null;
-    }
+  // Get longest streak for a goal
+  int getLongestStreak(String goalId) {
+    return _longestStreaks[goalId] ?? 0;
   }
 
   // Calculate progress percentage for a goal (last 7 days)
   double calculateGoalProgress(String goalId) {
-    final now = DateTime.now();
-    int completedDays = 0;
-    int totalDays = 7;
+    // This is a simplified version - in a real implementation you might want to calculate this differently
+    final currentStreak = getCurrentStreak(goalId);
+    final longestStreak = getLongestStreak(goalId);
+    
+    if (longestStreak == 0) return 0.0;
+    return (currentStreak / longestStreak) * 100;
+  }
 
-    for (int i = 0; i < 7; i++) {
-      final date = now.subtract(Duration(days: i));
-      final dateString = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-      
-      final progress = getProgressForDate(goalId, dateString);
-      
-      if (progress != null && progress.completed) {
-        completedDays++;
-      }
-    }
+  // Calculate current streak for a goal
+  int calculateCurrentStreak(String goalId) {
+    return getCurrentStreak(goalId);
+  }
 
-    return (completedDays / totalDays) * 100;
+  // Calculate longest streak for a goal
+  int calculateLongestStreak(String goalId) {
+    return getLongestStreak(goalId);
   }
 }

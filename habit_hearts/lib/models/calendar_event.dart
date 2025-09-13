@@ -1,6 +1,7 @@
 class CalendarEvent {
   final String id;
   final String title;
+  final String? description;
   final dynamic date; // DateTime, Timestamp, or String
   final dynamic endDate;
   final String? startTime;
@@ -16,6 +17,7 @@ class CalendarEvent {
   CalendarEvent({
     required this.id,
     required this.title,
+    this.description,
     required this.date,
     this.endDate,
     this.startTime,
@@ -33,6 +35,7 @@ class CalendarEvent {
     return {
       'id': id,
       'title': title,
+      'description': description,
       'date': date is DateTime ? date.millisecondsSinceEpoch : date,
       'endDate': endDate is DateTime ? endDate.millisecondsSinceEpoch : endDate,
       'startTime': startTime,
@@ -47,10 +50,45 @@ class CalendarEvent {
     };
   }
 
+  CalendarEvent copyWith({
+    String? id,
+    String? title,
+    String? description,
+    dynamic date,
+    dynamic endDate,
+    String? startTime,
+    String? endTime,
+    bool? completed,
+    String? createdBy,
+    String? creatorName,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? status,
+    String? emoji,
+  }) {
+    return CalendarEvent(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      date: date ?? this.date,
+      endDate: endDate ?? this.endDate,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+      completed: completed ?? this.completed,
+      createdBy: createdBy ?? this.createdBy,
+      creatorName: creatorName ?? this.creatorName,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      status: status ?? this.status,
+      emoji: emoji ?? this.emoji,
+    );
+  }
+
   factory CalendarEvent.fromJson(Map<String, dynamic> json) {
     return CalendarEvent(
       id: json['id'],
       title: json['title'],
+      description: json['description'],
       date: json['date'] is int ? DateTime.fromMillisecondsSinceEpoch(json['date']) : json['date'],
       endDate: json['endDate'] is int ? DateTime.fromMillisecondsSinceEpoch(json['endDate']) : json['endDate'],
       startTime: json['startTime'],

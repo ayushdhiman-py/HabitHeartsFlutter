@@ -45,8 +45,6 @@ class _GoalsScreenState extends State<GoalsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Goals'),
-        backgroundColor: AppColors.electricBlue,
-        foregroundColor: Colors.white,
       ),
       body: Consumer<GoalsProvider>(
         builder: (context, goalsProvider, child) {
@@ -60,7 +58,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
           
           return _GoalsList(
             goals: goalsProvider.goals,
-            onCalculateProgress: goalsProvider.calculateGoalProgress,
+            onCalculateProgress: (goalId) => goalsProvider.calculateGoalProgress(goalId),
             onToggleCompletion: (goalId) {
               try {
                 final goal = goalsProvider.goals.firstWhere((g) => g.id == goalId);

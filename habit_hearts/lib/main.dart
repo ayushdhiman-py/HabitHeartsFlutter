@@ -6,6 +6,7 @@ import 'firebase_options.dart';
 import 'providers/habit_hearts_auth_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/goals_provider.dart';
+import 'providers/calendar_provider.dart';
 import 'screens/login_screen.dart';
 import 'theme/app_theme.dart';
 
@@ -25,6 +26,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => HabitHeartsAuthProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => GoalsProvider()),
+        ChangeNotifierProvider(create: (_) => CalendarProvider()),
       ],
       child: const MyApp(),
     ),
@@ -68,8 +70,9 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   int _currentIndex = 0;
+  late PageController _pageController;
 
   final List<Widget> _screens = [
     const HomeScreen(),
@@ -78,16 +81,44 @@ class _MainScreenState extends State<MainScreen> {
     const ProfileScreen(),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: _currentIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
   void _onItemTapped(int index) {
     setState(() {
       _currentIndex = index;
+      
+      // Animate to the selected page with a smooth transition
+      _pageController.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
     });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_currentIndex],
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        children: _screens,
+        physics: const NeverScrollableScrollPhysics(), // Disable swipe to prevent conflicts
+      ),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         currentIndex: _currentIndex,

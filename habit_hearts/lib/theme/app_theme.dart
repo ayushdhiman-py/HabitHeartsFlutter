@@ -1,27 +1,36 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // Primary colors from the guide
-  static const Color electricBlue = Color(0xFF00D4FF);
-  static const Color hotPink = Color(0xFFFF2B9D);
-  static const Color electricGreen = Color(0xFF4CAF50); // Softer, more pleasant green
-  static const Color vibrantOrange = Color(0xFFFF6B00);
-  static const Color brightPurple = Color(0xFF9D4AFF);
-  static const Color sunnyYellow = Color(0xFFFFD400);
-  static const Color brightRed = Color(0xFFFF2B2B);
-  static const Color mint = Color(0xFF2BFFD4);
+  // Modern gradient color palette with soft, friendly tones
+  static const Color electricBlue = Color(0xFF9D84FF);     // Soft purple
+  static const Color hotPink = Color(0xFFFF6AD4);          // Bright pink
+  static const Color electricGreen = Color(0xFF48BB78);    // Green for success
+  static const Color vibrantOrange = Color(0xFFFF8A8A);    // Soft coral
+  static const Color brightPurple = Color(0xFFD4A8FF);     // Lavender
+  static const Color sunnyYellow = Color(0xFFFFE36A);      // Sunshine yellow
+  static const Color brightRed = Color(0xFFF56565);        // Red for errors
+  static const Color mint = Color(0xFF8AE4FF);             // Sky blue
   
-  // Additional colors for UI elements
-  static const Color primaryBackground = Colors.white;
-  static const Color secondaryBackground = Color(0xFFF5F5F5);
-  static const Color textColor = Colors.black87;
-  static const Color secondaryTextColor = Colors.black54;
+  // Gradient combinations
+  static const List<Color> purpleToPinkGradient = [electricBlue, hotPink];
+  static const List<Color> tealToBlueGradient = [mint, electricBlue];
+  static const List<Color> greenToTealGradient = [electricGreen, mint];
+  static const List<Color> coralToPinkGradient = [vibrantOrange, hotPink];
+  
+  // Background and text colors
+  static const Color primaryBackground = Color(0xFFF0F4F8);     // Soft light blue background
+  static const Color secondaryBackground = Color(0xFFE6EEF5);   // Lighter blue
+  static const Color cardBackground = Colors.white;             // Pure white for cards
+  static const Color textColor = Color(0xFF2D3748);             // Dark gray text
+  static const Color secondaryTextColor = Color(0xFF718096);    // Muted gray text
+  static const Color borderColor = Color(0xFFE2E8F0);           // Light border
   
   // Status colors
-  static const Color success = Color(0xFF4CAF50); // Matching the new electricGreen
-  static const Color error = Colors.red;
-  static const Color warning = Colors.orange;
-  static const Color info = Colors.blue;
+  static const Color success = Color(0xFF48BB78);               // Green for success
+  static const Color error = Color(0xFFF56565);                 // Red for errors
+  static const Color warning = Color(0xFFED8936);               // Orange for warnings
+  static const Color info = Color(0xFF4299E1);                  // Blue for info
+  static const Color completed = Color(0xFF48BB78);             // Green for completed items
 }
 
 class AppTheme {
@@ -34,42 +43,127 @@ class AppTheme {
         primary: AppColors.electricBlue,
         secondary: AppColors.hotPink,
       ),
-      appBarTheme: const AppBarTheme(
+      scaffoldBackgroundColor: AppColors.primaryBackground,
+      fontFamily: 'Poppins', // Clean rounded sans-serif font
+      appBarTheme: AppBarTheme(
         backgroundColor: AppColors.electricBlue,
         foregroundColor: Colors.white,
+        elevation: 0,
+        titleTextStyle: const TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+          fontFamily: 'Poppins',
+        ),
+      ),
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: Colors.white,
+        selectedItemColor: AppColors.electricBlue,
+        unselectedItemColor: AppColors.secondaryTextColor,
+        elevation: 12,
+        selectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontFamily: 'Poppins',
+        ),
+        unselectedLabelStyle: const TextStyle(
+          fontFamily: 'Poppins',
+        ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.electricBlue,
           foregroundColor: Colors.white,
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontFamily: 'Poppins',
+          ),
+          elevation: 4,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(50), // Fully pill-shaped
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.electricBlue,
+          textStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontFamily: 'Poppins',
           ),
         ),
       ),
-      textTheme: const TextTheme(
-        headlineLarge: TextStyle(
+      cardTheme: CardTheme(
+        color: AppColors.cardBackground,
+        elevation: 4,
+        shadowColor: Colors.black.withOpacity(0.05),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24), // Extra rounded (2xl)
+          side: const BorderSide(
+            color: AppColors.borderColor,
+            width: 0.5,
+          ),
+        ),
+      ),
+      textTheme: TextTheme(
+        headlineLarge: const TextStyle(
           fontSize: 32,
           fontWeight: FontWeight.bold,
           color: AppColors.textColor,
+          fontFamily: 'Poppins',
         ),
-        headlineMedium: TextStyle(
+        headlineMedium: const TextStyle(
           fontSize: 24,
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w600,
           color: AppColors.textColor,
+          fontFamily: 'Poppins',
         ),
-        headlineSmall: TextStyle(
+        headlineSmall: const TextStyle(
           fontSize: 20,
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w600,
           color: AppColors.textColor,
+          fontFamily: 'Poppins',
         ),
-        bodyLarge: TextStyle(
+        titleMedium: const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w500,
+          color: AppColors.textColor,
+          fontFamily: 'Poppins',
+        ),
+        bodyLarge: const TextStyle(
           fontSize: 16,
           color: AppColors.textColor,
+          fontFamily: 'Poppins',
         ),
-        bodyMedium: TextStyle(
+        bodyMedium: const TextStyle(
           fontSize: 14,
           color: AppColors.secondaryTextColor,
+          fontFamily: 'Poppins',
+        ),
+        labelLarge: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+          fontFamily: 'Poppins',
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.cardBackground.withOpacity(0.7),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16), // Medium rounded (xl)
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+        hintStyle: const TextStyle(
+          color: AppColors.secondaryTextColor,
+          fontFamily: 'Poppins',
         ),
       ),
     );

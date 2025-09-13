@@ -11,7 +11,7 @@ class ThemeProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // List of available theme colors from the guide
+  // List of available theme colors with better harmony
   static List<Color> get availableColors => [
         AppColors.electricBlue,
         AppColors.hotPink,

@@ -4,7 +4,6 @@ import '../models/user.dart' as habit_hearts_user;
 import '../models/task.dart';
 import '../models/goal.dart';
 import '../models/calendar_event.dart';
-import '../models/goal_progress.dart';
 
 class ApiService {
   static const String baseUrl = 'http://10.58.73.41:3000';
@@ -212,6 +211,26 @@ class ApiService {
     }
   }
 
+  /// Removes a user's progress for a specific goal.
+  /// This requires a corresponding DELETE endpoint in your backend API.
+  static Future<bool> removeGoalProgressForUser(String userId, String goalId) async {
+    try {
+      // Example endpoint: DELETE /api/users/{userId}/goal-progress/{goalId}
+      final response = await http.delete(
+        Uri.parse('$baseUrl$usersEndpoint/$userId/goal-progress/$goalId'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      print('Remove goal progress response status: ${response.statusCode}');
+      // A 200 OK or 204 No Content are both acceptable success statuses.
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (e) {
+      print('Error removing goal progress for user: $e');
+      // Return false to indicate failure, which will prevent the main goal from being deleted.
+      return false;
+    }
+  }
+
   // Calendar event endpoints
   static Future<List<CalendarEvent>> getCalendarEvents(String userId, DateTime startDate, DateTime endDate) async {
     try {
@@ -233,17 +252,20 @@ class ApiService {
     }
   }
 
-  static Future<bool> createCalendarEvent(CalendarEvent event) async {
+  static Future<CalendarEvent?> createCalendarEvent(CalendarEvent event) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl$calendarEventsEndpoint'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode(event.toJson()),
       );
-      return response.statusCode == 201;
+      if (response.statusCode == 201) {
+        return CalendarEvent.fromJson(json.decode(response.body));
+      }
+      return null;
     } catch (e) {
       print('Error creating calendar event: $e');
-      return false;
+      return null;
     }
   }
 
@@ -271,64 +293,41 @@ class ApiService {
     }
   }
 
-  // Goal progress endpoints
-  static Future<List<GoalProgress>> getGoalProgress(String goalId) async {
-    try {
-      final response = await http.get(Uri.parse('$baseUrl$goalProgressEndpoint/$goalId'));
-      if (response.statusCode == 200) {
-        final List<dynamic> jsonData = json.decode(response.body);
-        return jsonData.map((item) => GoalProgress.fromJson(item)).toList();
-      }
-      return [];
-    } catch (e) {
-      print('Error getting goal progress: $e');
-      return [];
-    }
-  }
-
-  static Future<bool> updateGoalProgress(GoalProgress progress) async {
-    try {
-      final response = await http.put(
-        Uri.parse('$baseUrl$goalProgressEndpoint/${progress.id}'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(progress.toJson()),
-      );
-      return response.statusCode == 200;
-    } catch (e) {
-      print('Error updating goal progress: $e');
-      return false;
-    }
-  }
-
-  static Future<bool> createGoalProgress(GoalProgress progress) async {
+  // Removed old goalProgress endpoints - now using bit-based approach in user documents
+  
+  // New endpoint for toggling goal progress using bit-based approach
+  static Future<Map<String, dynamic>?> toggleGoalProgressForUser(String userId, String goalId, bool completed) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl$goalProgressEndpoint'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(progress.toJson()),
-      );
-      return response.statusCode == 201;
-    } catch (e) {
-      print('Error creating goal progress: $e');
-      return false;
-    }
-  }
-
-  static Future<bool> toggleGoalProgress(String goalId, String date, String userId) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl$goalProgressEndpoint/toggle'),
+        Uri.parse('$baseUrl/api/user/$userId/goal/$goalId/toggle'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
-          'goalId': goalId,
-          'date': date,
-          'userId': userId,
+          'completed': completed,
         }),
       );
-      return response.statusCode == 200 || response.statusCode == 201;
+      
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      return null;
     } catch (e) {
-      print('Error toggling goal progress: $e');
-      return false;
+      print('Error toggling goal progress for user: $e');
+      return null;
+    }
+  }
+  
+  // Get user's goal progress data
+  static Future<habit_hearts_user.User?> getUserGoalProgress(String userId) async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl$usersEndpoint/$userId'));
+      if (response.statusCode == 200) {
+        final jsonData = json.decode(response.body);
+        return habit_hearts_user.User.fromJson(jsonData);
+      }
+      return null;
+    } catch (e) {
+      print('Error getting user goal progress: $e');
+      return null;
     }
   }
 }

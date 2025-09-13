@@ -1,16 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter_slidable/flutter_slidable.dart';
 import '../providers/habit_hearts_auth_provider.dart';
 import '../providers/goals_provider.dart';
 import '../theme/app_theme.dart';
 import '../models/task.dart';
 import '../models/goal.dart';
-import '../models/goal_progress.dart';
 import '../services/api_service.dart';
 import '../widgets/loading_skeleton.dart';
-import '../widgets/custom_time_picker.dart';
 import '../widgets/emoji_selector.dart';
 import '../widgets/swipeable_task_item.dart';
 
@@ -432,17 +429,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       : Consumer<GoalsProvider>(
                           builder: (context, goalsProvider, child) {
                             return _GoalsSection(
-              goals: goalsProvider.goals,
-              goalProgress: goalsProvider.goalProgress,
-              onGoalProgressToggle: (goalId, date, completed) {
-                // Get current user ID
-                final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
-                final userId = authProvider.user?.uid ?? 'unknown';
-                
-                // Set goal progress to the opposite of current status
-                goalsProvider.setGoalProgress(goalId, date, userId, !completed);
-              },
-            );
+                              goals: goalsProvider.goals,
+                              userGoalProgress: goalsProvider.userGoalProgress,
+                              onGoalProgressToggle: (goalId, completed) async {
+                                // Get current user ID
+                                final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
+                                final userId = authProvider.user?.uid ?? 'unknown';
+                                
+                                // Toggle goal progress for the user
+                                await goalsProvider.toggleGoalProgressForUser(userId, goalId, completed);
+                              },
+                            );
                           },
                         ),
                 ],
@@ -1163,12 +1160,12 @@ class _StreakIndicator extends StatelessWidget {
 // Goals Section
 class _GoalsSection extends StatefulWidget {
   final List<Goal> goals;
-  final List<GoalProgress> goalProgress;
-  final Function(String, String, bool) onGoalProgressToggle;
+  final Map<String, Map<String, String>> userGoalProgress;
+  final Function(String, bool) onGoalProgressToggle;
 
   const _GoalsSection({
     required this.goals,
-    required this.goalProgress,
+    required this.userGoalProgress,
     required this.onGoalProgressToggle,
   });
 
@@ -1177,14 +1174,19 @@ class _GoalsSection extends StatefulWidget {
 }
 
 class _GoalsSectionState extends State<_GoalsSection> {
-  GoalProgress? _getProgressForDate(String goalId, String date) {
-    try {
-      return widget.goalProgress.firstWhere(
-        (p) => p.goalId == goalId && p.date == date,
-      );
-    } catch (e) {
-      return null;
-    }
+  bool _isGoalCompletedToday(String goalId) {
+    final today = DateTime.now();
+    final yearMonth = '${today.year}-${today.month.toString().padLeft(2, '0')}';
+    final day = today.day;
+    
+    if (!widget.userGoalProgress.containsKey(goalId)) return false;
+    if (!widget.userGoalProgress[goalId]!.containsKey(yearMonth)) return false;
+    
+    final bitString = widget.userGoalProgress[goalId]![yearMonth]!;
+    if (day < 1 || day > bitString.length) return false;
+    
+    final index = day - 1;
+    return index < bitString.length && bitString[index] == '1';
   }
 
   @override
@@ -1266,22 +1268,17 @@ class _GoalsSectionState extends State<_GoalsSection> {
                     // Done Today Button
                     ElevatedButton(
                       onPressed: () async {
-                        final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-                        
-                        // Check if the goal is already completed today
-                        final progress = _getProgressForDate(goal.id, today);
-                        final isCompletedToday = progress?.completed ?? false;
-                        
-                        // Show confirmation dialog
-                        final bool? confirm = await showDialog<bool>(
+                        final bool? result = await showDialog<bool>(
                           context: context,
                           builder: (BuildContext context) {
                             return AlertDialog(
-                              title: Text(isCompletedToday ? 'Mark as Not Done' : 'Mark as Done'),
-                              content: Text(isCompletedToday 
-                                ? 'Are you sure you want to mark this goal as not done for today?' 
-                                : 'Are you sure you want to mark this goal as done for today?'),
+                              title: const Text('Update Progress'),
+                              content: const Text('Did you complete this goal today?'),
                               actions: <Widget>[
+                                TextButton(
+                                  child: const Text('Cancel'),
+                                  onPressed: () => Navigator.of(context).pop(null),
+                                ),
                                 TextButton(
                                   child: const Text('No'),
                                   onPressed: () => Navigator.of(context).pop(false),
@@ -1294,20 +1291,23 @@ class _GoalsSectionState extends State<_GoalsSection> {
                             );
                           },
                         );
-                        
-                        if (confirm == true) {
-                          print('Setting goal progress for goal ${goal.id} on date $today to ${!isCompletedToday}');
-                          widget.onGoalProgressToggle(goal.id, today, isCompletedToday);
+
+                        if (result != null) {
+                          print('DEBUG: Setting goal ${goal.id} completion to: $result');
+                          widget.onGoalProgressToggle(goal.id, result);
                         }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.electricGreen,
+                        foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), // Increased padding
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12), // More rounded corners
                         ),
                         minimumSize: const Size(0, 0),
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        elevation: 2,
+                        shadowColor: Colors.black26,
                       ),
                       child: const Text(
                         'Done Today',
@@ -1322,11 +1322,10 @@ class _GoalsSectionState extends State<_GoalsSection> {
                 ),
                 const SizedBox(height: 12), // Increased spacing
                 _MonthlyGoalHeatmap(
-                  goals: [goal], // Only pass this specific goal
-                  goalProgress: widget.goalProgress,
-                  getProgressForDate: _getProgressForDate,
-                  onDayToggle: (goalId, date, completed) {
-                    widget.onGoalProgressToggle(goalId, date, completed);
+                  goal: goal,
+                  userGoalProgress: widget.userGoalProgress,
+                  onDayToggle: (goalId, completed) {
+                    widget.onGoalProgressToggle(goalId, completed);
                   },
                 ),
               ],
@@ -1340,16 +1339,14 @@ class _GoalsSectionState extends State<_GoalsSection> {
 
 // Monthly Goal Heatmap
 class _MonthlyGoalHeatmap extends StatefulWidget {
-  final List<Goal> goals;
-  final List<GoalProgress> goalProgress;
-  final Function(String, String, bool) onDayToggle;
-  final GoalProgress? Function(String, String) getProgressForDate;
+  final Goal goal;
+  final Map<String, Map<String, String>> userGoalProgress;
+  final Function(String, bool) onDayToggle;
 
   const _MonthlyGoalHeatmap({
-    required this.goals,
-    required this.goalProgress,
+    required this.goal,
+    required this.userGoalProgress,
     required this.onDayToggle,
-    required this.getProgressForDate,
   });
 
   @override
@@ -1390,6 +1387,20 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
     return days;
   }
 
+  bool _isDayCompleted(DateTime day) {
+    final yearMonth = '${day.year}-${day.month.toString().padLeft(2, '0')}';
+    final dayOfMonth = day.day;
+    
+    if (!widget.userGoalProgress.containsKey(widget.goal.id)) return false;
+    if (!widget.userGoalProgress[widget.goal.id]!.containsKey(yearMonth)) return false;
+    
+    final bitString = widget.userGoalProgress[widget.goal.id]![yearMonth]!;
+    if (dayOfMonth < 1 || dayOfMonth > bitString.length) return false;
+    
+    final index = dayOfMonth - 1;
+    return index < bitString.length && bitString[index] == '1';
+  }
+
   @override
   Widget build(BuildContext context) {
     final List<String> weekdays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -1427,49 +1438,41 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
                 children: List.generate(_daysInMonth.length, (index) {
                   final DateTime day = _daysInMonth[index];
                   final bool isCurrentMonth = day.month == _currentMonth.month;
-                  final String dateString = '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
                   
-                  // Check if any goal has progress for this date
-                  bool isCompleted = false;
-                  String? goalId;
-                  
-                  if (widget.goals.isNotEmpty) {
-                    goalId = widget.goals.first.id; // Use the single goal passed to this heatmap
-                    final progress = widget.getProgressForDate(goalId, dateString);
-                    isCompleted = progress?.completed ?? false;
-                  }
-                  
-                  // Get the goal for this heatmap
-                  Goal? currentGoal;
-                  if (widget.goals.isNotEmpty) {
-                    currentGoal = widget.goals.first;
-                  }
+                  // Check if the day is completed
+                  final bool isCompleted = isCurrentMonth ? _isDayCompleted(day) : false;
                   
                   // Check if we should show the target emoji
                   bool showTargetEmoji = false;
-                  if (currentGoal != null && 
-                      !currentGoal.isHabit && 
-                      currentGoal.endDate != null && 
-                      day.isAtSameMomentAs(currentGoal.endDate!)) {
+                  if (!widget.goal.isHabit && 
+                      widget.goal.endDate != null && 
+                      day.isAtSameMomentAs(widget.goal.endDate!)) {
                     showTargetEmoji = true;
                   }
                   
                   return GestureDetector(
                     onTap: () {
-                      if (goalId != null && isCurrentMonth) {
-                        widget.onDayToggle(goalId, dateString, !isCompleted);
+                      if (isCurrentMonth) {
+                        // Add visual feedback animation
+                        setState(() {
+                          // Trigger a rebuild with animation
+                        });
+                        
+                        // Toggle the day's completion status
+                        widget.onDayToggle(widget.goal.id, !isCompleted);
                       }
                     },
-                    child: Container(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
                       width: cellSize > 24 ? 24 : cellSize,
                       height: cellSize > 24 ? 24 : cellSize,
                       decoration: BoxDecoration(
                         color: isCurrentMonth 
                           ? (isCompleted 
-                              ? AppColors.electricGreen 
-                              : Colors.grey[300])
+                              ? AppColors.success 
+                              : AppColors.borderColor)
                           : Colors.transparent,
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(6), // Slightly rounded squares
                         border: isCurrentMonth 
                           ? null 
                           : Border.all(color: Colors.grey[200]!, width: 1),
@@ -1480,7 +1483,7 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
                               '${day.day}🎯', // Day number + Target emoji
                               style: const TextStyle(
                                 fontSize: 8,
-                                color: Colors.black,
+                                color: AppColors.textColor,
                                 fontWeight: FontWeight.bold,
                               ),
                             )
@@ -1488,7 +1491,7 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
                               isCurrentMonth ? '${day.day}' : '',
                               style: TextStyle(
                                 fontSize: 8,
-                                color: isCompleted ? Colors.white : Colors.black54,
+                                color: isCompleted ? Colors.white : AppColors.textColor,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -1568,58 +1571,6 @@ class _GoalItemSkeleton extends StatelessWidget {
           LoadingSkeleton(width: 40, height: 20),
         ],
       ),
-    );
-  }
-}
-
-// Goal Progress Heatmap
-class _GoalProgressHeatmap extends StatelessWidget {
-  final List<GoalProgress> goalProgress;
-
-  const _GoalProgressHeatmap({required this.goalProgress});
-
-  @override
-  Widget build(BuildContext context) {
-    // Generate 7 days of data for the heatmap
-    List<DateTime> last7Days = List.generate(
-      7,
-      (index) => DateTime.now().subtract(Duration(days: 6 - index)),
-    );
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: last7Days.map((date) {
-        // Check if there's progress for this date
-        bool completed = goalProgress.any(
-          (progress) =>
-              progress.date == '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}' &&
-              progress.completed,
-        );
-
-        return Column(
-          children: [
-            Text(
-              DateFormat('E').format(date),
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-            const SizedBox(height: 4),
-            Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                color: completed ? AppColors.electricGreen : Colors.grey[300],
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: completed ? AppColors.electricGreen : Colors.grey,
-                ),
-              ),
-              child: completed
-                  ? const Icon(Icons.check, size: 16, color: Colors.white)
-                  : null,
-            ),
-          ],
-        );
-      }).toList(),
     );
   }
 }
