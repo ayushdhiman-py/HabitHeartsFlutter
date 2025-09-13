@@ -7,12 +7,14 @@ class SwipeableGoalItem extends StatelessWidget {
   final Goal goal;
   final Function(Goal) onEdit;
   final Function(Goal) onDelete;
+  final Function(String) onToggle;
 
   const SwipeableGoalItem({
     super.key,
     required this.goal,
     required this.onEdit,
     required this.onDelete,
+    required this.onToggle,
   });
 
   @override
@@ -39,24 +41,27 @@ class SwipeableGoalItem extends StatelessWidget {
             ),
           ],
         ),
-        child: ListTile(
-          leading: Icon(
-            goal.completed ? Icons.check_box : Icons.check_box_outline_blank,
-            color: goal.completed ? AppColors.electricGreen : Colors.grey,
-          ),
-          title: Text(
-            goal.text,
-            style: TextStyle(
-              decoration: goal.completed ? TextDecoration.lineThrough : null,
-              color: goal.completed ? Colors.grey : Colors.black,
+        child: GestureDetector(
+          onTap: () => onToggle(goal.id),
+          child: ListTile(
+            leading: Icon(
+              goal.completed ? Icons.check_box : Icons.check_box_outline_blank,
+              color: goal.completed ? AppColors.electricGreen : Colors.grey,
             ),
+            title: Text(
+              goal.text,
+              style: TextStyle(
+                decoration: goal.completed ? TextDecoration.lineThrough : null,
+                color: goal.completed ? Colors.grey : Colors.black,
+              ),
+            ),
+            trailing: goal.emoji != null
+                ? Text(
+                    goal.emoji!,
+                    style: const TextStyle(fontSize: 24),
+                  )
+                : null,
           ),
-          trailing: goal.emoji != null
-              ? Text(
-                  goal.emoji!,
-                  style: const TextStyle(fontSize: 24),
-                )
-              : null,
         ),
       ),
     );

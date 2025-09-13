@@ -28,20 +28,22 @@ class TaskService {
   }
 
   // Create a new task
-  Future<void> createTask(Task task) async {
+  Future<Task?> createTask(Task task) async {
     try {
-      await ApiService.createTask(task);
+      return await ApiService.createTask(task);
     } catch (e) {
       print('Error creating task: $e');
+      return null;
     }
   }
 
   // Update a task
-  Future<void> updateTask(Task task) async {
+  Future<Task?> updateTask(Task task) async {
     try {
-      await ApiService.updateTask(task);
+      return await ApiService.updateTask(task);
     } catch (e) {
       print('Error updating task: $e');
+      return null;
     }
   }
 
@@ -55,16 +57,17 @@ class TaskService {
   }
 
   // Toggle task completion
-  Future<void> toggleTaskCompletion(Task task) async {
+  Future<Task?> toggleTaskCompletion(Task task) async {
     try {
       // Update the task with toggled completion status
       Task updatedTask = task.copyWith(
         completed: !task.completed,
-        updatedAt: DateTime.now().millisecondsSinceEpoch,
+        updatedAt: DateTime.now(),
       );
-      await updateTask(updatedTask);
+      return await updateTask(updatedTask);
     } catch (e) {
       print('Error toggling task completion: $e');
+      return null;
     }
   }
 }

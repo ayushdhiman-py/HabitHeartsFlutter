@@ -93,9 +93,26 @@ class GoalsProvider with ChangeNotifier {
   // Toggle goal completion
   Future<bool> toggleGoalCompletion(String goalId) async {
     try {
-      final goal = _goals.firstWhere((g) => g.id == goalId);
-      final updatedGoal = goal.copyWith(completed: !goal.completed);
-      return await updateGoal(updatedGoal);
+      final goalIndex = _goals.indexWhere((g) => g.id == goalId);
+      if (goalIndex == -1) return false;
+      
+      final goal = _goals[goalIndex];
+      final updatedGoal = goal.copyWith(completed: !goal.completed, updatedAt: DateTime.now());
+      
+      // Update in local state first for immediate UI feedback
+      _goals[goalIndex] = updatedGoal;
+      notifyListeners();
+      
+      // Update on server
+      final success = await ApiService.updateGoal(updatedGoal);
+      
+      if (!success) {
+        // Revert if server update failed
+        _goals[goalIndex] = goal;
+        notifyListeners();
+      }
+      
+      return success;
     } catch (e) {
       print('Error toggling goal completion: $e');
       return false;

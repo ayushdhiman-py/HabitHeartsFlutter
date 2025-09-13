@@ -12,6 +12,7 @@ import '../services/api_service.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/custom_time_picker.dart';
 import '../widgets/emoji_selector.dart';
+import '../widgets/swipeable_task_item.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -117,13 +118,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       builder: (BuildContext context) {
         return _AddTaskModal(
           selectedDate: _selectedDate,
-          onTaskAdded: (task) {
-            setState(() {
-              _tasks.add(task);
-            });
-          },
           onTaskCreated: () {
-            // Reload tasks for the current date
+            // Reload tasks for the current date to ensure we have the latest data
             _loadTasksForDate(_selectedDate);
           },
         );
@@ -328,26 +324,50 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  _isLoading 
+                  _isLoading
                       ? const _TaskListSkeleton()
                       : _TaskList(
                           tasks: _tasks,
                           onTaskToggle: (task) async {
+                            final originalTask = task;
+                            final updatedTask = task.copyWith(completed: !task.completed, updatedAt: DateTime.now());
+
+                            // Optimistically update the UI
+                            setState(() {
+                              final index = _tasks.indexWhere((t) => t.id == task.id);
+                              if (index != -1) {
+                                _tasks[index] = updatedTask;
+                              }
+                            });
+
                             try {
-                              final updatedTask = task.copyWith(completed: !task.completed);
-                              final success = await ApiService.updateTask(updatedTask);
-                              if (success && mounted) {
+                              final result = await ApiService.updateTask(updatedTask);
+                              if (result == null && mounted) {
+                                // Revert the change if the API call fails
                                 setState(() {
-                                  _tasks = _tasks.map((t) {
-                                    if (t.id == task.id) {
-                                      return updatedTask;
-                                    }
-                                    return t;
-                                  }).toList();
+                                  final index = _tasks.indexWhere((t) => t.id == task.id);
+                                  if (index != -1) {
+                                    _tasks[index] = originalTask;
+                                  }
+                                });
+                              } else if (result != null) {
+                                // If the API call succeeds, update the UI with the returned task
+                                setState(() {
+                                  final index = _tasks.indexWhere((t) => t.id == result.id);
+                                  if (index != -1) {
+                                    _tasks[index] = result;
+                                  }
                                 });
                               }
                             } catch (e) {
                               print('Error toggling task: $e');
+                              // Revert the change on error
+                              setState(() {
+                                final index = _tasks.indexWhere((t) => t.id == task.id);
+                                if (index != -1) {
+                                  _tasks[index] = originalTask;
+                                }
+                              });
                             }
                           },
                           onTaskEdit: (task) {
@@ -360,31 +380,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               builder: (BuildContext context) {
                                 return _EditTaskModal(
                                   task: task,
-                                  onTaskUpdated: (updatedTask) async {
-                                    try {
-                                      final success = await ApiService.updateTask(updatedTask);
-                                      if (success && mounted) {
-                                        setState(() {
-                                          _tasks = _tasks.map((t) {
-                                            if (t.id == updatedTask.id) {
-                                              return updatedTask;
-                                            }
-                                            return t;
-                                          }).toList();
-                                        });
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(content: Text('Task updated successfully')),
-                                        );
-                                      }
-                                    } catch (e) {
-                                      print('Error updating task: $e');
-                                      if (mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(content: Text('Error updating task')),
-                                        );
-                                      }
-                                    }
-                                    Navigator.of(context).pop();
+                                  onTaskUpdated: (updatedTask) {
+                                    // When a task is updated, reload the data to ensure consistency
+                                    _loadTasksForDate(_selectedDate);
                                   },
                                 );
                               },
@@ -428,17 +426,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       : Consumer<GoalsProvider>(
                           builder: (context, goalsProvider, child) {
                             return _GoalsSection(
-                              goals: goalsProvider.goals,
-                              goalProgress: goalsProvider.goalProgress,
-                              onGoalProgressToggle: (goalId, date, completed) {
-                                // Get current user ID
-                                final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
-                                final userId = authProvider.user?.uid ?? 'unknown';
-                                
-                                // Set goal progress to the opposite of current status
-                                goalsProvider.setGoalProgress(goalId, date, userId, !completed);
-                              },
-                            );
+              goals: goalsProvider.goals,
+              goalProgress: goalsProvider.goalProgress,
+              onGoalProgressToggle: (goalId, date, completed) {
+                // Get current user ID
+                final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
+                final userId = authProvider.user?.uid ?? 'unknown';
+                
+                // Set goal progress to the opposite of current status
+                goalsProvider.setGoalProgress(goalId, date, userId, !completed);
+              },
+              onGoalToggle: (goal) {
+                // Toggle the goal completion status
+                goalsProvider.toggleGoalCompletion(goal.id);
+              },
+            );
                           },
                         ),
                 ],
@@ -682,7 +684,7 @@ class _TaskList extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       itemCount: tasks.length,
       itemBuilder: (context, index) {
-        return _SwipeableTaskItem(
+        return SwipeableTaskItem(
           task: tasks[index],
           onToggle: onTaskToggle,
           onEdit: onTaskEdit,
@@ -855,7 +857,7 @@ class _EditTaskModalState extends State<_EditTaskModal> {
     );
   }
 
-  void _updateTask() {
+  void _updateTask() async {
     if (_taskController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a task')),
@@ -877,11 +879,19 @@ class _EditTaskModalState extends State<_EditTaskModal> {
       updatedAt: DateTime.now(),
     );
 
-    widget.onTaskUpdated(updatedTask);
-    Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Task updated successfully')),
-    );
+    final updatedTaskResult = await ApiService.updateTask(updatedTask);
+
+    if (updatedTaskResult != null && mounted) {
+      widget.onTaskUpdated(updatedTaskResult);
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Task updated successfully')),
+      );
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to update task')),
+      );
+    }
   }
 
   @override
@@ -1099,78 +1109,7 @@ class _TaskItemSkeleton extends StatelessWidget {
   }
 }
 
-// Swipeable Task Item
-class _SwipeableTaskItem extends StatelessWidget {
-  final Task task;
-  final Function(Task) onToggle;
-  final Function(Task) onEdit;
-  final Function(Task) onDelete;
 
-  const _SwipeableTaskItem({
-    required this.task,
-    required this.onToggle,
-    required this.onEdit,
-    required this.onDelete,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      elevation: 2,
-      child: Slidable(
-        endActionPane: ActionPane(
-          motion: const ScrollMotion(),
-          children: [
-            SlidableAction(
-              onPressed: (_) => onEdit(task),
-              backgroundColor: AppColors.electricBlue,
-              foregroundColor: Colors.white,
-              icon: Icons.edit,
-              label: 'Edit',
-            ),
-            SlidableAction(
-              onPressed: (_) => onDelete(task),
-              backgroundColor: AppColors.brightRed,
-              foregroundColor: Colors.white,
-              icon: Icons.delete,
-              label: 'Delete',
-            ),
-          ],
-        ),
-        child: ListTile(
-          leading: GestureDetector(
-            onTap: () => onToggle(task),
-            child: Icon(
-              task.completed ? Icons.check_box : Icons.check_box_outline_blank,
-              color: task.completed ? AppColors.electricGreen : Colors.grey,
-            ),
-          ),
-          title: Text(
-            task.text,
-            style: TextStyle(
-              decoration: task.completed ? TextDecoration.lineThrough : null,
-              color: task.completed ? Colors.grey : Colors.black,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          subtitle: task.startTime != null || task.endTime != null
-              ? Text('${task.startTime ?? ''} - ${task.endTime ?? ''}')
-              : null,
-          trailing: task.emoji != null
-              ? Text(
-                  task.emoji!,
-                  style: const TextStyle(fontSize: 24),
-                )
-              : null,
-        ),
-      ),
-    );
-  }
-}
 
 // Streak Indicator Widget
 class _StreakIndicator extends StatelessWidget {
@@ -1224,11 +1163,13 @@ class _GoalsSection extends StatefulWidget {
   final List<Goal> goals;
   final List<GoalProgress> goalProgress;
   final Function(String, String, bool) onGoalProgressToggle;
+  final Function(Goal) onGoalToggle;
 
   const _GoalsSection({
     required this.goals,
     required this.goalProgress,
     required this.onGoalProgressToggle,
+    required this.onGoalToggle,
   });
 
   @override
@@ -1691,12 +1632,10 @@ class _GoalItem extends StatelessWidget {
 // Add Task Modal
 class _AddTaskModal extends StatefulWidget {
   final DateTime selectedDate;
-  final Function(Task) onTaskAdded;
   final Function() onTaskCreated; // Add this callback
 
   const _AddTaskModal({
     required this.selectedDate,
-    required this.onTaskAdded,
     required this.onTaskCreated,
   });
 
@@ -1829,9 +1768,9 @@ class _AddTaskModalState extends State<_AddTaskModal> {
 
       print('Creating task: ${newTask.text}, dueDate: ${newTask.dueDate}');
       
-      final success = await ApiService.createTask(newTask);
-      print('Task creation success: $success');
-      if (success && mounted) {
+      final createdTask = await ApiService.createTask(newTask);
+      print('Task creation result: $createdTask');
+      if (createdTask != null && mounted) {
         // Notify that a task was created
         widget.onTaskCreated();
         
@@ -1839,7 +1778,7 @@ class _AddTaskModalState extends State<_AddTaskModal> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Task added successfully')),
         );
-      } else if (!success) {
+      } else if (createdTask == null) {
         print('Task creation failed');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

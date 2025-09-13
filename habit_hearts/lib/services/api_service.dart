@@ -78,7 +78,7 @@ class ApiService {
     }
   }
 
-  static Future<bool> createTask(Task task) async {
+  static Future<Task?> createTask(Task task) async {
     try {
       print('Creating task: ${task.text}, dueDate: ${task.dueDate}');
       final response = await http.post(
@@ -93,29 +93,36 @@ class ApiService {
         // Parse the response to get the actual task with the correct ID
         final Map<String, dynamic> responseData = json.decode(response.body);
         print('Created task data: $responseData');
-        return true;
+        return Task.fromJson(responseData);
       }
-      return false;
+      return null;
     } catch (e) {
       print('Error creating task: $e');
-      return false;
+      return null;
     }
   }
 
-  static Future<bool> updateTask(Task task) async {
+  static Future<Task?> updateTask(Task task) async {
     try {
-      print('Updating task ID: ${task.id}, text: ${task.text}');
+      print('Updating task ID: ${task.id}, text: ${task.text}, completed: ${task.completed}');
+      final requestBody = json.encode(task.toJson());
+      print('Update task request body: $requestBody');
       final response = await http.put(
         Uri.parse('$baseUrl$tasksEndpoint/${task.id}'),
         headers: {'Content-Type': 'application/json'},
-        body: json.encode(task.toJson()),
+        body: requestBody,
       );
       print('Update task response status: ${response.statusCode}');
       print('Update task response body: ${response.body}');
-      return response.statusCode == 200;
+      
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        return Task.fromJson(responseData);
+      }
+      return null;
     } catch (e) {
       print('Error updating task: $e');
-      return false;
+      return null;
     }
   }
 
@@ -153,11 +160,16 @@ class ApiService {
 
   static Future<bool> createGoal(Goal goal) async {
     try {
+      print('Creating goal: ${goal.text}');
+      final requestBody = json.encode(goal.toJson());
+      print('Create goal request body: $requestBody');
       final response = await http.post(
         Uri.parse('$baseUrl$goalsEndpoint'),
         headers: {'Content-Type': 'application/json'},
-        body: json.encode(goal.toJson()),
+        body: requestBody,
       );
+      print('Create goal response status: ${response.statusCode}');
+      print('Create goal response body: ${response.body}');
       return response.statusCode == 201;
     } catch (e) {
       print('Error creating goal: $e');
@@ -167,11 +179,16 @@ class ApiService {
 
   static Future<bool> updateGoal(Goal goal) async {
     try {
+      print('Updating goal ID: ${goal.id}, text: ${goal.text}, completed: ${goal.completed}');
+      final requestBody = json.encode(goal.toJson());
+      print('Update goal request body: $requestBody');
       final response = await http.put(
         Uri.parse('$baseUrl$goalsEndpoint/${goal.id}'),
         headers: {'Content-Type': 'application/json'},
-        body: json.encode(goal.toJson()),
+        body: requestBody,
       );
+      print('Update goal response status: ${response.statusCode}');
+      print('Update goal response body: ${response.body}');
       return response.statusCode == 200;
     } catch (e) {
       print('Error updating goal: $e');

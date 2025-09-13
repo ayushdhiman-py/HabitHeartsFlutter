@@ -41,30 +41,30 @@ class SwipeableTaskItem extends StatelessWidget {
             ),
           ],
         ),
-        child: ListTile(
-          leading: GestureDetector(
-            onTap: () => onToggle(task),
-            child: Icon(
+        child: GestureDetector(
+          onTap: () => onToggle(task),
+          child: ListTile(
+            leading: Icon(
               task.completed ? Icons.check_box : Icons.check_box_outline_blank,
               color: task.completed ? AppColors.electricGreen : Colors.grey,
             ),
-          ),
-          title: Text(
-            task.text,
-            style: TextStyle(
-              decoration: task.completed ? TextDecoration.lineThrough : null,
-              color: task.completed ? Colors.grey : Colors.black,
+            title: Text(
+              task.text,
+              style: TextStyle(
+                decoration: task.completed ? TextDecoration.lineThrough : null,
+                color: task.completed ? Colors.grey : Colors.black,
+              ),
             ),
+            subtitle: task.startTime != null || task.endTime != null
+                ? Text('${task.startTime ?? ''} - ${task.endTime ?? ''}')
+                : null,
+            trailing: task.emoji != null
+                ? Text(
+                    task.emoji!,
+                    style: const TextStyle(fontSize: 24),
+                  )
+                : null,
           ),
-          subtitle: task.startTime != null || task.endTime != null
-              ? Text('${task.startTime ?? ''} - ${task.endTime ?? ''}')
-              : null,
-          trailing: task.emoji != null
-              ? Text(
-                  task.emoji!,
-                  style: const TextStyle(fontSize: 24),
-                )
-              : null,
         ),
       ),
     );

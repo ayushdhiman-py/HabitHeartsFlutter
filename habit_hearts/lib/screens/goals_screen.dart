@@ -60,7 +60,9 @@ class _GoalsScreenState extends State<GoalsScreen> {
           return _GoalsList(
             goals: goalsProvider.goals,
             onCalculateProgress: goalsProvider.calculateGoalProgress,
-            onToggleCompletion: goalsProvider.toggleGoalCompletion,
+            onToggleCompletion: (goalId) {
+              goalsProvider.toggleGoalCompletion(goalId);
+            },
           );
         },
       ),
@@ -238,6 +240,7 @@ class _GoalsList extends StatelessWidget {
               // Implement delete functionality
               _showDeleteConfirmationDialog(context, goal);
             },
+            onToggle: onToggleCompletion,
           );
         },
       ),

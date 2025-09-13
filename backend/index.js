@@ -129,9 +129,12 @@ app.get('/api/tasks/:userId/:date', async (req, res) => {
         const updatedAt = data.updatedAt ? data.updatedAt.toMillis() : Date.now();
         const dueDate = data.dueDate ? data.dueDate.toMillis() : null;
         
+        // Remove the id field from data to avoid overwriting doc.id
+        const { id, ...dataWithoutId } = data;
+        
         return {
           id: doc.id,
-          ...data,
+          ...dataWithoutId,
           createdAt,
           updatedAt,
           dueDate
@@ -171,11 +174,18 @@ app.post('/api/tasks', async (req, res) => {
     
     res.status(201).json({ 
       id: docRef.id, 
-      ...taskData,
-      // Convert back to milliseconds for the response
+      text: taskData.text,
+      description: taskData.description,
+      dueDate: taskData.dueDate ? taskData.dueDate.toMillis() : null,
+      completed: taskData.completed,
+      createdBy: taskData.createdBy,
+      creatorName: taskData.creatorName,
       createdAt: taskData.createdAt ? taskData.createdAt.toMillis() : Date.now(),
       updatedAt: taskData.updatedAt ? taskData.updatedAt.toMillis() : Date.now(),
-      dueDate: taskData.dueDate ? taskData.dueDate.toMillis() : null
+      status: taskData.status,
+      emoji: taskData.emoji,
+      startTime: taskData.startTime,
+      endTime: taskData.endTime
     });
   } catch (error) {
     console.error('Error creating task:', error);
@@ -189,15 +199,18 @@ app.put('/api/tasks/:id', async (req, res) => {
     const taskId = req.params.id;
     console.log('Updating task with ID:', taskId, 'data:', taskData);
     
+    // Create a copy of taskData for Firestore update to avoid modifying the original
+    const firestoreTaskData = { ...taskData };
+    
     // Convert milliseconds to Firestore Timestamps
-    if (taskData.createdAt) {
-      taskData.createdAt = admin.firestore.Timestamp.fromMillis(taskData.createdAt);
+    if (firestoreTaskData.createdAt) {
+      firestoreTaskData.createdAt = admin.firestore.Timestamp.fromMillis(firestoreTaskData.createdAt);
     }
-    if (taskData.updatedAt) {
-      taskData.updatedAt = admin.firestore.Timestamp.fromMillis(taskData.updatedAt);
+    if (firestoreTaskData.updatedAt) {
+      firestoreTaskData.updatedAt = admin.firestore.Timestamp.fromMillis(firestoreTaskData.updatedAt);
     }
-    if (taskData.dueDate) {
-      taskData.dueDate = admin.firestore.Timestamp.fromMillis(taskData.dueDate);
+    if (firestoreTaskData.dueDate) {
+      firestoreTaskData.dueDate = admin.firestore.Timestamp.fromMillis(firestoreTaskData.dueDate);
     }
     
     // Check if the document exists before updating
@@ -207,9 +220,15 @@ app.put('/api/tasks/:id', async (req, res) => {
       return res.status(404).json({ message: 'Task not found' });
     }
     
-    await db.collection('tasks').doc(taskId).update(taskData);
+    await db.collection('tasks').doc(taskId).update(firestoreTaskData);
     console.log('Task updated successfully:', taskId);
-    res.status(200).json({ message: 'Task updated successfully' });
+    
+    // Return the updated task data in the response
+    res.status(200).json({ 
+      id: taskId,
+      ...taskData,
+      updatedAt: taskData.updatedAt ? taskData.updatedAt : Date.now()
+    });
   } catch (error) {
     console.error('Error updating task:', error);
     res.status(500).json({ message: 'Error updating task' });
