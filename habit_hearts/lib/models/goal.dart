@@ -8,6 +8,9 @@ class Goal {
   final DateTime updatedAt;
   final String status;
   final String? emoji;
+  final DateTime? startDate;
+  final DateTime? endDate;
+  final bool isHabit; // New field to distinguish habits from goals
 
   Goal({
     required this.id,
@@ -19,6 +22,9 @@ class Goal {
     required this.updatedAt,
     required this.status,
     this.emoji,
+    this.startDate,
+    this.endDate,
+    this.isHabit = false, // By default, it's a goal
   });
 
   Map<String, dynamic> toJson() {
@@ -32,11 +38,14 @@ class Goal {
       'updatedAt': updatedAt.millisecondsSinceEpoch,
       'status': status,
       'emoji': emoji,
+      'startDate': startDate?.millisecondsSinceEpoch,
+      'endDate': endDate?.millisecondsSinceEpoch,
+      'isHabit': isHabit,
     };
   }
 
   factory Goal.fromJson(Map<String, dynamic> json) {
-    print('Goal JSON data: $json');
+    
     return Goal(
       id: json['id'],
       text: json['text'],
@@ -47,6 +56,9 @@ class Goal {
       updatedAt: DateTime.fromMillisecondsSinceEpoch(json['updatedAt']),
       status: json['status'],
       emoji: json['emoji'],
+      startDate: json['startDate'] != null ? DateTime.fromMillisecondsSinceEpoch(json['startDate']) : null,
+      endDate: json['endDate'] != null ? DateTime.fromMillisecondsSinceEpoch(json['endDate']) : null,
+      isHabit: json['isHabit'] ?? false,
     );
   }
 
@@ -60,6 +72,9 @@ class Goal {
     DateTime? updatedAt,
     String? status,
     String? emoji,
+    DateTime? startDate,
+    DateTime? endDate,
+    bool? isHabit,
   }) {
     return Goal(
       id: id ?? this.id,
@@ -71,6 +86,9 @@ class Goal {
       updatedAt: updatedAt ?? this.updatedAt,
       status: status ?? this.status,
       emoji: emoji ?? this.emoji,
+      startDate: startDate ?? this.startDate,
+      endDate: endDate ?? this.endDate,
+      isHabit: isHabit ?? this.isHabit,
     );
   }
 }

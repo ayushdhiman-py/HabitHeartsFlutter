@@ -8,114 +8,86 @@ import '../providers/habit_hearts_auth_provider.dart';
 class GoalsProvider with ChangeNotifier {
   List<Goal> _goals = [];
   List<GoalProgress> _goalProgress = [];
+  bool _isLoading = false;
 
   List<Goal> get goals => _goals;
   List<GoalProgress> get goalProgress => _goalProgress;
+  bool get isLoading => _isLoading;
 
   // Load goals and progress from API
-  Future<void> loadGoals(BuildContext context) async {
+  Future<void> loadGoals(String userId) async {
+    _isLoading = true;
+    notifyListeners();
+
     try {
-      final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
-      if (authProvider.user == null) return;
-      
-      // Load goals from API
-      final goals = await ApiService.getGoals(authProvider.user!.uid);
-      _goals = goals;
-      
-      // Load progress for each goal
-      _goalProgress = [];
-      for (var goal in _goals) {
-        final progress = await ApiService.getGoalProgress(goal.id);
-        _goalProgress.addAll(progress);
+      if (userId == null) {
+        _isLoading = false;
+        notifyListeners();
+        return;
       }
       
-      notifyListeners();
+      // Load goals from API
+      final goals = await ApiService.getGoals(userId);
+      _goals = goals;
+      
+      // Load progress for all goals in parallel
+      final allProgressFutures = _goals.map((goal) => ApiService.getGoalProgress(goal.id)).toList();
+      final allProgressLists = await Future.wait(allProgressFutures);
+      _goalProgress = allProgressLists.expand((list) => list).toList();
     } catch (e) {
       print('Error loading goals: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
   // Add a new goal
-  Future<bool> addGoal(Goal goal) async {
+  Future<void> addGoal(BuildContext context, Goal goal) async {
     try {
-      final success = await ApiService.createGoal(goal);
-      if (success) {
-        _goals.add(goal);
+      final newGoal = await ApiService.createGoal(goal);
+      if (newGoal != null) {
+        _goals.add(newGoal);
+        // Fetch progress for the newly added goal
+        final progress = await ApiService.getGoalProgress(newGoal.id);
+        _goalProgress.addAll(progress);
         notifyListeners();
-        return true;
       }
-      return false;
     } catch (e) {
       print('Error adding goal: $e');
-      return false;
+      // Optionally show an error message to the user
     }
   }
 
   // Update a goal
-  Future<bool> updateGoal(Goal updatedGoal) async {
+  Future<void> updateGoal(BuildContext context, Goal updatedGoal) async {
     try {
-      final success = await ApiService.updateGoal(updatedGoal);
-      if (success) {
-        _goals = _goals.map((goal) {
-          if (goal.id == updatedGoal.id) {
-            return updatedGoal;
-          }
-          return goal;
-        }).toList();
-        notifyListeners();
-        return true;
+      final result = await ApiService.updateGoal(updatedGoal);
+      if (result != null) {
+        final index = _goals.indexWhere((goal) => goal.id == updatedGoal.id);
+        if (index != -1) {
+          _goals[index] = result; // Use the returned goal from API
+          notifyListeners();
+        }
       }
-      return false;
     } catch (e) {
       print('Error updating goal: $e');
-      return false;
+      // Optionally show an error message to the user
     }
   }
 
   // Delete a goal
-  Future<bool> deleteGoal(String goalId) async {
+  Future<void> deleteGoal(BuildContext context, String goalId) async {
     try {
       final success = await ApiService.deleteGoal(goalId);
       if (success) {
         _goals.removeWhere((goal) => goal.id == goalId);
-        // Also remove associated progress
         _goalProgress.removeWhere((progress) => progress.goalId == goalId);
         notifyListeners();
-        return true;
       }
-      return false;
     } catch (e) {
       print('Error deleting goal: $e');
-      return false;
-    }
-  }
-
-  // Toggle goal completion
-  Future<bool> toggleGoalCompletion(String goalId) async {
-    try {
-      final goalIndex = _goals.indexWhere((g) => g.id == goalId);
-      if (goalIndex == -1) return false;
-      
-      final goal = _goals[goalIndex];
-      final updatedGoal = goal.copyWith(completed: !goal.completed, updatedAt: DateTime.now());
-      
-      // Update in local state first for immediate UI feedback
-      _goals[goalIndex] = updatedGoal;
-      notifyListeners();
-      
-      // Update on server
-      final success = await ApiService.updateGoal(updatedGoal);
-      
-      if (!success) {
-        // Revert if server update failed
-        _goals[goalIndex] = goal;
-        notifyListeners();
-      }
-      
-      return success;
-    } catch (e) {
-      print('Error toggling goal completion: $e');
-      return false;
+      // Optionally show an error message to the user
     }
   }
 
@@ -179,62 +151,64 @@ class GoalsProvider with ChangeNotifier {
     try {
       print('Setting goal progress for goal $goalId on date $date to $completed for user $userId');
       
-      // First try to get existing progress from API
-      final progressList = await ApiService.getGoalProgress(goalId);
-      print('Retrieved ${progressList.length} progress items for goal $goalId');
-      
-      final existingProgress = progressList.firstWhere(
-        (p) => p.date == date && p.userId == userId,
-        orElse: () => GoalProgress(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          goalId: goalId,
-          date: date,
-          completed: false,
-          userId: userId,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        ),
-      );
-      
-      print('Existing progress: ${existingProgress.id}, completed: ${existingProgress.completed}');
-      
-      // Set completion status
-      final updatedProgress = existingProgress.copyWith(
+      // Optimistically update the UI
+      final optimisticProgress = GoalProgress(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        goalId: goalId,
+        date: date,
         completed: completed,
+        userId: userId,
+        createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
       
-      print('Updated progress: ${updatedProgress.id}, completed: ${updatedProgress.completed}');
+      // Check if progress already exists for this date and goal
+      final existingIndex = _goalProgress.indexWhere(
+        (p) => p.goalId == goalId && p.date == date && p.userId == userId,
+      );
       
-      // Update or create progress
-      bool success;
-      if (existingProgress.id == updatedProgress.id && 
-          existingProgress.createdAt.millisecondsSinceEpoch == updatedProgress.createdAt.millisecondsSinceEpoch) {
-        // This is a new progress item
-        print('Creating new progress item');
-        success = await ApiService.createGoalProgress(updatedProgress);
+      if (existingIndex >= 0) {
+        // Update existing progress
+        final existingProgress = _goalProgress[existingIndex];
+        final updatedProgress = existingProgress.copyWith(
+          completed: completed,
+          updatedAt: DateTime.now(),
+        );
+        _goalProgress[existingIndex] = updatedProgress;
       } else {
-        // This is an existing progress item
-        print('Updating existing progress item');
-        success = await ApiService.updateGoalProgress(updatedProgress);
+        // Add new progress
+        _goalProgress.add(optimisticProgress);
       }
       
-      print('API call success: $success');
+      notifyListeners();
       
-      if (success) {
-        // Update local state
-        final localIndex = _goalProgress.indexWhere(
-          (p) => p.goalId == goalId && p.date == date && p.userId == userId,
-        );
-        
-        if (localIndex >= 0) {
-          print('Updating existing progress in local state');
-          _goalProgress[localIndex] = updatedProgress;
+      // Now make the actual API call
+      bool success;
+      if (existingIndex >= 0) {
+        // Update existing progress
+        final existingProgress = _goalProgress[existingIndex];
+        success = await ApiService.updateGoalProgress(existingProgress);
+      } else {
+        // Create new progress
+        success = await ApiService.createGoalProgress(optimisticProgress);
+      }
+      
+      if (!success) {
+        // Revert the optimistic update if the API call fails
+        if (existingIndex >= 0) {
+          // Revert to previous state
+          final existingProgress = _goalProgress[existingIndex];
+          final revertedProgress = existingProgress.copyWith(
+            completed: !completed, // Revert to previous state
+            updatedAt: DateTime.now(),
+          );
+          _goalProgress[existingIndex] = revertedProgress;
         } else {
-          print('Adding new progress to local state');
-          _goalProgress.add(updatedProgress);
+          // Remove the newly added progress
+          _goalProgress.removeWhere(
+            (p) => p.goalId == goalId && p.date == date && p.userId == userId,
+          );
         }
-        
         notifyListeners();
       }
       

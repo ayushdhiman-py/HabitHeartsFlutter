@@ -6,15 +6,20 @@ class GoalService {
   // Get goals for user and linked users
   Stream<List<Goal>> getGoals(String userId, List<String> linkedUserIds) {
     try {
-      // For now, we'll create a simple stream that fetches goals once
-      // In a real implementation, you might want to implement polling or WebSockets
       StreamController<List<Goal>> controller = StreamController();
-      
-      // Fetch goals - this would need to be implemented in the backend
-      // For now, we'll return an empty list
-      controller.add([]);
-      controller.close();
-      
+
+      // Fetch goals for the user and linked users
+      ApiService.getGoals(userId).then((userGoals) {
+        List<Goal> allGoals = [...userGoals];
+        // You might want to fetch linked user goals here as well
+        controller.add(allGoals);
+        controller.close();
+      }).catchError((error) {
+        print('Error getting goals: $error');
+        controller.add([]);
+        controller.close();
+      });
+
       return controller.stream;
     } catch (e) {
       print('Error getting goals: $e');
@@ -55,7 +60,7 @@ class GoalService {
       // Update the goal with toggled completion status
       Goal updatedGoal = goal.copyWith(
         completed: !goal.completed,
-        updatedAt: DateTime.now().millisecondsSinceEpoch,
+        updatedAt: DateTime.now(),
       );
       await updateGoal(updatedGoal);
     } catch (e) {

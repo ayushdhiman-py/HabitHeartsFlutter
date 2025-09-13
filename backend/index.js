@@ -129,7 +129,7 @@ app.get('/api/tasks/:userId/:date', async (req, res) => {
         const updatedAt = data.updatedAt ? data.updatedAt.toMillis() : Date.now();
         const dueDate = data.dueDate ? data.dueDate.toMillis() : null;
         
-        // Remove the id field from data to avoid overwriting doc.id
+        // Remove the original 'id' field from the data to avoid conflict with the document ID
         const { id, ...dataWithoutId } = data;
         
         return {
@@ -269,12 +269,20 @@ app.get('/api/goals/:userId', async (req, res) => {
       // Convert Firestore Timestamps to milliseconds
       const createdAt = data.createdAt ? data.createdAt.toMillis() : Date.now();
       const updatedAt = data.updatedAt ? data.updatedAt.toMillis() : Date.now();
+      const startDate = data.startDate ? data.startDate.toMillis() : null;
+      const endDate = data.endDate ? data.endDate.toMillis() : null;
       
+      // Remove the original 'id' field from the data to avoid conflict with the document ID
+      const { id, ...dataWithoutId } = data;
+
       return {
         id: doc.id,
-        ...data,
+        ...dataWithoutId,
         createdAt,
-        updatedAt
+        updatedAt,
+        isHabit: data.isHabit || false,
+        startDate,
+        endDate
       };
     });
     
@@ -295,11 +303,29 @@ app.post('/api/goals', async (req, res) => {
     if (goalData.updatedAt) {
       goalData.updatedAt = admin.firestore.Timestamp.fromMillis(goalData.updatedAt);
     }
+    if (goalData.startDate) {
+      goalData.startDate = admin.firestore.Timestamp.fromMillis(goalData.startDate);
+    } else {
+      goalData.startDate = null; // Explicitly set to null if not provided
+    }
+    if (goalData.endDate) {
+      goalData.endDate = admin.firestore.Timestamp.fromMillis(goalData.endDate);
+    } else {
+      goalData.endDate = null; // Explicitly set to null if not provided
+    }
     
     const docRef = await db.collection('goals').add(goalData);
     res.status(201).json({ 
       id: docRef.id, 
-      ...goalData,
+      text: goalData.text,
+      completed: goalData.completed,
+      createdBy: goalData.createdBy,
+      creatorName: goalData.creatorName,
+      emoji: goalData.emoji,
+      status: goalData.status,
+      isHabit: goalData.isHabit || false,
+      startDate: goalData.startDate ? goalData.startDate.toMillis() : null,
+      endDate: goalData.endDate ? goalData.endDate.toMillis() : null,
       // Convert back to milliseconds for the response
       createdAt: goalData.createdAt ? goalData.createdAt.toMillis() : Date.now(),
       updatedAt: goalData.updatedAt ? goalData.updatedAt.toMillis() : Date.now()
@@ -320,9 +346,32 @@ app.put('/api/goals/:id', async (req, res) => {
     if (goalData.updatedAt) {
       goalData.updatedAt = admin.firestore.Timestamp.fromMillis(goalData.updatedAt);
     }
+    if (goalData.startDate) {
+      goalData.startDate = admin.firestore.Timestamp.fromMillis(goalData.startDate);
+    } else {
+      goalData.startDate = null; // Explicitly set to null if not provided
+    }
+    if (goalData.endDate) {
+      goalData.endDate = admin.firestore.Timestamp.fromMillis(goalData.endDate);
+    } else {
+      goalData.endDate = null; // Explicitly set to null if not provided
+    }
     
     await db.collection('goals').doc(req.params.id).update(goalData);
-    res.status(200).json({ message: 'Goal updated successfully' });
+
+    // Fetch the updated document to return it in the response
+    const updatedDoc = await db.collection('goals').doc(req.params.id).get();
+    const updatedData = updatedDoc.data();
+
+    res.status(200).json({ 
+      id: updatedDoc.id,
+      ...updatedData,
+      createdAt: updatedData.createdAt ? updatedData.createdAt.toMillis() : Date.now(),
+      updatedAt: updatedData.updatedAt ? updatedData.updatedAt.toMillis() : Date.now(),
+      isHabit: updatedData.isHabit || false,
+      startDate: updatedData.startDate ? updatedData.startDate.toMillis() : null,
+      endDate: updatedData.endDate ? updatedData.endDate.toMillis() : null
+    });
   } catch (error) {
     console.error('Error updating goal:', error);
     res.status(500).json({ message: 'Error updating goal' });
@@ -363,9 +412,12 @@ app.get('/api/calendarEvents/:userId', async (req, res) => {
       const createdAt = data.createdAt ? data.createdAt.toMillis() : Date.now();
       const updatedAt = data.updatedAt ? data.updatedAt.toMillis() : Date.now();
       
+      // Remove the original 'id' field from the data to avoid conflict with the document ID
+      const { id, ...dataWithoutId } = data;
+
       return {
         id: doc.id,
-        ...data,
+        ...dataWithoutId,
         createdAt,
         updatedAt
       };
@@ -398,7 +450,10 @@ app.post('/api/calendarEvents', async (req, res) => {
     const docRef = await db.collection('calendarEvents').add(eventData);
     res.status(201).json({ 
       id: docRef.id, 
-      ...eventData,
+      title: eventData.title,
+      description: eventData.description,
+      isAllDay: eventData.isAllDay,
+      createdBy: eventData.createdBy,
       // Convert back to milliseconds for the response
       createdAt: eventData.createdAt ? eventData.createdAt.toMillis() : Date.now(),
       updatedAt: eventData.updatedAt ? eventData.updatedAt.toMillis() : Date.now(),
@@ -489,7 +544,10 @@ app.post('/api/goalProgress', async (req, res) => {
     const docRef = await db.collection('goalProgress').add(progressData);
     res.status(201).json({ 
       id: docRef.id, 
-      ...progressData,
+      goalId: progressData.goalId,
+      date: progressData.date,
+      completed: progressData.completed,
+      userId: progressData.userId,
       // Convert back to milliseconds for the response
       createdAt: progressData.createdAt ? progressData.createdAt.toMillis() : Date.now(),
       updatedAt: progressData.updatedAt ? progressData.updatedAt.toMillis() : Date.now()

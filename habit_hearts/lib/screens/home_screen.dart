@@ -58,7 +58,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     // Load goals
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final goalsProvider = Provider.of<GoalsProvider>(context, listen: false);
-      goalsProvider.loadGoals(context);
+      final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
+      if (authProvider.user != null) {
+        goalsProvider.loadGoals(authProvider.user!.uid);
+      }
     });
   }
   
@@ -228,15 +231,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               right: 0,
                               child: TextButton(
                                 onPressed: () {
+                                  final today = DateTime.now();
                                   setState(() {
-                                    _selectedDate = DateTime.now();
+                                    _selectedDate = today;
                                     // Scroll to today in the date carousel
                                     _dateCarouselKey.currentState?._pageController?.animateToPage(
-                                      1000,
+                                      1000, // The initialPage of the carousel
                                       duration: const Duration(milliseconds: 300),
                                       curve: Curves.easeInOut,
                                     );
                                   });
+                                  // Load tasks for today's date
+                                  _loadTasksForDate(today);
                                 },
                                 style: TextButton.styleFrom(
                                   minimumSize: const Size(0, 0),
@@ -435,10 +441,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 
                 // Set goal progress to the opposite of current status
                 goalsProvider.setGoalProgress(goalId, date, userId, !completed);
-              },
-              onGoalToggle: (goal) {
-                // Toggle the goal completion status
-                goalsProvider.toggleGoalCompletion(goal.id);
               },
             );
                           },
@@ -1163,13 +1165,11 @@ class _GoalsSection extends StatefulWidget {
   final List<Goal> goals;
   final List<GoalProgress> goalProgress;
   final Function(String, String, bool) onGoalProgressToggle;
-  final Function(Goal) onGoalToggle;
 
   const _GoalsSection({
     required this.goals,
     required this.goalProgress,
     required this.onGoalProgressToggle,
-    required this.onGoalToggle,
   });
 
   @override
@@ -1326,7 +1326,7 @@ class _GoalsSectionState extends State<_GoalsSection> {
                   goalProgress: widget.goalProgress,
                   getProgressForDate: _getProgressForDate,
                   onDayToggle: (goalId, date, completed) {
-                    widget.onGoalProgressToggle(goalId, date, !completed);
+                    widget.onGoalProgressToggle(goalId, date, completed);
                   },
                 ),
               ],
@@ -1439,28 +1439,59 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
                     isCompleted = progress?.completed ?? false;
                   }
                   
-                  return Container(
-                    width: cellSize > 24 ? 24 : cellSize,
-                    height: cellSize > 24 ? 24 : cellSize,
-                    decoration: BoxDecoration(
-                      color: isCurrentMonth 
-                        ? (isCompleted 
-                            ? AppColors.electricGreen 
-                            : Colors.grey[300])
-                        : Colors.transparent,
-                      borderRadius: BorderRadius.circular(4),
-                      border: isCurrentMonth 
-                        ? null 
-                        : Border.all(color: Colors.grey[200]!, width: 1),
-                    ),
-                    child: Center(
-                      child: Text(
-                        isCurrentMonth ? '${day.day}' : '',
-                        style: TextStyle(
-                          fontSize: 8,
-                          color: isCompleted ? Colors.white : Colors.black54,
-                          fontWeight: FontWeight.bold,
-                        ),
+                  // Get the goal for this heatmap
+                  Goal? currentGoal;
+                  if (widget.goals.isNotEmpty) {
+                    currentGoal = widget.goals.first;
+                  }
+                  
+                  // Check if we should show the target emoji
+                  bool showTargetEmoji = false;
+                  if (currentGoal != null && 
+                      !currentGoal.isHabit && 
+                      currentGoal.endDate != null && 
+                      day.isAtSameMomentAs(currentGoal.endDate!)) {
+                    showTargetEmoji = true;
+                  }
+                  
+                  return GestureDetector(
+                    onTap: () {
+                      if (goalId != null && isCurrentMonth) {
+                        widget.onDayToggle(goalId, dateString, !isCompleted);
+                      }
+                    },
+                    child: Container(
+                      width: cellSize > 24 ? 24 : cellSize,
+                      height: cellSize > 24 ? 24 : cellSize,
+                      decoration: BoxDecoration(
+                        color: isCurrentMonth 
+                          ? (isCompleted 
+                              ? AppColors.electricGreen 
+                              : Colors.grey[300])
+                          : Colors.transparent,
+                        borderRadius: BorderRadius.circular(4),
+                        border: isCurrentMonth 
+                          ? null 
+                          : Border.all(color: Colors.grey[200]!, width: 1),
+                      ),
+                      child: Center(
+                        child: showTargetEmoji
+                          ? Text(
+                              '${day.day}🎯', // Day number + Target emoji
+                              style: const TextStyle(
+                                fontSize: 8,
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            )
+                          : Text(
+                              isCurrentMonth ? '${day.day}' : '',
+                              style: TextStyle(
+                                fontSize: 8,
+                                color: isCompleted ? Colors.white : Colors.black54,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                       ),
                     ),
                   );

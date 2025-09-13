@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import '../providers/goals_provider.dart';
 import '../providers/habit_hearts_auth_provider.dart';
 import '../models/goal.dart';
@@ -21,7 +20,10 @@ class _GoalsScreenState extends State<GoalsScreen> {
     // Load goals when the screen is initialized
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final goalsProvider = Provider.of<GoalsProvider>(context, listen: false);
-      goalsProvider.loadGoals(context);
+      final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
+      if (authProvider.user != null) {
+        goalsProvider.loadGoals(authProvider.user!.uid);
+      }
     });
   }
 
@@ -48,8 +50,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
       ),
       body: Consumer<GoalsProvider>(
         builder: (context, goalsProvider, child) {
-          if (goalsProvider.goals.isEmpty && goalsProvider.goalProgress.isEmpty) {
-            // Still loading
+          if (goalsProvider.isLoading) {
             return const _GoalsLoadingSkeleton();
           }
           
@@ -61,7 +62,13 @@ class _GoalsScreenState extends State<GoalsScreen> {
             goals: goalsProvider.goals,
             onCalculateProgress: goalsProvider.calculateGoalProgress,
             onToggleCompletion: (goalId) {
-              goalsProvider.toggleGoalCompletion(goalId);
+              try {
+                final goal = goalsProvider.goals.firstWhere((g) => g.id == goalId);
+                final updatedGoal = goal.copyWith(completed: !goal.completed, updatedAt: DateTime.now());
+                goalsProvider.updateGoal(context, updatedGoal);
+              } catch (e) {
+                // Silently handle the error - goal not found
+              }
             },
           );
         },
@@ -232,6 +239,7 @@ class _GoalsList extends StatelessWidget {
           
           return SwipeableGoalItem(
             goal: goal,
+            progress: progress,
             onEdit: (goal) {
               // Implement edit functionality
               _showEditGoalModal(context, goal);
@@ -278,116 +286,12 @@ class _GoalsList extends StatelessWidget {
                 Navigator.of(context).pop();
                 // Delete the goal
                 final goalsProvider = Provider.of<GoalsProvider>(context, listen: false);
-                goalsProvider.deleteGoal(goal.id);
+                goalsProvider.deleteGoal(context, goal.id);
               },
             ),
           ],
         );
       },
-    );
-  }
-}
-
-// Goal card widget
-class _GoalCard extends StatelessWidget {
-  final Goal goal;
-  final double progress;
-  final Function() onToggleCompletion;
-
-  const _GoalCard({
-    required this.goal,
-    required this.progress,
-    required this.onToggleCompletion,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.grey[300]!,
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 5,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              GestureDetector(
-                onTap: onToggleCompletion,
-                child: Icon(
-                  goal.completed ? Icons.check_box : Icons.check_box_outline_blank,
-                  color: goal.completed ? AppColors.electricGreen : Colors.grey,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  goal.text,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
-                    decoration: goal.completed ? TextDecoration.lineThrough : null,
-                    color: goal.completed ? Colors.grey : Colors.black,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 15),
-          // Progress bar
-          Container(
-            height: 10,
-            decoration: BoxDecoration(
-              color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(5),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(5),
-              child: LinearProgressIndicator(
-                value: progress / 100,
-                backgroundColor: Colors.transparent,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  progress == 100 ? AppColors.electricGreen : AppColors.electricBlue,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '${progress.toStringAsFixed(0)}% completed',
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey,
-                ),
-              ),
-              Text(
-                'Started ${DateFormat('MMM d').format(goal.createdAt)}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
     );
   }
 }
@@ -403,6 +307,16 @@ class _AddGoalModal extends StatefulWidget {
 class _AddGoalModalState extends State<_AddGoalModal> {
   final TextEditingController _goalController = TextEditingController();
   String? _selectedEmoji;
+  DateTime? _selectedStartDate;
+  DateTime? _selectedEndDate;
+  bool _isHabit = false; // New field for habit mode
+
+  @override
+  void initState() {
+    super.initState();
+    // Set default start date to today
+    _selectedStartDate = DateTime.now();
+  }
 
   @override
   void dispose() {
@@ -483,7 +397,39 @@ class _AddGoalModalState extends State<_AddGoalModal> {
     );
   }
 
-  void _addGoal() {
+  void _selectStartDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedStartDate ?? DateTime.now(),
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null) {
+      setState(() {
+        _selectedStartDate = picked;
+        // If end date is before start date, update it
+        if (_selectedEndDate != null && _selectedEndDate!.isBefore(picked)) {
+          _selectedEndDate = picked;
+        }
+      });
+    }
+  }
+
+  void _selectEndDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedEndDate ?? _selectedStartDate ?? DateTime.now(),
+      firstDate: _selectedStartDate ?? DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null) {
+      setState(() {
+        _selectedEndDate = picked;
+      });
+    }
+  }
+
+  void _addGoal() async {
     if (_goalController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a goal')),
@@ -491,7 +437,7 @@ class _AddGoalModalState extends State<_AddGoalModal> {
       return;
     }
 
-    // Create new goal
+    // Create new goal/habit
     final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
     final goalsProvider = Provider.of<GoalsProvider>(context, listen: false);
     
@@ -505,14 +451,22 @@ class _AddGoalModalState extends State<_AddGoalModal> {
       updatedAt: DateTime.now(),
       status: 'active',
       emoji: _selectedEmoji,
+      startDate: _isHabit ? null : _selectedStartDate, // Only set dates if it's a goal
+      endDate: _isHabit ? null : _selectedEndDate,     // Only set dates if it's a goal
+      isHabit: _isHabit, // Set the habit flag
     );
     
-    goalsProvider.addGoal(newGoal);
+    // The context from the modal can be used here. 
+    // The provider will then call loadGoals which notifies listeners,
+    // and the main screen's Consumer will rebuild.
+    await goalsProvider.addGoal(context, newGoal);
     
-    Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Goal added successfully')),
-    );
+    if (mounted) {
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Goal added successfully')),
+      );
+    }
   }
 
   @override
@@ -578,6 +532,101 @@ class _AddGoalModalState extends State<_AddGoalModal> {
               ),
             ],
           ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Habit Mode',
+                style: TextStyle(fontSize: 16),
+              ),
+              Switch(
+                value: _isHabit,
+                onChanged: (value) {
+                  setState(() {
+                    _isHabit = value;
+                    // Clear dates when switching to habit mode
+                    if (value) {
+                      _selectedStartDate = null;
+                      _selectedEndDate = null;
+                    }
+                  });
+                },
+                activeColor: AppColors.electricBlue,
+              ),
+            ],
+          ),
+          // Only show date pickers if not in habit mode
+          if (!_isHabit) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Text(
+                  'Start Date:',
+                  style: TextStyle(fontSize: 16),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: _selectStartDate,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _selectedStartDate != null
+                                ? '${_selectedStartDate!.day}/${_selectedStartDate!.month}/${_selectedStartDate!.year}'
+                                : 'Select Date',
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                          const Icon(Icons.calendar_today),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Text(
+                  'End Date:',
+                  style: TextStyle(fontSize: 16),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: _selectEndDate,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _selectedEndDate != null
+                                ? '${_selectedEndDate!.day}/${_selectedEndDate!.month}/${_selectedEndDate!.year}'
+                                : 'Select Date',
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                          const Icon(Icons.calendar_today),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
@@ -620,12 +669,18 @@ class _EditGoalModal extends StatefulWidget {
 class _EditGoalModalState extends State<_EditGoalModal> {
   late TextEditingController _goalController;
   String? _selectedEmoji;
+  DateTime? _selectedStartDate;
+  DateTime? _selectedEndDate;
+  bool _isHabit = false; // New field for habit mode
 
   @override
   void initState() {
     super.initState();
     _goalController = TextEditingController(text: widget.goal.text);
     _selectedEmoji = widget.goal.emoji;
+    _selectedStartDate = widget.goal.startDate;
+    _selectedEndDate = widget.goal.endDate;
+    _isHabit = widget.goal.isHabit; // Initialize habit mode
   }
 
   @override
@@ -707,7 +762,39 @@ class _EditGoalModalState extends State<_EditGoalModal> {
     );
   }
 
-  void _updateGoal() {
+  void _selectStartDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedStartDate ?? DateTime.now(),
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: _selectedEndDate ?? DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null) {
+      setState(() {
+        _selectedStartDate = picked;
+        // If end date is before start date, update it
+        if (_selectedEndDate != null && _selectedEndDate!.isBefore(picked)) {
+          _selectedEndDate = picked;
+        }
+      });
+    }
+  }
+
+  void _selectEndDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedEndDate ?? _selectedStartDate ?? DateTime.now(),
+      firstDate: _selectedStartDate ?? DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null) {
+      setState(() {
+        _selectedEndDate = picked;
+      });
+    }
+  }
+
+  void _updateGoal() async {
     if (_goalController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a goal')),
@@ -715,20 +802,25 @@ class _EditGoalModalState extends State<_EditGoalModal> {
       return;
     }
 
-    // Update the goal
+    // Update the goal/habit
     final goalsProvider = Provider.of<GoalsProvider>(context, listen: false);
     final updatedGoal = widget.goal.copyWith(
       text: _goalController.text.trim(),
       emoji: _selectedEmoji,
+      startDate: _isHabit ? null : _selectedStartDate, // Only set dates if it's a goal
+      endDate: _isHabit ? null : _selectedEndDate,     // Only set dates if it's a goal
+      isHabit: _isHabit, // Set the habit flag
       updatedAt: DateTime.now(),
     );
     
-    goalsProvider.updateGoal(updatedGoal);
+    await goalsProvider.updateGoal(context, updatedGoal);
     
-    Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Goal updated successfully')),
-    );
+    if (mounted) {
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Goal updated successfully')),
+      );
+    }
   }
 
   @override
@@ -794,6 +886,101 @@ class _EditGoalModalState extends State<_EditGoalModal> {
               ),
             ],
           ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Habit Mode',
+                style: TextStyle(fontSize: 16),
+              ),
+              Switch(
+                value: _isHabit,
+                onChanged: (value) {
+                  setState(() {
+                    _isHabit = value;
+                    // Clear dates when switching to habit mode
+                    if (value) {
+                      _selectedStartDate = null;
+                      _selectedEndDate = null;
+                    }
+                  });
+                },
+                activeColor: AppColors.electricBlue,
+              ),
+            ],
+          ),
+          // Only show date pickers if not in habit mode
+          if (!_isHabit) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Text(
+                  'Start Date:',
+                  style: TextStyle(fontSize: 16),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: _selectStartDate,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _selectedStartDate != null
+                                ? '${_selectedStartDate!.day}/${_selectedStartDate!.month}/${_selectedStartDate!.year}'
+                                : 'Select Date',
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                          const Icon(Icons.calendar_today),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Text(
+                  'End Date:',
+                  style: TextStyle(fontSize: 16),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: _selectEndDate,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _selectedEndDate != null
+                                ? '${_selectedEndDate!.day}/${_selectedEndDate!.month}/${_selectedEndDate!.year}'
+                                : 'Select Date',
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                          const Icon(Icons.calendar_today),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,

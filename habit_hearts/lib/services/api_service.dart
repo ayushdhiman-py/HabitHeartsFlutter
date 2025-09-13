@@ -158,7 +158,7 @@ class ApiService {
     }
   }
 
-  static Future<bool> createGoal(Goal goal) async {
+  static Future<Goal?> createGoal(Goal goal) async {
     try {
       print('Creating goal: ${goal.text}');
       final requestBody = json.encode(goal.toJson());
@@ -170,14 +170,17 @@ class ApiService {
       );
       print('Create goal response status: ${response.statusCode}');
       print('Create goal response body: ${response.body}');
-      return response.statusCode == 201;
+      if (response.statusCode == 201) {
+        return Goal.fromJson(json.decode(response.body));
+      }
+      return null;
     } catch (e) {
       print('Error creating goal: $e');
-      return false;
+      return null;
     }
   }
 
-  static Future<bool> updateGoal(Goal goal) async {
+  static Future<Goal?> updateGoal(Goal goal) async {
     try {
       print('Updating goal ID: ${goal.id}, text: ${goal.text}, completed: ${goal.completed}');
       final requestBody = json.encode(goal.toJson());
@@ -189,10 +192,13 @@ class ApiService {
       );
       print('Update goal response status: ${response.statusCode}');
       print('Update goal response body: ${response.body}');
-      return response.statusCode == 200;
+      if (response.statusCode == 200) {
+        return Goal.fromJson(json.decode(response.body));
+      }
+      return null;
     } catch (e) {
       print('Error updating goal: $e');
-      return false;
+      return null;
     }
   }
 
