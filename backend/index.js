@@ -338,26 +338,18 @@ app.post('/api/goals', async (req, res) => {
 
 app.put('/api/goals/:id', async (req, res) => {
   try {
-    const goalData = req.body;
-    // Convert milliseconds to Firestore Timestamps
-    if (goalData.createdAt) {
-      goalData.createdAt = admin.firestore.Timestamp.fromMillis(goalData.createdAt);
-    }
-    if (goalData.updatedAt) {
-      goalData.updatedAt = admin.firestore.Timestamp.fromMillis(goalData.updatedAt);
-    }
-    if (goalData.startDate) {
-      goalData.startDate = admin.firestore.Timestamp.fromMillis(goalData.startDate);
-    } else {
-      goalData.startDate = null; // Explicitly set to null if not provided
-    }
-    if (goalData.endDate) {
-      goalData.endDate = admin.firestore.Timestamp.fromMillis(goalData.endDate);
-    } else {
-      goalData.endDate = null; // Explicitly set to null if not provided
-    }
-    
-    await db.collection('goals').doc(req.params.id).update(goalData);
+    const { text, status, emoji, startDate, endDate, isHabit, completed } = req.body;
+    const updateData = { updatedAt: admin.firestore.Timestamp.fromMillis(Date.now()) }; // Always update updatedAt
+
+    if (text !== undefined) updateData.text = text;
+    if (status !== undefined) updateData.status = status;
+    if (emoji !== undefined) updateData.emoji = emoji;
+    if (startDate !== undefined) updateData.startDate = admin.firestore.Timestamp.fromMillis(startDate);
+    if (endDate !== undefined) updateData.endDate = admin.firestore.Timestamp.fromMillis(endDate);
+    if (isHabit !== undefined) updateData.isHabit = isHabit;
+    if (completed !== undefined) updateData.completed = completed;
+
+    await db.collection('goals').doc(req.params.id).update(updateData);
 
     // Fetch the updated document to return it in the response
     const updatedDoc = await db.collection('goals').doc(req.params.id).get();

@@ -1,5 +1,3 @@
-import 'package:lottie/lottie.dart';
-import '../widgets/lottie_header_animation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -12,8 +10,6 @@ import '../services/api_service.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/emoji_selector.dart';
 import '../widgets/swipeable_task_item.dart';
-import '../widgets/swipeable_goal_item.dart';
-import '../utils/lottie_decoder.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,7 +18,9 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+  late AnimationController _headerController;
+  late Animation<double> _headerAnimation;
   ScrollController _scrollController = ScrollController();
   DateTime _selectedDate = DateTime.now();
   bool _isLoading = true;
@@ -30,30 +28,23 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentStreak = 5; // Sample streak data
   int _longestStreak = 12; // Sample streak data
   final GlobalKey<_DateCarouselState> _dateCarouselKey = GlobalKey<_DateCarouselState>();
-  bool _showTitle = false;
 
   @override
   void initState() {
     super.initState();
+    _headerController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _headerAnimation = Tween<double>(begin: 1.0, end: 0.9).animate(
+      CurvedAnimation(parent: _headerController, curve: Curves.easeInOut),
+    );
 
     _scrollController.addListener(_scrollListener);
     
     // Load data
     _loadData();
   }
-
-  String _getGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) {
-      return 'Good morning';
-    }
-    if (hour < 17) {
-      return 'Good afternoon';
-    }
-    return 'Good evening';
-  }
-
-  
 
   void _loadData() {
     // Load tasks from API
@@ -102,15 +93,16 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _scrollListener() {
-    if (_scrollController.offset > 100 != _showTitle) {
-      setState(() {
-        _showTitle = _scrollController.offset > 100;
-      });
+    if (_scrollController.offset > 30) {
+      _headerController.forward();
+    } else {
+      _headerController.reverse();
     }
   }
 
   @override
   void dispose() {
+    _headerController.dispose();
     _scrollController.removeListener(_scrollListener);
     _scrollController.dispose();
     super.dispose();
@@ -149,101 +141,59 @@ class _HomeScreenState extends State<HomeScreen> {
             floating: false,
             pinned: true,
             backgroundColor: AppColors.electricBlue,
-            centerTitle: true,
-            title: _showTitle ? const Text('HabitHearts') : null,
             flexibleSpace: FlexibleSpaceBar(
+              title: const Text('HabitHearts'),
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Image.asset(
-                    'assets/images/headerBg.png',
-                    fit: BoxFit.cover,
+                  // Background gradient
+                  Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          AppColors.electricBlue,
+                          AppColors.hotPink,
+                        ],
+                      ),
+                    ),
                   ),
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                                                Lottie.asset(
-                            'assets/animations/RW1j2z2aZy.lottie',
-                            width: 200,
-                            height: 200,
-                            fit: BoxFit.contain,
-                            decoder: lottieFileDecoder, // Custom decoder for .lottie files
-                            errorBuilder: (context, error, stackTrace) {
-                              // Try a fallback .json animation
-                              return Lottie.asset(
-                                'assets/animations/calendar.json',
-                                width: 200,
-                                height: 200,
-                                fit: BoxFit.contain,
-                                errorBuilder: (context, error, stackTrace) {
-                                  // If both fail, show fallback UI
-                                  return Container(
-                                    width: 200,
-                                    height: 200,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: const Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Icon(
-                                          Icons.animation_outlined,
-                                          size: 48,
-                                          color: Colors.white,
-                                        ),
-                                        SizedBox(height: 8),
-                                        Text(
-                                          'Animation Error',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
-                              );
-                            },
-                            frameBuilder: (context, child, composition) {
-                              // Show a loading indicator while the animation is loading
-                              if (composition == null) {
-                                return Container(
-                                  width: 200,
-                                  height: 200,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Center(
-                                    child: CircularProgressIndicator(
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                    ),
-                                  ),
-                                );
-                              }
-                              return child;
-                            },
-                          ),
-                      Column(
+                  // Animated content
+                  ScaleTransition(
+                    scale: _headerAnimation,
+                    child: Center(
+                      child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(
-                            'Hi, ${_getGreeting()} ${authProvider.user?.displayName ?? ''}',
-                            style: const TextStyle(
+                          const Icon(
+                            Icons.favorite,
+                            color: Colors.white,
+                            size: 40, // Reduced from 50 to 40
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'HabitHearts',
+                            style: TextStyle(
                               color: Colors.white,
-                              fontSize: 20,
+                              fontSize: 20, // Reduced from 24 to 20
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          
+                          if (authProvider.habitHeartsUser != null) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              'Welcome, ${authProvider.user?.displayName ?? 'User'}!',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14, // Reduced from 16 to 14
+                              ),
+                            ),
+                          ],
                         ],
                       ),
-                    ],
+                    ),
                   ),
-                  
                 ],
               ),
             ),
@@ -360,32 +310,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          const Text(
-                            'Your Tasks',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          SizedBox(
-                            width: 64,
-                            height: 64,
-                            child: Lottie.asset(
-                              'assets/animations/calendar.json',
-                              fit: BoxFit.contain,
-                              errorBuilder: (context, error, stackTrace) {
-                                // If the Lottie file fails, show a fallback icon
-                                return const Icon(
-                                  Icons.calendar_today,
-                                  size: 48,
-                                );
-                              },
-                            ),
-                          ),
-                        ],
+                      const Text(
+                        'Your Tasks',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       Text(
                         '${_tasks.where((task) => !task.completed).length} pending',
@@ -396,8 +326,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 10),
                   _isLoading
-                      ? const _TaskListSkeleton._()
+                      ? const _TaskListSkeleton()
                       : _TaskList(
                           tasks: _tasks,
                           onTaskToggle: (task) async {
@@ -482,7 +413,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           },
                         ),
                   
-                  const SizedBox(height: 35), // Increased from 15 to 35
+                  const SizedBox(height: 30),
                   
                   // Goals Section
                   const Text(
@@ -492,9 +423,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 10), // Increased from 5 to 10
+                  const SizedBox(height: 10),
                   _isLoading 
-                      ? const _GoalsSectionSkeleton._()
+                      ? const _GoalsSectionSkeleton()
                       : Consumer<GoalsProvider>(
                           builder: (context, goalsProvider, child) {
                             return _GoalsSection(
@@ -750,7 +681,6 @@ class _TaskList extends StatelessWidget {
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(top: 0), // Remove default padding
       itemCount: tasks.length,
       itemBuilder: (context, index) {
         return SwipeableTaskItem(
@@ -871,14 +801,53 @@ class _EditTaskModalState extends State<_EditTaskModal> {
                 ),
               ),
               const SizedBox(height: 10),
-              EmojiSelector(
-                onEmojiSelected: (emoji) {
-                  setState(() {
-                    _selectedEmoji = emoji;
-                  });
-                  // Close the emoji selector modal
-                  Navigator.of(context).pop();
-                },
+              SizedBox(
+                height: 200,
+                child: GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 6,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                  ),
+                  itemCount: 24,
+                  itemBuilder: (context, index) {
+                    final emojis = [
+                      '💧', '🏃', '📚', '🧘', '🍎', '😴',
+                      '💰', '🌱', '🎧', '📷', '🎮', '🎨',
+                      '✍️', '🗣️', '🚶', '🚴', '🎭', '🎯',
+                      '🔥', '💡', '❤️', '👍', '👏', '🏆'
+                    ];
+                    final emoji = emojis[index % emojis.length];
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedEmoji = emoji;
+                        });
+                        Navigator.of(context).pop();
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: _selectedEmoji == emoji
+                              ? AppColors.electricBlue.withOpacity(0.2)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: _selectedEmoji == emoji
+                                ? AppColors.electricBlue
+                                : Colors.transparent,
+                            width: 2,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            emoji,
+                            style: const TextStyle(fontSize: 24),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
             ],
           ),
@@ -887,7 +856,7 @@ class _EditTaskModalState extends State<_EditTaskModal> {
     );
   }
 
-  void _addTask() async {
+  void _updateTask() async {
     if (_taskController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a task')),
@@ -895,56 +864,32 @@ class _EditTaskModalState extends State<_EditTaskModal> {
       return;
     }
 
-    try {
-      final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
-      
-      final newTask = Task(
-        id: widget.task.id, // Keep the original task ID for update
-        text: _taskController.text.trim(),
-        description: _descriptionController.text.trim(),
-        completed: widget.task.completed, // Keep the original completed status
-        createdBy: widget.task.createdBy,
-        creatorName: widget.task.creatorName,
-        createdAt: widget.task.createdAt,
-        updatedAt: DateTime.now(),
-        status: widget.task.status,
-        dueDate: _selectedDate,
-        startTime: _startTime != null
-            ? '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}'
-            : widget.task.startTime,
-        endTime: _endTime != null
-            ? '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}'
-            : widget.task.endTime,
-        emoji: _selectedEmoji ?? widget.task.emoji,
-      );
+    final updatedTask = widget.task.copyWith(
+      text: _taskController.text.trim(),
+      description: _descriptionController.text.trim(),
+      emoji: _selectedEmoji,
+      dueDate: _selectedDate,
+      startTime: _startTime != null
+          ? '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}'
+          : null,
+      endTime: _endTime != null
+          ? '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}'
+          : null,
+      updatedAt: DateTime.now(),
+    );
 
-      print('Updating task: ${newTask.text}, dueDate: ${newTask.dueDate}');
-      
-      final createdTask = await ApiService.updateTask(newTask);
-      print('Task update result: $createdTask');
-      if (createdTask != null && mounted) {
-        // Notify that a task was updated
-        widget.onTaskUpdated(createdTask);
-        
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Task updated successfully')),
-        );
-      } else if (createdTask == null) {
-        print('Task update failed');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Error updating task')),
-          );
-        }
-      }
-    } catch (e) {
-      print('Error updating task: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error updating task')),
-        );
-      }
+    final updatedTaskResult = await ApiService.updateTask(updatedTask);
+
+    if (updatedTaskResult != null && mounted) {
+      widget.onTaskUpdated(updatedTaskResult);
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Task updated successfully')),
+      );
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to update task')),
+      );
     }
   }
 
@@ -997,49 +942,16 @@ class _EditTaskModalState extends State<_EditTaskModal> {
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => _selectDate(context),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.calendar_today, size: 18),
-                        const SizedBox(width: 8),
-                        Text(
-                          DateFormat('MMM dd, yyyy').format(_selectedDate),
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              const Text(
+                'Date:',
+                style: TextStyle(fontSize: 16),
               ),
               const SizedBox(width: 10),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => _showEmojiSelector(),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.emoji_emotions, size: 18),
-                        const SizedBox(width: 8),
-                        Text(
-                          _selectedEmoji ?? 'Emoji',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                      ],
-                    ),
-                  ),
+              TextButton(
+                onPressed: () => _selectDate(context),
+                child: Text(
+                  DateFormat('MMM d, yyyy').format(_selectedDate),
+                  style: const TextStyle(fontSize: 16),
                 ),
               ),
             ],
@@ -1047,52 +959,56 @@ class _EditTaskModalState extends State<_EditTaskModal> {
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => _selectStartTime(context),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.access_time, size: 18),
-                        const SizedBox(width: 8),
-                        Text(
-                          _startTime != null
-                              ? '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}'
-                              : 'Start Time',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              const Text(
+                'Start Time:',
+                style: TextStyle(fontSize: 16),
               ),
               const SizedBox(width: 10),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => _selectEndTime(context),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.access_time, size: 18),
-                        const SizedBox(width: 8),
-                        Text(
-                          _endTime != null
-                              ? '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}'
-                              : 'End Time',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                      ],
-                    ),
+              TextButton(
+                onPressed: () => _selectStartTime(context),
+                child: Text(
+                  _startTime != null
+                      ? '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}'
+                      : 'Select',
+                  style: const TextStyle(fontSize: 16),
+                ),
+              ),
+              const SizedBox(width: 20),
+              const Text(
+                'End Time:',
+                style: TextStyle(fontSize: 16),
+              ),
+              const SizedBox(width: 10),
+              TextButton(
+                onPressed: () => _selectEndTime(context),
+                child: Text(
+                  _endTime != null
+                      ? '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}'
+                      : 'Select',
+                  style: const TextStyle(fontSize: 16),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              const Text(
+                'Emoji:',
+                style: TextStyle(fontSize: 16),
+              ),
+              const SizedBox(width: 10),
+              GestureDetector(
+                onTap: _showEmojiSelector,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _selectedEmoji ?? 'Select',
+                    style: const TextStyle(fontSize: 20),
                   ),
                 ),
               ),
@@ -1102,12 +1018,12 @@ class _EditTaskModalState extends State<_EditTaskModal> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _addTask,
+              onPressed: _updateTask,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.electricBlue,
                 padding: const EdgeInsets.all(16),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
               child: const Text(
@@ -1127,13 +1043,72 @@ class _EditTaskModalState extends State<_EditTaskModal> {
   }
 }
 
-class _HandwritingUnderlineAnimation extends StatefulWidget {
-  const _HandwritingUnderlineAnimation({Key? key}) : super(key: key);
+// Task List Skeleton for loading state
+class _TaskListSkeleton extends StatelessWidget {
+  const _TaskListSkeleton();
 
   @override
-  _HandwritingUnderlineAnimationState createState() =>
-      _HandwritingUnderlineAnimationState();
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.grey[300]!,
+          width: 1,
+        ),
+      ),
+      child: const Column(
+        children: [
+          _TaskItemSkeleton(),
+          SizedBox(height: 10),
+          _TaskItemSkeleton(),
+          SizedBox(height: 10),
+          _TaskItemSkeleton(),
+        ],
+      ),
+    );
+  }
 }
+
+class _TaskItemSkeleton extends StatelessWidget {
+  const _TaskItemSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Colors.grey[200]!,
+          width: 1,
+        ),
+      ),
+      child: const Row(
+        children: [
+          LoadingSkeleton(width: 24, height: 24),
+          SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                LoadingSkeleton(height: 16, width: 150),
+                SizedBox(height: 5),
+                LoadingSkeleton(height: 12, width: 100),
+              ],
+            ),
+          ),
+          LoadingSkeleton(width: 24, height: 24),
+        ],
+      ),
+    );
+  }
+}
+
+
 
 // Streak Indicator Widget
 class _StreakIndicator extends StatelessWidget {
@@ -1153,29 +1128,26 @@ class _StreakIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            icon,
-            color: color,
-            size: 24,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '$value',
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        Icon(icon, color: color, size: 24),
+        const SizedBox(height: 5),
         Text(
           title,
           style: const TextStyle(
+            fontSize: 12,
+            color: Colors.grey,
+          ),
+        ),
+        Text(
+          '$value',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const Text(
+          'days',
+          style: TextStyle(
             fontSize: 12,
             color: Colors.grey,
           ),
@@ -1185,171 +1157,8 @@ class _StreakIndicator extends StatelessWidget {
   }
 }
 
-class _HandwritingUnderlineAnimationState
-    extends State<_HandwritingUnderlineAnimation>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat();
-    _animation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.linear),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (context, child) {
-        return CustomPaint(
-          size: const Size(200, 10),
-          painter: _HandwritingUnderlinePainter(progress: _animation.value),
-        );
-      },
-    );
-  }
-}
-
-// Task List Skeleton
-class _TaskListSkeleton extends StatelessWidget {
-  const _TaskListSkeleton._();
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: 3, // Show 3 skeleton items
-      itemBuilder: (context, index) {
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: ListTile(
-            leading: Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                shape: BoxShape.circle,
-              ),
-            ),
-            title: Container(
-              height: 16,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-            subtitle: Container(
-              height: 12,
-              width: 100,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-            trailing: Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-// Goals Section Skeleton
-class _GoalsSectionSkeleton extends StatelessWidget {
-  const _GoalsSectionSkeleton._();
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: 2, // Show 2 skeleton items
-      itemBuilder: (context, index) {
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ListTile(
-                leading: Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                title: Container(
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                trailing: Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      height: 12,
-                      width: 100,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-// Goals Section Widget
-class _GoalsSection extends StatelessWidget {
+// Goals Section
+class _GoalsSection extends StatefulWidget {
   final List<Goal> goals;
   final Map<String, Map<String, String>> userGoalProgress;
   final Function(String, bool) onGoalProgressToggle;
@@ -1360,37 +1169,34 @@ class _GoalsSection extends StatelessWidget {
     required this.onGoalProgressToggle,
   });
 
-  double _calculateProgress(String goalId) {
-    final progressData = userGoalProgress[goalId];
-    if (progressData == null) return 0.0;
+  @override
+  State<_GoalsSection> createState() => _GoalsSectionState();
+}
+
+class _GoalsSectionState extends State<_GoalsSection> {
+  bool _isGoalCompletedToday(String goalId) {
+    final today = DateTime.now();
+    final yearMonth = '${today.year}-${today.month.toString().padLeft(2, '0')}';
+    final day = today.day;
     
-    // For simplicity, we'll calculate progress based on the current month
-    final now = DateTime.now();
-    final yearMonth = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    if (!widget.userGoalProgress.containsKey(goalId)) return false;
+    if (!widget.userGoalProgress[goalId]!.containsKey(yearMonth)) return false;
     
-    final monthData = progressData[yearMonth];
-    if (monthData == null) return 0.0;
+    final bitString = widget.userGoalProgress[goalId]![yearMonth]!;
+    if (day < 1 || day > bitString.length) return false;
     
-    // Count completed days in the current month
-    int completedDays = 0;
-    for (int i = 0; i < monthData.length; i++) {
-      if (monthData[i] == '1') {
-        completedDays++;
-      }
-    }
-    
-    // Calculate percentage (assuming 30 days in a month for simplicity)
-    return (completedDays / 30) * 100;
+    final index = day - 1;
+    return index < bitString.length && bitString[index] == '1';
   }
 
   @override
   Widget build(BuildContext context) {
-    if (goals.isEmpty) {
+    if (widget.goals.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.grey[100],
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: Colors.grey[300]!,
             width: 1,
@@ -1409,7 +1215,7 @@ class _GoalsSection extends StatelessWidget {
             ),
             SizedBox(height: 5),
             Text(
-              'Set your first goal to start tracking progress',
+              'Set goals to track your progress',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey,
@@ -1420,118 +1226,113 @@ class _GoalsSection extends StatelessWidget {
       );
     }
 
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(top: 0), // Remove default padding
-      itemCount: goals.length,
-      itemBuilder: (context, index) {
-        final goal = goals[index];
-        final progress = _calculateProgress(goal.id);
-        return Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(17), // Increased from 12 to 17 (12 + 5)
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Colors.grey[300]!,
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.grey.withOpacity(0.1),
-                spreadRadius: 1,
-                blurRadius: 8,
-                offset: const Offset(0, 3),
+    return Column(
+      children: [
+        // Display heatmap for each goal
+        ...widget.goals.map((goal) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 16), // Increased margin
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.grey[300]!,
+                width: 1,
               ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      goal.text,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  // Done Today Button
-                  ElevatedButton(
-                    onPressed: () async {
-                      final bool? result = await showDialog<bool>(
-                        context: context,
-                        builder: (BuildContext context) {
-                          return AlertDialog(
-                            title: const Text('Update Progress'),
-                            content: const Text('Did you complete this goal today?'),
-                            actions: <Widget>[
-                              TextButton(
-                                child: const Text('Cancel'),
-                                onPressed: () => Navigator.of(context).pop(null),
-                              ),
-                              TextButton(
-                                child: const Text('No'),
-                                onPressed: () => Navigator.of(context).pop(false),
-                              ),
-                              TextButton(
-                                child: const Text('Yes'),
-                                onPressed: () => Navigator.of(context).pop(true),
-                              ),
-                            ],
-                          );
-                        },
-                      );
-
-                      if (result != null) {
-                        print('DEBUG: Setting goal ${goal.id} completion to: $result');
-                        onGoalProgressToggle(goal.id, result);
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.electricGreen,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      minimumSize: const Size(0, 0),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      elevation: 2,
-                      shadowColor: Colors.black26,
-                    ),
-                    child: const Text(
-                      'Done Today',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              // Heatmap for goal progress
-              Padding(
-                padding: const EdgeInsets.all(5),
-                child: _MonthlyGoalHeatmap(
-                  goal: goal,
-                  userGoalProgress: userGoalProgress,
-                  onDayToggle: onGoalProgressToggle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.1),
+                  spreadRadius: 1,
+                  blurRadius: 8, // Increased blur
+                  offset: const Offset(0, 3), // Slightly larger shadow
                 ),
-              ),
-            ],
-          ),
-        );
-      },
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        goal.text,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    // Done Today Button
+                    ElevatedButton(
+                      onPressed: () async {
+                        final bool? result = await showDialog<bool>(
+                          context: context,
+                          builder: (BuildContext context) {
+                            return AlertDialog(
+                              title: const Text('Update Progress'),
+                              content: const Text('Did you complete this goal today?'),
+                              actions: <Widget>[
+                                TextButton(
+                                  child: const Text('Cancel'),
+                                  onPressed: () => Navigator.of(context).pop(null),
+                                ),
+                                TextButton(
+                                  child: const Text('No'),
+                                  onPressed: () => Navigator.of(context).pop(false),
+                                ),
+                                TextButton(
+                                  child: const Text('Yes'),
+                                  onPressed: () => Navigator.of(context).pop(true),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+
+                        if (result != null) {
+                          print('DEBUG: Setting goal ${goal.id} completion to: $result');
+                          widget.onGoalProgressToggle(goal.id, result);
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.electricGreen,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), // Increased padding
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12), // More rounded corners
+                        ),
+                        minimumSize: const Size(0, 0),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        elevation: 2,
+                        shadowColor: Colors.black26,
+                      ),
+                      child: const Text(
+                        'Done Today',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12), // Increased spacing
+                _MonthlyGoalHeatmap(
+                  goal: goal,
+                  userGoalProgress: widget.userGoalProgress,
+                  onDayToggle: (goalId, completed) {
+                    widget.onGoalProgressToggle(goalId, completed);
+                  },
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ],
     );
   }
 }
@@ -1624,7 +1425,7 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
             )
           ).toList(),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 4),
         // Calendar grid with bigger cells
         SizedBox(
           height: 140, // Increased height
@@ -1668,7 +1469,7 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
                       decoration: BoxDecoration(
                         color: isCurrentMonth 
                           ? (isCompleted 
-                              ? AppColors.electricGreen 
+                              ? AppColors.success 
                               : AppColors.borderColor)
                           : Colors.transparent,
                         borderRadius: BorderRadius.circular(6), // Slightly rounded squares
@@ -1707,48 +1508,113 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
   }
 }
 
-// Handwriting Underline Painter
-class _HandwritingUnderlinePainter extends CustomPainter {
-  final double progress;
-
-  _HandwritingUnderlinePainter({required this.progress});
+// Goals Section Skeleton for loading state
+class _GoalsSectionSkeleton extends StatelessWidget {
+  const _GoalsSectionSkeleton();
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 4.0
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    final path = Path();
-    path.moveTo(0, size.height / 2);
-
-    final waveHeight = 5.0;
-    final waveLength = 20.0;
-
-    for (double i = 0; i < size.width * progress; i += waveLength) {
-      path.quadraticBezierTo(
-        i + waveLength / 2,
-        size.height / 2 + (i / waveLength % 2 == 0 ? -waveHeight : waveHeight),
-        i + waveLength,
-        size.height / 2,
-      );
-    }
-
-    canvas.drawPath(path, paint);
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.grey[300]!,
+          width: 1,
+        ),
+      ),
+      child: const Column(
+        children: [
+          // Heatmap skeleton
+          LoadingSkeleton(height: 60),
+          SizedBox(height: 10),
+          // Goal items skeleton
+          _GoalItemSkeleton(),
+          SizedBox(height: 10),
+          _GoalItemSkeleton(),
+        ],
+      ),
+    );
   }
+}
+
+class _GoalItemSkeleton extends StatelessWidget {
+  const _GoalItemSkeleton();
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return true;
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Colors.grey[200]!,
+          width: 1,
+        ),
+      ),
+      child: const Row(
+        children: [
+          LoadingSkeleton(width: 24, height: 24),
+          SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                LoadingSkeleton(height: 16, width: 150),
+                SizedBox(height: 5),
+                LoadingSkeleton(height: 12, width: 100),
+              ],
+            ),
+          ),
+          LoadingSkeleton(width: 40, height: 20),
+        ],
+      ),
+    );
+  }
+}
+
+// Goal Item
+class _GoalItem extends StatelessWidget {
+  final Goal goal;
+
+  const _GoalItem({required this.goal});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      elevation: 2,
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: const BoxDecoration(
+            color: AppColors.electricBlue,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.flag_outlined, color: Colors.white),
+        ),
+        title: Text(goal.text),
+        trailing: const Text('0%', style: TextStyle(fontWeight: FontWeight.bold)),
+        onTap: () {
+          // Handle goal tap
+        },
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    );
   }
 }
 
 // Add Task Modal
 class _AddTaskModal extends StatefulWidget {
   final DateTime selectedDate;
-  final Function() onTaskCreated;
+  final Function() onTaskCreated; // Add this callback
 
   const _AddTaskModal({
     required this.selectedDate,
@@ -1760,18 +1626,16 @@ class _AddTaskModal extends StatefulWidget {
 }
 
 class _AddTaskModalState extends State<_AddTaskModal> {
-  late TextEditingController _taskController;
-  late TextEditingController _descriptionController;
+  final TextEditingController _taskController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
   String? _selectedEmoji;
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
-  late DateTime _selectedDate;
+  DateTime _selectedDate = DateTime.now();
 
   @override
   void initState() {
     super.initState();
-    _taskController = TextEditingController();
-    _descriptionController = TextEditingController();
     _selectedDate = widget.selectedDate;
   }
 

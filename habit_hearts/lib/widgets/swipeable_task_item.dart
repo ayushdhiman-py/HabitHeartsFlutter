@@ -81,7 +81,7 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
           return Transform.scale(
             scale: _scaleAnimation.value,
             child: Card(
-              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
               child: Slidable(
                 endActionPane: ActionPane(
                   motion: const ScrollMotion(),
