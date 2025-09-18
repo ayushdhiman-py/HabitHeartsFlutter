@@ -1,10 +1,12 @@
 import 'package:lottie/lottie.dart';
 import '../widgets/lottie_header_animation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
+import '../providers/dark_mode_provider.dart';
 import 'package:intl/intl.dart';
-import 'dart:ui';
+import 'dart:ui' as ui;
 import '../providers/habit_hearts_auth_provider.dart';
 import '../providers/goals_provider.dart';
 import '../theme/app_theme.dart';
@@ -131,18 +133,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final themeProvider = Provider.of<ThemeProvider>(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('HabitHearts'),
-        backgroundColor: Colors.transparent,
-        flexibleSpace: ClipRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
-            child: Container(
-              color: themeProvider.selectedColor.withOpacity(0.3),
-            ),
-          ),
-        ),
-      ),
+      appBar: _ThemedAppBar(title: 'HabitHearts'),
       body: SingleChildScrollView(
         controller: _scrollController,
         child: Column(
@@ -417,22 +408,26 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      floatingActionButton: Container(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.electricBlue.withOpacity(0.4),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
+      floatingActionButton: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
+          return Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: themeProvider.selectedColor.withOpacity(0.4),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: FloatingActionButton(
-          onPressed: _showAddTaskModal,
-          backgroundColor: AppColors.electricBlue,
-          child: const Icon(Icons.add, color: Colors.white),
-        ),
+            child: FloatingActionButton(
+              onPressed: _showAddTaskModal,
+              backgroundColor: themeProvider.selectedColor,
+              child: const Icon(Icons.add, color: Colors.white),
+            ),
+          );
+        },
       ),
     );
   }
@@ -444,6 +439,44 @@ class _HomeScreenState extends State<HomeScreen> {
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
   }
+}
+
+class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final String title;
+  
+  const _ThemedAppBar({required this.title});
+  
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    return Consumer<DarkModeProvider>(
+      builder: (context, darkModeProvider, child) {
+        return AppBar(
+          systemOverlayStyle: darkModeProvider.isDarkMode 
+              ? SystemUiOverlayStyle.light 
+              : SystemUiOverlayStyle.dark,
+          title: Text(title),
+          titleTextStyle: TextStyle(
+            color: darkModeProvider.isDarkMode ? Colors.white : Colors.black,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+          backgroundColor: Colors.transparent,
+          flexibleSpace: ClipRect(
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
+              child: Container(
+                color: themeProvider.selectedColor.withOpacity(0.3),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+  
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }
 
 class _Header extends StatelessWidget {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:habit_hearts/providers/theme_provider.dart';
+import 'package:habit_hearts/providers/dark_mode_provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:habit_hearts/providers/calendar_provider.dart';
 import 'package:habit_hearts/providers/habit_hearts_auth_provider.dart';
@@ -10,7 +11,7 @@ import 'package:intl/intl.dart';
 
 import 'package:habit_hearts/widgets/emoji_selector.dart';
 import '../theme/app_theme.dart';
-import 'dart:ui';
+import 'dart:ui' as ui;
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -71,20 +72,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     return Scaffold(
-      appBar: AppBar(
-        systemOverlayStyle: SystemUiOverlayStyle.dark,
-        title: const Text('Calendar'),
-        titleTextStyle: const TextStyle(color: Colors.black, fontSize: 20, fontWeight: FontWeight.bold),
-        backgroundColor: Colors.transparent,
-        flexibleSpace: ClipRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
-            child: Container(
-              color: themeProvider.selectedColor.withOpacity(0.3),
-            ),
-          ),
-        ),
-      ),
+      appBar: _ThemedAppBar(title: 'Calendar'),
       body: Consumer<CalendarProvider>(
         builder: (context, calendarProvider, child) => Column(
           children: [
@@ -111,10 +99,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddEventModal(context),
-        backgroundColor: AppColors.electricBlue,
-        child: const Icon(Icons.add, color: Colors.white),
+      floatingActionButton: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
+          return FloatingActionButton(
+            onPressed: () => _showAddEventModal(context),
+            backgroundColor: themeProvider.selectedColor,
+            child: const Icon(Icons.add, color: Colors.white),
+          );
+        },
       ),
     );
   }
@@ -507,4 +499,42 @@ class _EmojiSelectorButton extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final String title;
+  
+  const _ThemedAppBar({required this.title});
+  
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    return Consumer<DarkModeProvider>(
+      builder: (context, darkModeProvider, child) {
+        return AppBar(
+          systemOverlayStyle: darkModeProvider.isDarkMode 
+              ? SystemUiOverlayStyle.light 
+              : SystemUiOverlayStyle.dark,
+          title: Text(title),
+          titleTextStyle: TextStyle(
+            color: darkModeProvider.isDarkMode ? Colors.white : Colors.black,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+          backgroundColor: Colors.transparent,
+          flexibleSpace: ClipRect(
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
+              child: Container(
+                color: themeProvider.selectedColor.withOpacity(0.3),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+  
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }

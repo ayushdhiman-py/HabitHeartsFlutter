@@ -6,6 +6,7 @@ import 'providers/habit_hearts_auth_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/goals_provider.dart';
 import 'providers/calendar_provider.dart';
+import 'providers/dark_mode_provider.dart';
 import 'screens/login_screen.dart';
 import 'theme/app_theme.dart';
 import 'services/api_service.dart';
@@ -32,6 +33,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => GoalsProvider()),
         ChangeNotifierProvider(create: (_) => CalendarProvider()),
+        ChangeNotifierProvider(create: (_) => DarkModeProvider()),
       ],
       child: const MyApp(),
     ),
@@ -43,11 +45,17 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'HabitHearts',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      home: const AuthWrapper(),
+    return Consumer<DarkModeProvider>(
+      builder: (context, darkModeProvider, child) {
+        return MaterialApp(
+          title: 'HabitHearts',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: darkModeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+          home: const AuthWrapper(),
+        );
+      },
     );
   }
 }
@@ -119,13 +127,13 @@ class _MainScreenState extends State<MainScreen> {
       bottomNavigationBar: ClipRRect(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 7.5, sigmaY: 7.5), // Half of previous blur
+          filter: ui.ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0), // Match AppBar blur intensity
           child: Container(
             decoration: BoxDecoration(
-              color: themeProvider.selectedColor.withOpacity(0.15), // Half of previous opacity
+              color: themeProvider.selectedColor.withOpacity(0.3), // Match AppBar opacity
               border: Border(
                 top: BorderSide(
-                  color: themeProvider.selectedColor.withOpacity(0.25), // Half of previous border opacity
+                  color: themeProvider.selectedColor.withOpacity(0.25),
                   width: 0.5,
                 ),
               ),

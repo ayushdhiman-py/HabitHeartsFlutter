@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'dart:math';
 import '../providers/habit_hearts_auth_provider.dart';
 import '../providers/theme_provider.dart';
+import '../providers/dark_mode_provider.dart';
 import '../theme/app_theme.dart';
 import '../models/user.dart' as habit_hearts_user;
-import 'dart:ui';
+import 'dart:ui' as ui;
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -85,28 +86,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final themeProvider = Provider.of<ThemeProvider>(context);
     
     return Scaffold(
-      appBar: AppBar(
-        systemOverlayStyle: SystemUiOverlayStyle.dark,
-        title: const Text('Profile'),
-        titleTextStyle: const TextStyle(color: Colors.black, fontSize: 20, fontWeight: FontWeight.bold),
-        backgroundColor: Colors.transparent,
-        flexibleSpace: ClipRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
-            child: Container(
-              color: themeProvider.selectedColor.withOpacity(0.3),
-            ),
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () {
-              authProvider.signOut();
-            },
-          ),
-        ],
-      ),
+      appBar: _ThemedAppBar(title: 'Profile'),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -434,4 +414,59 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (color == AppColors.mint) return 'Mint';
     return 'Custom Color';
   }
+}
+
+class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final String title;
+  
+  const _ThemedAppBar({required this.title});
+  
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final authProvider = Provider.of<HabitHeartsAuthProvider>(context);
+    return Consumer<DarkModeProvider>(
+      builder: (context, darkModeProvider, child) {
+        return AppBar(
+          systemOverlayStyle: darkModeProvider.isDarkMode 
+              ? SystemUiOverlayStyle.light 
+              : SystemUiOverlayStyle.dark,
+          title: Text(title),
+          titleTextStyle: TextStyle(
+            color: darkModeProvider.isDarkMode ? Colors.white : Colors.black,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+          backgroundColor: Colors.transparent,
+          flexibleSpace: ClipRect(
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
+              child: Container(
+                color: themeProvider.selectedColor.withOpacity(0.3),
+              ),
+            ),
+          ),
+          actions: [
+            IconButton(
+              icon: Icon(
+                darkModeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode,
+              ),
+              onPressed: () {
+                darkModeProvider.toggleDarkMode();
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.logout),
+              onPressed: () {
+                authProvider.signOut();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+  
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }

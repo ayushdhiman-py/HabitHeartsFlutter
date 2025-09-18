@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:habit_hearts/providers/theme_provider.dart';
+import 'package:habit_hearts/providers/dark_mode_provider.dart';
 import '../providers/goals_provider.dart';
 import '../providers/habit_hearts_auth_provider.dart';
 import '../models/goal.dart';
 import '../theme/app_theme.dart';
 import '../widgets/swipeable_goal_item.dart';
-import 'dart:ui';
+import 'dart:ui' as ui;
 
 class GoalsScreen extends StatefulWidget {
   const GoalsScreen({super.key});
@@ -42,20 +43,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     return Scaffold(
-      appBar: AppBar(
-        systemOverlayStyle: SystemUiOverlayStyle.dark,
-        title: const Text('Goals'),
-        titleTextStyle: const TextStyle(color: Colors.black, fontSize: 20, fontWeight: FontWeight.bold),
-        backgroundColor: Colors.transparent,
-        flexibleSpace: ClipRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
-            child: Container(
-              color: themeProvider.selectedColor.withOpacity(0.3),
-            ),
-          ),
-        ),
-      ),
+      appBar: _ThemedAppBar(title: 'Goals'),
       body: Consumer<GoalsProvider>(
         builder: (context, goalsProvider, child) {
           if (goalsProvider.isLoading) return const _GoalsLoadingSkeleton();
@@ -74,10 +62,14 @@ class _GoalsScreenState extends State<GoalsScreen> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddGoalModal,
-        backgroundColor: AppColors.electricBlue,
-        child: const Icon(Icons.add, color: Colors.white),
+      floatingActionButton: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
+          return FloatingActionButton(
+            onPressed: _showAddGoalModal,
+            backgroundColor: themeProvider.selectedColor,
+            child: const Icon(Icons.add, color: Colors.white),
+          );
+        },
       ),
     );
   }
@@ -514,4 +506,42 @@ class _DatePicker extends StatelessWidget {
       ],
     );
   }
+}
+
+class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final String title;
+  
+  const _ThemedAppBar({required this.title});
+  
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    return Consumer<DarkModeProvider>(
+      builder: (context, darkModeProvider, child) {
+        return AppBar(
+          systemOverlayStyle: darkModeProvider.isDarkMode 
+              ? SystemUiOverlayStyle.light 
+              : SystemUiOverlayStyle.dark,
+          title: Text(title),
+          titleTextStyle: TextStyle(
+            color: darkModeProvider.isDarkMode ? Colors.white : Colors.black,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+          backgroundColor: Colors.transparent,
+          flexibleSpace: ClipRect(
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
+              child: Container(
+                color: themeProvider.selectedColor.withOpacity(0.3),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+  
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
 class ThemeProvider with ChangeNotifier {
-  Color _selectedColor = AppColors.electricBlue;
+  Color _selectedColor = AppColors.mint;
 
   Color get selectedColor => _selectedColor;
 
