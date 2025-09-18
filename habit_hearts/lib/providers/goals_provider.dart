@@ -138,8 +138,24 @@ class GoalsProvider with ChangeNotifier {
           _longestStreaks[goalId] = result['longestStreak'];
         }
         
-        // Reload all goals and progress to ensure consistency
-        await loadGoals(userId);
+        // Instead of reloading all goals, just update the specific goal's progress
+        // This is much more efficient than reloading everything
+        final userData = await ApiService.getUserGoalProgress(userId);
+        if (userData != null && userData.goalProgress != null) {
+          final progressData = userData.goalProgress[goalId];
+          if (progressData != null) {
+            _userGoalProgress[goalId] = Map<String, String>.from(progressData.monthlyData);
+          }
+        }
+        
+        // Update the goal's completed property based on today's completion status
+        final goalIndex = _goals.indexWhere((g) => g.id == goalId);
+        if (goalIndex != -1) {
+          final isCompletedToday = isGoalCompletedForDate(goalId, DateTime.now());
+          _goals[goalIndex] = _goals[goalIndex].copyWith(completed: isCompletedToday);
+        }
+        
+        notifyListeners();
         return true;
       }
       

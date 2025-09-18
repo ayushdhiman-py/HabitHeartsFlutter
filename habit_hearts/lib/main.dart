@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'providers/habit_hearts_auth_provider.dart';
 import 'providers/theme_provider.dart';
@@ -9,17 +8,23 @@ import 'providers/goals_provider.dart';
 import 'providers/calendar_provider.dart';
 import 'screens/login_screen.dart';
 import 'theme/app_theme.dart';
+import 'services/api_service.dart';
 
 import 'screens/home_screen.dart';
 import 'screens/calendar_screen.dart';
 import 'screens/goals_screen.dart';
 import 'screens/profile_screen.dart';
+import 'dart:ui' as ui;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Clear API cache on app start
+  ApiService.clearAllCache();
+
   runApp(
     MultiProvider(
       providers: [
@@ -52,14 +57,14 @@ class AuthWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<HabitHeartsAuthProvider>(context);
-    
-    // Show login screen if not authenticated, otherwise show main app
-    if (authProvider.isAuthenticated) {
-      return const MainScreen();
-    }
-    
-    return const LoginScreen();
+    return Consumer<HabitHeartsAuthProvider>(
+      builder: (context, authProvider, child) {
+        if (authProvider.isAuthenticated) {
+          return const MainScreen();
+        }
+        return const LoginScreen();
+      },
+    );
   }
 }
 
@@ -70,7 +75,7 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
+class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
   late PageController _pageController;
 
@@ -94,20 +99,13 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   }
 
   void _onItemTapped(int index) {
-    setState(() {
-      _currentIndex = index;
-      
-      // Animate to the selected page with a smooth transition
-      _pageController.animateToPage(
-        index,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    });
+    // Jump to the page without rebuilding the whole screen
+    _pageController.jumpToPage(index);
   }
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
     return Scaffold(
       body: PageView(
         controller: _pageController,
@@ -117,30 +115,46 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
           });
         },
         children: _screens,
-        physics: const NeverScrollableScrollPhysics(), // Disable swipe to prevent conflicts
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        currentIndex: _currentIndex,
-        onTap: _onItemTapped,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
+      bottomNavigationBar: ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 7.5, sigmaY: 7.5), // Half of previous blur
+          child: Container(
+            decoration: BoxDecoration(
+              color: themeProvider.selectedColor.withOpacity(0.15), // Half of previous opacity
+              border: Border(
+                top: BorderSide(
+                  color: themeProvider.selectedColor.withOpacity(0.25), // Half of previous border opacity
+                  width: 0.5,
+                ),
+              ),
+            ),
+            child: BottomNavigationBar(
+              type: BottomNavigationBarType.fixed,
+              currentIndex: _currentIndex,
+              onTap: _onItemTapped,
+              items: const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.home),
+                  label: 'Home',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.calendar_today),
+                  label: 'Calendar',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.flag),
+                  label: 'Goals',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.person),
+                  label: 'Profile',
+                ),
+              ],
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_today),
-            label: 'Calendar',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.flag),
-            label: 'Goals',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
+        ),
       ),
     );
   }

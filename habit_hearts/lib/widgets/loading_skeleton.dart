@@ -21,7 +21,7 @@ class LoadingSkeleton extends StatelessWidget {
         color: Colors.grey[300],
         borderRadius: borderRadius ?? BorderRadius.circular(4),
       ),
-      child: const Text(''),
+      // Remove unnecessary Text widget
     );
   }
 }

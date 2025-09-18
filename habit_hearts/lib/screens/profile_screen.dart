@@ -6,6 +6,7 @@ import '../providers/habit_hearts_auth_provider.dart';
 import '../providers/theme_provider.dart';
 import '../theme/app_theme.dart';
 import '../models/user.dart' as habit_hearts_user;
+import 'dart:ui';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -85,7 +86,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     
     return Scaffold(
       appBar: AppBar(
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
         title: const Text('Profile'),
+        titleTextStyle: const TextStyle(color: Colors.black, fontSize: 20, fontWeight: FontWeight.bold),
+        backgroundColor: Colors.transparent,
+        flexibleSpace: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
+            child: Container(
+              color: themeProvider.selectedColor.withOpacity(0.3),
+            ),
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),

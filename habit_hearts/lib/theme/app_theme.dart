@@ -18,9 +18,10 @@ class AppColors {
   static const List<Color> coralToPinkGradient = [vibrantOrange, hotPink];
   
   // Background and text colors
-  static const Color primaryBackground = Color(0xFFF0F4F8);     // Soft light blue background
+  static const Color primaryBackground = Color(0xFFF8F9FA);     // Off-white background
   static const Color secondaryBackground = Color(0xFFE6EEF5);   // Lighter blue
-  static const Color cardBackground = Colors.white;             // Pure white for cards
+  static const Color offWhiteBackground = Color(0xFFF8F9FA);    // Off-white background
+  static const Color cardBackground = Color(0xFFF8F9FA);        // Off-white for cards
   static const Color textColor = Color(0xFF2D3748);             // Dark gray text
   static const Color secondaryTextColor = Color(0xFF718096);    // Muted gray text
   static const Color borderColor = Color(0xFFE2E8F0);           // Light border
@@ -46,7 +47,7 @@ class AppTheme {
       scaffoldBackgroundColor: AppColors.primaryBackground,
       fontFamily: 'Poppins', // Clean rounded sans-serif font
       appBarTheme: AppBarTheme(
-        backgroundColor: AppColors.electricBlue,
+        backgroundColor: Colors.transparent, // Transparent for glassmorphism
         foregroundColor: Colors.white,
         elevation: 0,
         titleTextStyle: const TextStyle(
@@ -57,10 +58,10 @@ class AppTheme {
         ),
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.white.withOpacity(0.15), // Same as bottom nav
         selectedItemColor: AppColors.electricBlue,
         unselectedItemColor: AppColors.secondaryTextColor,
-        elevation: 12,
+        elevation: 0, // Remove elevation for glassmorphism
         selectedLabelStyle: const TextStyle(
           fontWeight: FontWeight.w600,
           fontFamily: 'Poppins',

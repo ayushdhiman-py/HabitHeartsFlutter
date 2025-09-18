@@ -13,6 +13,7 @@ class LottieHeaderAnimation extends StatelessWidget {
       width: 200,
       height: 200,
       fit: BoxFit.contain,
+      repeat: false, // Play animation only once
       decoder: lottieFileDecoder, // Custom decoder for .lottie files
       errorBuilder: (context, error, stackTrace) {
         // Try a fallback .json animation
@@ -21,6 +22,7 @@ class LottieHeaderAnimation extends StatelessWidget {
           width: 200,
           height: 200,
           fit: BoxFit.contain,
+          repeat: false, // Play animation only once
           errorBuilder: (context, error, stackTrace) {
             // If both fail, show fallback UI
             return Container(

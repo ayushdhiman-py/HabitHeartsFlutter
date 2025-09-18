@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:habit_hearts/providers/theme_provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:habit_hearts/providers/calendar_provider.dart';
 import 'package:habit_hearts/providers/habit_hearts_auth_provider.dart';
@@ -8,6 +10,7 @@ import 'package:intl/intl.dart';
 
 import 'package:habit_hearts/widgets/emoji_selector.dart';
 import '../theme/app_theme.dart';
+import 'dart:ui';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -26,34 +29,21 @@ class _CalendarScreenState extends State<CalendarScreen> {
     super.initState();
     _selectedDay = _focusedDay;
 
-    // Load events for the initial month when the screen is first built.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadEventsForMonth();
-    });
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadEventsForMonth());
   }
 
   bool isSameDay(DateTime? a, DateTime? b) {
-    if (a == null || b == null) {
-      return false;
-    }
+    if (a == null || b == null) return false;
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
   void _loadEventsForMonth() {
-    final firstDay = DateTime(_focusedDay.year, _focusedDay.month, 1);
-    final lastDay = DateTime(_focusedDay.year, _focusedDay.month + 1, 0);
-
-    // Get the providers using the static method to avoid context issues
     final calendarProvider = Provider.of<CalendarProvider>(context, listen: false);
     final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
-
     if (authProvider.habitHeartsUser != null) {
-      calendarProvider.loadEvents(context, firstDay, lastDay);
+      final firstDay = DateTime(_focusedDay.year, _focusedDay.month, 1);
+      final lastDay = DateTime(_focusedDay.year, _focusedDay.month + 1, 0);
+      calendarProvider.loadEvents(authProvider.habitHeartsUser!.uid, firstDay, lastDay);
     }
   }
 
@@ -63,133 +53,95 @@ class _CalendarScreenState extends State<CalendarScreen> {
         _selectedDay = selectedDay;
         _focusedDay = focusedDay;
       });
-      // No need to reload events, they are already loaded for the month.
-      // The UI will rebuild and the event list below will filter correctly.
     }
   }
 
   void _onFormatChanged(CalendarFormat format) {
-    setState(() {
-      _calendarFormat = format;
-    });
+    if (_calendarFormat != format) {
+      setState(() => _calendarFormat = format);
+    }
   }
 
   void _onPageChanged(DateTime focusedDay) {
-    setState(() {
-      _focusedDay = focusedDay;
-    });
-    
-    // Load events for the new month/week
-    if (_calendarFormat == CalendarFormat.month) {
-      _loadEventsForMonth();
-    } else {
-      // For week view, load a wider range
-      final firstDay = DateTime(focusedDay.year, focusedDay.month, focusedDay.day - 3);
-      final lastDay = DateTime(focusedDay.year, focusedDay.month, focusedDay.day + 3);
-      
-      final calendarProvider = Provider.of<CalendarProvider>(context, listen: false);
-      final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
-      
-      if (authProvider.habitHeartsUser != null) {
-        calendarProvider.loadEvents(context, firstDay, lastDay);
-      }
-    }
+    _focusedDay = focusedDay;
+    _loadEventsForMonth();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<CalendarProvider>(
-      builder: (context, calendarProvider, child) {
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Calendar'),
-            
-          ),
-          body: Column(
-            children: [
-              TableCalendar<CalendarEvent>(
-                firstDay: DateTime.utc(2020, 1, 1),
-                lastDay: DateTime.utc(2030, 12, 31),
-                focusedDay: _focusedDay,
-                calendarFormat: _calendarFormat,
-                selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-                eventLoader: (day) {
-                  return calendarProvider.getEventsForDate(day);
-                },
-                                startingDayOfWeek: StartingDayOfWeek.monday,
-                calendarStyle: CalendarStyle(
-                  // Use `CalendarStyle` to customize the day cells
-                  outsideDaysVisible: true,
-                  markerDecoration: const BoxDecoration(
-                    color: Colors.deepOrange,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                headerStyle: const HeaderStyle(
-                  formatButtonVisible: true,
-                  titleCentered: true,
-                ),
-                availableCalendarFormats: const {
-                  CalendarFormat.month: 'Month',
-                  CalendarFormat.week: 'Week',
-                },
-                onDaySelected: _onDaySelected,
-                onFormatChanged: _onFormatChanged,
-                onPageChanged: _onPageChanged,
-              ),
-              const SizedBox(height: 8.0),
-              Expanded(
-                child: _buildEventList(calendarProvider),
-              ),
-            ],
-          ),
-          floatingActionButton: Container(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.electricBlue.withOpacity(0.4),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: FloatingActionButton(
-              onPressed: () {
-                _showAddEventModal(context);
-              },
-              backgroundColor: AppColors.electricBlue,
-              child: const Icon(Icons.add, color: Colors.white),
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    return Scaffold(
+      appBar: AppBar(
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
+        title: const Text('Calendar'),
+        titleTextStyle: const TextStyle(color: Colors.black, fontSize: 20, fontWeight: FontWeight.bold),
+        backgroundColor: Colors.transparent,
+        flexibleSpace: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
+            child: Container(
+              color: themeProvider.selectedColor.withOpacity(0.3),
             ),
           ),
-        );
-      },
+        ),
+      ),
+      body: Consumer<CalendarProvider>(
+        builder: (context, calendarProvider, child) => Column(
+          children: [
+            TableCalendar<CalendarEvent>(
+              firstDay: DateTime.utc(2020, 1, 1),
+              lastDay: DateTime.utc(2030, 12, 31),
+              focusedDay: _focusedDay,
+              calendarFormat: _calendarFormat,
+              selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+              eventLoader: calendarProvider.getEventsForDate,
+              startingDayOfWeek: StartingDayOfWeek.monday,
+              calendarStyle: const CalendarStyle(
+                outsideDaysVisible: true,
+                markerDecoration: BoxDecoration(color: Colors.deepOrange, shape: BoxShape.circle),
+              ),
+              headerStyle: const HeaderStyle(formatButtonVisible: true, titleCentered: true),
+              availableCalendarFormats: const {CalendarFormat.month: 'Month', CalendarFormat.week: 'Week'},
+              onDaySelected: _onDaySelected,
+              onFormatChanged: _onFormatChanged,
+              onPageChanged: _onPageChanged,
+            ),
+            const SizedBox(height: 8.0),
+            Expanded(child: _EventList(selectedDay: _selectedDay)),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showAddEventModal(context),
+        backgroundColor: AppColors.electricBlue,
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
     );
   }
 
-  Widget _buildEventList(CalendarProvider calendarProvider) {
-    if (calendarProvider.isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+  void _showAddEventModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+      builder: (_) => _AddEventModal(selectedDate: _selectedDay ?? DateTime.now(), onEventCreated: _loadEventsForMonth),
+    );
+  }
+}
 
-    if (calendarProvider.error != null) {
-      return Center(
-        child: Text('Error: ${calendarProvider.error}'),
-      );
-    }
+class _EventList extends StatelessWidget {
+  final DateTime? selectedDay;
 
-    final events = _selectedDay != null 
-        ? calendarProvider.getEventsForDate(_selectedDay!) 
-        : [];
+  const _EventList({this.selectedDay});
 
-    if (events.isEmpty) {
-      return const Center(
-        child: Text(
-          'No events for this day',
-          style: TextStyle(fontSize: 16, color: Colors.grey),
-        ),
-      );
-    }
+  @override
+  Widget build(BuildContext context) {
+    final calendarProvider = Provider.of<CalendarProvider>(context);
+    final events = selectedDay != null ? calendarProvider.getEventsForDate(selectedDay!) : <CalendarEvent>[];
+
+    if (calendarProvider.isLoading) return const Center(child: CircularProgressIndicator());
+    if (calendarProvider.error != null) return Center(child: Text('Error: ${calendarProvider.error}'));
+    if (events.isEmpty) return const Center(child: Text('No events for this day', style: TextStyle(fontSize: 16, color: Colors.grey)));
 
     return ListView.builder(
       itemCount: events.length,
@@ -199,85 +151,46 @@ class _CalendarScreenState extends State<CalendarScreen> {
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           child: ListTile(
             title: Text(event.title),
-            subtitle: event.startTime != null 
-                ? Text('${event.startTime} - ${event.endTime ?? 'N/A'}') 
-                : null,
+            subtitle: event.startTime != null ? Text('${event.startTime} - ${event.endTime ?? 'N/A'}') : null,
             trailing: event.emoji != null ? Text(event.emoji!) : null,
-            onTap: () {
-              _showEditEventModal(context, event);
-            },
+            onTap: () => _showEditEventModal(context, event),
           ),
         );
       },
     );
   }
 
-  void _showAddEventModal(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-      ),
-      builder: (BuildContext context) {
-        return _AddEventModal(
-          selectedDate: _selectedDay ?? DateTime.now(),
-          onEventCreated: () {
-            _loadEventsForMonth();
-          },
-        );
-      },
-    );
-  }
-
   void _showEditEventModal(BuildContext context, CalendarEvent event) {
+    final calendarProvider = Provider.of<CalendarProvider>(context, listen: false);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+      builder: (_) => _EditEventModal(
+        event: event,
+        onEventUpdated: () => calendarProvider.loadEvents(event.createdBy, DateTime(event.date.year, event.date.month, 1), DateTime(event.date.year, event.date.month + 1, 0)),
+        onEventDeleted: () => calendarProvider.loadEvents(event.createdBy, DateTime(event.date.year, event.date.month, 1), DateTime(event.date.year, event.date.month + 1, 0)),
       ),
-      builder: (BuildContext context) {
-        return _EditEventModal(
-          event: event,
-          onEventUpdated: () {
-            _loadEventsForMonth();
-          },
-          onEventDeleted: () {
-            _loadEventsForMonth();
-          },
-        );
-      },
     );
   }
 }
 
 class _AddEventModal extends StatefulWidget {
   final DateTime selectedDate;
-  final Function() onEventCreated;
+  final VoidCallback onEventCreated;
 
-  const _AddEventModal({
-    required this.selectedDate,
-    required this.onEventCreated,
-  });
+  const _AddEventModal({required this.selectedDate, required this.onEventCreated});
 
   @override
   State<_AddEventModal> createState() => _AddEventModalState();
 }
 
 class _AddEventModalState extends State<_AddEventModal> {
-  final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _descriptionController = TextEditingController();
+  final _titleController = TextEditingController();
+  final _descriptionController = TextEditingController();
   String? _selectedEmoji;
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
-  late DateTime _selectedDate;
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedDate = widget.selectedDate;
-  }
 
   @override
   void dispose() {
@@ -286,74 +199,48 @@ class _AddEventModalState extends State<_AddEventModal> {
     super.dispose();
   }
 
-  Future<void> _selectStartTime(BuildContext context) async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: _startTime ?? TimeOfDay.now(),
-    );
+  Future<void> _selectTime(BuildContext context, {bool isStartTime = true}) async {
+    final initialTime = isStartTime ? _startTime : _endTime;
+    final picked = await showTimePicker(context: context, initialTime: initialTime ?? TimeOfDay.now());
     if (picked != null) {
-      setState(() {
-        _startTime = picked;
-      });
-    }
-  }
-
-  Future<void> _selectEndTime(BuildContext context) async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: _endTime ?? _startTime ?? TimeOfDay.now(),
-    );
-    if (picked != null) {
-      setState(() {
-        _endTime = picked;
-      });
+      setState(() => isStartTime ? _startTime = picked : _endTime = picked);
     }
   }
 
   void _showEmojiSelector() {
     showModalBottomSheet(
       context: context,
-      builder: (BuildContext context) {
-        return EmojiSelector(
-          onEmojiSelected: (emoji) {
-            setState(() {
-              _selectedEmoji = emoji;
-            });
-            Navigator.of(context).pop();
-          },
-        );
-      },
+      builder: (_) => EmojiSelector(onEmojiSelected: (emoji) {
+        setState(() => _selectedEmoji = emoji);
+        Navigator.of(context).pop();
+      }),
     );
   }
 
   void _addEvent() async {
     if (_titleController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter an event title')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter an event title')));
       return;
     }
 
     final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
     if (authProvider.user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You must be logged in to create an event.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You must be logged in to create an event.')));
       return;
     }
 
     final newEvent = CalendarEvent(
-      id: '', // Handled by backend
+      id: '',
       title: _titleController.text.trim(),
       description: _descriptionController.text.trim(),
-      date: _selectedDate,
+      date: widget.selectedDate,
       createdBy: authProvider.user!.uid,
       creatorName: authProvider.user!.displayName ?? 'Unknown',
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
       status: 'active',
-      startTime: _startTime != null ? '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}' : null,
-      endTime: _endTime != null ? '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}' : null,
+      startTime: _startTime?.format(context),
+      endTime: _endTime?.format(context),
       emoji: _selectedEmoji,
       completed: false,
       endDate: null,
@@ -365,25 +252,16 @@ class _AddEventModalState extends State<_AddEventModal> {
     if (createdEvent != null && mounted) {
       widget.onEventCreated();
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Event added successfully')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Event added successfully')));
     } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error adding event')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error adding event')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-        left: 16,
-        right: 16,
-        top: 16,
-      ),
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 16, right: 16, top: 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -391,129 +269,31 @@ class _AddEventModalState extends State<_AddEventModal> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Add New Event',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
+              const Text('Add New Event', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).pop()),
             ],
           ),
           const SizedBox(height: 10),
-          TextField(
-            controller: _titleController,
-            decoration: const InputDecoration(
-              labelText: 'Event Title',
-              border: OutlineInputBorder(),
-            ),
-          ),
+          TextField(controller: _titleController, decoration: const InputDecoration(labelText: 'Event Title', border: OutlineInputBorder())),
           const SizedBox(height: 10),
-          TextField(
-            controller: _descriptionController,
-            decoration: const InputDecoration(
-              labelText: 'Description (Optional)',
-              border: OutlineInputBorder(),
-            ),
-            maxLines: 2,
-          ),
+          TextField(controller: _descriptionController, decoration: const InputDecoration(labelText: 'Description (Optional)', border: OutlineInputBorder()), maxLines: 2),
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => _selectStartTime(context),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.access_time, size: 18),
-                        const SizedBox(width: 8),
-                        Text(
-                          _startTime != null ? _startTime!.format(context) : 'Start Time',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              Expanded(child: _TimePickerButton(isStartTime: true, time: _startTime, onSelectTime: () => _selectTime(context))),
               const SizedBox(width: 10),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => _selectEndTime(context),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.access_time_filled, size: 18),
-                        const SizedBox(width: 8),
-                        Text(
-                          _endTime != null ? _endTime!.format(context) : 'End Time',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              Expanded(child: _TimePickerButton(isStartTime: false, time: _endTime, onSelectTime: () => _selectTime(context, isStartTime: false))),
             ],
           ),
           const SizedBox(height: 10),
-          GestureDetector(
-            onTap: _showEmojiSelector,
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.emoji_emotions_outlined, size: 18),
-                  const SizedBox(width: 8),
-                  Text(
-                    _selectedEmoji ?? 'Select an Emoji',
-                    style: const TextStyle(fontSize: 16),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          _EmojiSelectorButton(selectedEmoji: _selectedEmoji, onSelectEmoji: _showEmojiSelector),
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _addEvent,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.electricBlue,
-                padding: const EdgeInsets.all(16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: const Text(
-                'Add Event',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.electricBlue, padding: const EdgeInsets.all(16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+              child: const Text('Add Event', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
             ),
           ),
           const SizedBox(height: 10),
@@ -525,14 +305,10 @@ class _AddEventModalState extends State<_AddEventModal> {
 
 class _EditEventModal extends StatefulWidget {
   final CalendarEvent event;
-  final Function() onEventUpdated;
-  final Function() onEventDeleted;
+  final VoidCallback onEventUpdated;
+  final VoidCallback onEventDeleted;
 
-  const _EditEventModal({
-    required this.event,
-    required this.onEventUpdated,
-    required this.onEventDeleted,
-  });
+  const _EditEventModal({required this.event, required this.onEventUpdated, required this.onEventDeleted});
 
   @override
   State<_EditEventModal> createState() => _EditEventModalState();
@@ -551,20 +327,8 @@ class _EditEventModalState extends State<_EditEventModal> {
     _titleController = TextEditingController(text: widget.event.title);
     _descriptionController = TextEditingController(text: widget.event.description);
     _selectedEmoji = widget.event.emoji;
-
-    if (widget.event.startTime != null) {
-      final parts = widget.event.startTime!.split(':');
-      if (parts.length == 2) {
-        _startTime = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
-      }
-    }
-
-    if (widget.event.endTime != null) {
-      final parts = widget.event.endTime!.split(':');
-      if (parts.length == 2) {
-        _endTime = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
-      }
-    }
+    _startTime = widget.event.startTime != null ? TimeOfDay.fromDateTime(DateFormat.jm().parse(widget.event.startTime!)) : null;
+    _endTime = widget.event.endTime != null ? TimeOfDay.fromDateTime(DateFormat.jm().parse(widget.event.endTime!)) : null;
   }
 
   @override
@@ -574,59 +338,35 @@ class _EditEventModalState extends State<_EditEventModal> {
     super.dispose();
   }
 
-  Future<void> _selectStartTime(BuildContext context) async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: _startTime ?? TimeOfDay.now(),
-    );
+  Future<void> _selectTime(BuildContext context, {bool isStartTime = true}) async {
+    final initialTime = isStartTime ? _startTime : _endTime;
+    final picked = await showTimePicker(context: context, initialTime: initialTime ?? TimeOfDay.now());
     if (picked != null) {
-      setState(() {
-        _startTime = picked;
-      });
-    }
-  }
-
-  Future<void> _selectEndTime(BuildContext context) async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: _endTime ?? _startTime ?? TimeOfDay.now(),
-    );
-    if (picked != null) {
-      setState(() {
-        _endTime = picked;
-      });
+      setState(() => isStartTime ? _startTime = picked : _endTime = picked);
     }
   }
 
   void _showEmojiSelector() {
     showModalBottomSheet(
       context: context,
-      builder: (BuildContext context) {
-        return EmojiSelector(
-          onEmojiSelected: (emoji) {
-            setState(() {
-              _selectedEmoji = emoji;
-            });
-            Navigator.of(context).pop();
-          },
-        );
-      },
+      builder: (_) => EmojiSelector(onEmojiSelected: (emoji) {
+        setState(() => _selectedEmoji = emoji);
+        Navigator.of(context).pop();
+      }),
     );
   }
 
   void _updateEvent() async {
     if (_titleController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter an event title')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter an event title')));
       return;
     }
 
     final updatedEvent = widget.event.copyWith(
       title: _titleController.text.trim(),
       description: _descriptionController.text.trim(),
-      startTime: _startTime != null ? '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}' : null,
-      endTime: _endTime != null ? '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}' : null,
+      startTime: _startTime?.format(context),
+      endTime: _endTime?.format(context),
       emoji: _selectedEmoji,
       updatedAt: DateTime.now(),
     );
@@ -637,35 +377,23 @@ class _EditEventModalState extends State<_EditEventModal> {
     if (savedEvent != null && mounted) {
       widget.onEventUpdated();
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Event updated successfully')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Event updated successfully')));
     } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to update event')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to update event')));
     }
   }
 
   void _deleteEvent() async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Delete Event'),
-          content: const Text('Are you sure you want to delete this event?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Delete'),
-            ),
-          ],
-        );
-      },
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Event'),
+        content: const Text('Are you sure you want to delete this event?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Delete')),
+        ],
+      ),
     );
 
     if (confirm == true) {
@@ -675,26 +403,17 @@ class _EditEventModalState extends State<_EditEventModal> {
       if (success && mounted) {
         widget.onEventDeleted();
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Event deleted successfully')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Event deleted successfully')));
       } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to delete event')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete event')));
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-        left: 16,
-        right: 16,
-        top: 16,
-      ),
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 16, right: 16, top: 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -702,157 +421,89 @@ class _EditEventModalState extends State<_EditEventModal> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Edit Event',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
+              const Text('Edit Event', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).pop()),
             ],
           ),
           const SizedBox(height: 10),
-          TextField(
-            controller: _titleController,
-            decoration: const InputDecoration(
-              labelText: 'Event Title',
-              border: OutlineInputBorder(),
-            ),
-          ),
+          TextField(controller: _titleController, decoration: const InputDecoration(labelText: 'Event Title', border: OutlineInputBorder())),
           const SizedBox(height: 10),
-          TextField(
-            controller: _descriptionController,
-            decoration: const InputDecoration(
-              labelText: 'Description (Optional)',
-              border: OutlineInputBorder(),
-            ),
-            maxLines: 2,
-          ),
+          TextField(controller: _descriptionController, decoration: const InputDecoration(labelText: 'Description (Optional)', border: OutlineInputBorder()), maxLines: 2),
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => _selectStartTime(context),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.access_time, size: 18),
-                        const SizedBox(width: 8),
-                        Text(
-                          _startTime != null ? _startTime!.format(context) : 'Start Time',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              Expanded(child: _TimePickerButton(isStartTime: true, time: _startTime, onSelectTime: () => _selectTime(context))),
               const SizedBox(width: 10),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => _selectEndTime(context),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.access_time_filled, size: 18),
-                        const SizedBox(width: 8),
-                        Text(
-                          _endTime != null ? _endTime!.format(context) : 'End Time',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              Expanded(child: _TimePickerButton(isStartTime: false, time: _endTime, onSelectTime: () => _selectTime(context, isStartTime: false))),
             ],
           ),
           const SizedBox(height: 10),
-          GestureDetector(
-            onTap: _showEmojiSelector,
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.emoji_emotions_outlined, size: 18),
-                  const SizedBox(width: 8),
-                  Text(
-                    _selectedEmoji ?? 'Select an Emoji',
-                    style: const TextStyle(fontSize: 16),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          _EmojiSelectorButton(selectedEmoji: _selectedEmoji, onSelectEmoji: _showEmojiSelector),
           const SizedBox(height: 20),
           Row(
             children: [
               Expanded(
                 child: ElevatedButton(
                   onPressed: _updateEvent,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.electricBlue,
-                    padding: const EdgeInsets.all(16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: const Text(
-                    'Save',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.electricBlue, padding: const EdgeInsets.all(16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+                  child: const Text('Save', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: ElevatedButton(
                   onPressed: _deleteEvent,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.brightRed,
-                    padding: const EdgeInsets.all(16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: const Text(
-                    'Delete',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.brightRed, padding: const EdgeInsets.all(16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+                  child: const Text('Delete', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 10),
         ],
+      ),
+    );
+  }
+}
+
+class _TimePickerButton extends StatelessWidget {
+  final bool isStartTime;
+  final TimeOfDay? time;
+  final VoidCallback onSelectTime;
+
+  const _TimePickerButton({required this.isStartTime, this.time, required this.onSelectTime});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onSelectTime,
+      child: InputDecorator(
+        decoration: InputDecoration(border: const OutlineInputBorder(), labelText: isStartTime ? 'Start Time' : 'End Time'),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [Text(time?.format(context) ?? 'Select'), const Icon(Icons.access_time, size: 18)],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmojiSelectorButton extends StatelessWidget {
+  final String? selectedEmoji;
+  final VoidCallback onSelectEmoji;
+
+  const _EmojiSelectorButton({this.selectedEmoji, required this.onSelectEmoji});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onSelectEmoji,
+      child: InputDecorator(
+        decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Emoji'),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [const Icon(Icons.emoji_emotions_outlined, size: 18), const SizedBox(width: 8), Text(selectedEmoji ?? 'Select')],
+        ),
       ),
     );
   }

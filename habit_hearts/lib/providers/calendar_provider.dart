@@ -59,20 +59,25 @@ class CalendarProvider with ChangeNotifier {
   }
   
   // Load events for a date range
-  Future<void> loadEvents(BuildContext context, DateTime startDate, DateTime endDate) async {
-    final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
+  Future<void> loadEvents(String userId, DateTime startDate, DateTime endDate) async {
+    // Check if we already have events for this date range to avoid unnecessary API calls
+    final hasEventsForRange = _events.any((event) {
+      final eventDate = event.date is DateTime ? event.date as DateTime : null;
+      if (eventDate == null) return false;
+      return (eventDate.isAfter(startDate) || _isSameDay(eventDate, startDate)) && 
+             (eventDate.isBefore(endDate) || _isSameDay(eventDate, endDate));
+    });
     
-    if (authProvider.habitHeartsUser == null) return;
+    // If we already have events for this range, don't reload unless forced
+    if (hasEventsForRange && !_isLoading) {
+      return;
+    }
     
     _isLoading = true;
     _error = null;
     notifyListeners();
     
     try {
-      // For now, we'll use a simple approach - in a real implementation,
-      // you might want to fetch events for linked users as well
-      final userId = authProvider.habitHeartsUser!.uid;
-      
       _events = await ApiService.getCalendarEvents(userId, startDate, endDate);
     } catch (e) {
       _error = e.toString();

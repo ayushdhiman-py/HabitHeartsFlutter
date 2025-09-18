@@ -6,24 +6,72 @@ import '../models/goal.dart';
 import '../models/calendar_event.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://10.58.73.41:3000';
+    static const String baseUrl = 'http://10.103.28.41:3000';
   static const String usersEndpoint = '/api/users';
   static const String tasksEndpoint = '/api/tasks';
   static const String goalsEndpoint = '/api/goals';
   static const String calendarEventsEndpoint = '/api/calendarEvents';
   static const String goalProgressEndpoint = '/api/goalProgress';
 
+  // Simple in-memory cache
+  static final Map<String, dynamic> _cache = {};
+  static final Map<String, DateTime> _cacheTimestamps = {};
+
+  // Cache timeout (5 minutes)
+  static const Duration _cacheTimeout = Duration(minutes: 5);
+
+  // Helper method to check if cache is valid
+  static bool _isCacheValid(String key) {
+    if (!_cache.containsKey(key)) return false;
+    final timestamp = _cacheTimestamps[key];
+    if (timestamp == null) return false;
+    return DateTime.now().difference(timestamp) < _cacheTimeout;
+  }
+
+  // Helper method to get cached data
+  static T? _getCachedData<T>(String key) {
+    if (_isCacheValid(key)) {
+      return _cache[key] as T?;
+    }
+    return null;
+  }
+
+  // Helper method to set cached data
+  static void _setCachedData<T>(String key, T data) {
+    _cache[key] = data;
+    _cacheTimestamps[key] = DateTime.now();
+  }
+
+  // Helper method to clear cache for a specific key
+  static void _clearCache(String key) {
+    _cache.remove(key);
+    _cacheTimestamps.remove(key);
+  }
+
+  // Helper method to clear all cache
+  static void clearAllCache() {
+    _cache.clear();
+    _cacheTimestamps.clear();
+  }
+
   // User endpoints
   static Future<habit_hearts_user.User?> getUser(String uid) async {
+    final cacheKey = 'user_$uid';
+    final cached = _getCachedData<habit_hearts_user.User>(cacheKey);
+    if (cached != null) {
+      return cached;
+    }
+
     try {
       final response = await http.get(Uri.parse('$baseUrl$usersEndpoint/$uid'));
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
-        return habit_hearts_user.User.fromJson(jsonData);
+        final user = habit_hearts_user.User.fromJson(jsonData);
+        _setCachedData(cacheKey, user);
+        return user;
       }
       return null;
     } catch (e) {
-      print('Error getting user: $e');
       return null;
     }
   }
@@ -35,9 +83,13 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
         body: json.encode(user.toJson()),
       );
-      return response.statusCode == 201;
+      if (response.statusCode == 201) {
+        // Clear cache when creating new user
+        _clearCache('user_${user.uid}');
+        return true;
+      }
+      return false;
     } catch (e) {
-      print('Error creating user: $e');
       return false;
     }
   }
@@ -49,154 +101,174 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
         body: json.encode(user.toJson()),
       );
-      return response.statusCode == 200;
+      if (response.statusCode == 200) {
+        // Clear cache when updating user
+        _clearCache('user_${user.uid}');
+        return true;
+      }
+      return false;
     } catch (e) {
-      print('Error updating user: $e');
       return false;
     }
   }
 
   // Task endpoints
   static Future<List<Task>> getTasksForDate(String userId, DateTime date) async {
+    final dateString = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final cacheKey = 'tasks_${userId}_$dateString';
+    final cached = _getCachedData<List<Task>>(cacheKey);
+    if (cached != null) {
+      return cached;
+    }
+
     try {
-      final dateString = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-      print('Fetching tasks for user: $userId, date: $dateString');
       final response = await http.get(Uri.parse('$baseUrl$tasksEndpoint/$userId/$dateString'));
-      print('Tasks API response status: ${response.statusCode}');
-      print('Tasks API response body: ${response.body}');
       
       if (response.statusCode == 200) {
         final List<dynamic> jsonData = json.decode(response.body);
-        print('Tasks JSON data: $jsonData');
-        return jsonData.map((item) => Task.fromJson(item)).toList();
+        final tasks = jsonData.map((item) => Task.fromJson(item)).toList();
+        _setCachedData(cacheKey, tasks);
+        return tasks;
       }
       return [];
     } catch (e) {
-      print('Error getting tasks: $e');
       return [];
     }
   }
 
   static Future<Task?> createTask(Task task) async {
     try {
-      print('Creating task: ${task.text}, dueDate: ${task.dueDate}');
       final response = await http.post(
         Uri.parse('$baseUrl$tasksEndpoint'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode(task.toJson()),
       );
-      print('Create task response status: ${response.statusCode}');
-      print('Create task response body: ${response.body}');
       
       if (response.statusCode == 201) {
         // Parse the response to get the actual task with the correct ID
         final Map<String, dynamic> responseData = json.decode(response.body);
-        print('Created task data: $responseData');
-        return Task.fromJson(responseData);
+        final createdTask = Task.fromJson(responseData);
+        
+        // Clear cache for the date when task was created
+        if (task.dueDate != null) {
+          final dateString = '${task.dueDate!.year}-${task.dueDate!.month.toString().padLeft(2, '0')}-${task.dueDate!.day.toString().padLeft(2, '0')}';
+          _clearCache('tasks_${task.createdBy}_$dateString');
+        }
+        
+        return createdTask;
       }
       return null;
     } catch (e) {
-      print('Error creating task: $e');
       return null;
     }
   }
 
   static Future<Task?> updateTask(Task task) async {
     try {
-      print('Updating task ID: ${task.id}, text: ${task.text}, completed: ${task.completed}');
       final requestBody = json.encode(task.toJson());
-      print('Update task request body: $requestBody');
       final response = await http.put(
         Uri.parse('$baseUrl$tasksEndpoint/${task.id}'),
         headers: {'Content-Type': 'application/json'},
         body: requestBody,
       );
-      print('Update task response status: ${response.statusCode}');
-      print('Update task response body: ${response.body}');
       
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
-        return Task.fromJson(responseData);
+        final updatedTask = Task.fromJson(responseData);
+        
+        // Clear cache for the date when task was updated
+        if (task.dueDate != null) {
+          final dateString = '${task.dueDate!.year}-${task.dueDate!.month.toString().padLeft(2, '0')}-${task.dueDate!.day.toString().padLeft(2, '0')}';
+          _clearCache('tasks_${task.createdBy}_$dateString');
+        }
+        
+        return updatedTask;
       }
       return null;
     } catch (e) {
-      print('Error updating task: $e');
       return null;
     }
   }
 
   static Future<bool> deleteTask(String taskId) async {
     try {
-      print('Deleting task ID: $taskId');
       final response = await http.delete(Uri.parse('$baseUrl$tasksEndpoint/$taskId'));
-      print('Delete task response status: ${response.statusCode}');
-      print('Delete task response body: ${response.body}');
-      return response.statusCode == 200;
+      
+      if (response.statusCode == 200) {
+        // Clear all task caches (since we don't know which date this task was on)
+        _cache.removeWhere((key, value) => key.startsWith('tasks_'));
+        _cacheTimestamps.removeWhere((key, value) => key.startsWith('tasks_'));
+        return true;
+      }
+      return false;
     } catch (e) {
-      print('Error deleting task: $e');
       return false;
     }
   }
 
   // Goal endpoints
   static Future<List<Goal>> getGoals(String userId) async {
+    final cacheKey = 'goals_$userId';
+    final cached = _getCachedData<List<Goal>>(cacheKey);
+    if (cached != null) {
+      return cached;
+    }
+
     try {
       final response = await http.get(Uri.parse('$baseUrl$goalsEndpoint/$userId'));
-      print('Goals API response status: ${response.statusCode}');
-      print('Goals API response body: ${response.body}');
       
       if (response.statusCode == 200) {
         final List<dynamic> jsonData = json.decode(response.body);
-        print('Goals JSON data: $jsonData');
-        return jsonData.map((item) => Goal.fromJson(item)).toList();
+        final goals = jsonData.map((item) => Goal.fromJson(item)).toList();
+        _setCachedData(cacheKey, goals);
+        return goals;
       }
       return [];
     } catch (e) {
-      print('Error getting goals: $e');
       return [];
     }
   }
 
   static Future<Goal?> createGoal(Goal goal) async {
     try {
-      print('Creating goal: ${goal.text}');
       final requestBody = json.encode(goal.toJson());
-      print('Create goal request body: $requestBody');
       final response = await http.post(
         Uri.parse('$baseUrl$goalsEndpoint'),
         headers: {'Content-Type': 'application/json'},
         body: requestBody,
       );
-      print('Create goal response status: ${response.statusCode}');
-      print('Create goal response body: ${response.body}');
       if (response.statusCode == 201) {
-        return Goal.fromJson(json.decode(response.body));
+        final createdGoal = Goal.fromJson(json.decode(response.body));
+        
+        // Clear goals cache
+        _clearCache('goals_${goal.createdBy}');
+        
+        return createdGoal;
       }
       return null;
     } catch (e) {
-      print('Error creating goal: $e');
       return null;
     }
   }
 
   static Future<Goal?> updateGoal(Goal goal) async {
     try {
-      print('Updating goal ID: ${goal.id}, text: ${goal.text}, completed: ${goal.completed}');
       final requestBody = json.encode(goal.toJson());
-      print('Update goal request body: $requestBody');
       final response = await http.put(
         Uri.parse('$baseUrl$goalsEndpoint/${goal.id}'),
         headers: {'Content-Type': 'application/json'},
         body: requestBody,
       );
-      print('Update goal response status: ${response.statusCode}');
-      print('Update goal response body: ${response.body}');
       if (response.statusCode == 200) {
-        return Goal.fromJson(json.decode(response.body));
+        final updatedGoal = Goal.fromJson(json.decode(response.body));
+        
+        // Clear goals cache
+        _clearCache('goals_${goal.createdBy}');
+        
+        return updatedGoal;
       }
       return null;
     } catch (e) {
-      print('Error updating goal: $e');
       return null;
     }
   }
@@ -204,9 +276,14 @@ class ApiService {
   static Future<bool> deleteGoal(String goalId) async {
     try {
       final response = await http.delete(Uri.parse('$baseUrl$goalsEndpoint/$goalId'));
-      return response.statusCode == 200;
+      if (response.statusCode == 200) {
+        // Clear goals cache
+        _cache.removeWhere((key, value) => key.startsWith('goals_'));
+        _cacheTimestamps.removeWhere((key, value) => key.startsWith('goals_'));
+        return true;
+      }
+      return false;
     } catch (e) {
-      print('Error deleting goal: $e');
       return false;
     }
   }
@@ -221,11 +298,14 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
       );
 
-      print('Remove goal progress response status: ${response.statusCode}');
       // A 200 OK or 204 No Content are both acceptable success statuses.
-      return response.statusCode == 200 || response.statusCode == 204;
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        // Clear user cache
+        _clearCache('user_$userId');
+        return true;
+      }
+      return false;
     } catch (e) {
-      print('Error removing goal progress for user: $e');
       // Return false to indicate failure, which will prevent the main goal from being deleted.
       return false;
     }
@@ -233,21 +313,27 @@ class ApiService {
 
   // Calendar event endpoints
   static Future<List<CalendarEvent>> getCalendarEvents(String userId, DateTime startDate, DateTime endDate) async {
+    final startString = '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}';
+    final endString = '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}';
+    final cacheKey = 'calendar_${userId}_${startString}_${endString}';
+    final cached = _getCachedData<List<CalendarEvent>>(cacheKey);
+    if (cached != null) {
+      return cached;
+    }
+    
     try {
-      final startString = '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}';
-      final endString = '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}';
-      
       final response = await http.get(
         Uri.parse('$baseUrl$calendarEventsEndpoint/$userId?startDate=$startString&endDate=$endString')
       );
       
       if (response.statusCode == 200) {
         final List<dynamic> jsonData = json.decode(response.body);
-        return jsonData.map((item) => CalendarEvent.fromJson(item)).toList();
+        final events = jsonData.map((item) => CalendarEvent.fromJson(item)).toList();
+        _setCachedData(cacheKey, events);
+        return events;
       }
       return [];
     } catch (e) {
-      print('Error getting calendar events: $e');
       return [];
     }
   }
@@ -260,11 +346,16 @@ class ApiService {
         body: json.encode(event.toJson()),
       );
       if (response.statusCode == 201) {
-        return CalendarEvent.fromJson(json.decode(response.body));
+        final createdEvent = CalendarEvent.fromJson(json.decode(response.body));
+        
+        // Clear calendar cache
+        _cache.removeWhere((key, value) => key.startsWith('calendar_${event.createdBy}'));
+        _cacheTimestamps.removeWhere((key, value) => key.startsWith('calendar_${event.createdBy}'));
+        
+        return createdEvent;
       }
       return null;
     } catch (e) {
-      print('Error creating calendar event: $e');
       return null;
     }
   }
@@ -276,9 +367,14 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
         body: json.encode(event.toJson()),
       );
-      return response.statusCode == 200;
+      if (response.statusCode == 200) {
+        // Clear calendar cache
+        _cache.removeWhere((key, value) => key.startsWith('calendar_${event.createdBy}'));
+        _cacheTimestamps.removeWhere((key, value) => key.startsWith('calendar_${event.createdBy}'));
+        return true;
+      }
+      return false;
     } catch (e) {
-      print('Error updating calendar event: $e');
       return false;
     }
   }
@@ -286,9 +382,14 @@ class ApiService {
   static Future<bool> deleteCalendarEvent(String eventId) async {
     try {
       final response = await http.delete(Uri.parse('$baseUrl$calendarEventsEndpoint/$eventId'));
-      return response.statusCode == 200;
+      if (response.statusCode == 200) {
+        // Clear calendar cache
+        _cache.removeWhere((key, value) => key.startsWith('calendar_'));
+        _cacheTimestamps.removeWhere((key, value) => key.startsWith('calendar_'));
+        return true;
+      }
+      return false;
     } catch (e) {
-      print('Error deleting calendar event: $e');
       return false;
     }
   }
@@ -307,27 +408,23 @@ class ApiService {
       );
       
       if (response.statusCode == 200) {
-        return json.decode(response.body);
+        final result = json.decode(response.body);
+        
+        // Clear user cache
+        _clearCache('user_$userId');
+        // Clear goals cache
+        _clearCache('goals_$userId');
+        
+        return result;
       }
       return null;
     } catch (e) {
-      print('Error toggling goal progress for user: $e');
       return null;
     }
   }
   
   // Get user's goal progress data
   static Future<habit_hearts_user.User?> getUserGoalProgress(String userId) async {
-    try {
-      final response = await http.get(Uri.parse('$baseUrl$usersEndpoint/$userId'));
-      if (response.statusCode == 200) {
-        final jsonData = json.decode(response.body);
-        return habit_hearts_user.User.fromJson(jsonData);
-      }
-      return null;
-    } catch (e) {
-      print('Error getting user goal progress: $e');
-      return null;
-    }
+    return getUser(userId);
   }
 }

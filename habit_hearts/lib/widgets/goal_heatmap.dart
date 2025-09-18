@@ -1,178 +1,133 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:habit_hearts/providers/goals_provider.dart';
 import 'package:habit_hearts/models/goal.dart';
-import 'package:habit_hearts/theme/app_theme.dart';
 import 'package:intl/intl.dart';
 
-class GoalHeatmap extends StatefulWidget {
+class GoalHeatmap extends StatelessWidget {
   final Goal goal;
+  final Map<String, Map<String, String>> userGoalProgress;
   final Function(String, bool) onDayToggle;
+  final Color baseColor;
 
   const GoalHeatmap({
     super.key,
     required this.goal,
+    required this.userGoalProgress,
     required this.onDayToggle,
+    required this.baseColor,
   });
 
-  @override
-  State<GoalHeatmap> createState() => _GoalHeatmapState();
-}
+  bool _isDayCompleted(DateTime day) {
+    final yearMonth = '${day.year}-${day.month.toString().padLeft(2, '0')}';
+    final dayOfMonth = day.day;
 
-class _GoalHeatmapState extends State<GoalHeatmap> {
-  late DateTime _currentMonth;
-  late List<DateTime> _daysInMonth;
+    if (!userGoalProgress.containsKey(goal.id)) return false;
+    if (!userGoalProgress[goal.id]!.containsKey(yearMonth)) return false;
 
-  @override
-  void initState() {
-    super.initState();
-    _currentMonth = DateTime.now();
-    _daysInMonth = _getDaysInMonth(_currentMonth);
-  }
+    final bitString = userGoalProgress[goal.id]![yearMonth]!;
+    if (dayOfMonth < 1 || dayOfMonth > bitString.length) return false;
 
-  List<DateTime> _getDaysInMonth(DateTime month) {
-    final List<DateTime> days = [];
-    final DateTime firstDay = DateTime(month.year, month.month, 1);
-    final DateTime lastDay = DateTime(month.year, month.month + 1, 0);
-    
-    // Add empty cells for days before the first day of the month
-    for (int i = 0; i < firstDay.weekday - 1; i++) {
-      days.add(firstDay.subtract(Duration(days: firstDay.weekday - 1 - i)));
-    }
-    
-    // Add all days of the month
-    for (int i = 0; i < lastDay.day; i++) {
-      days.add(DateTime(month.year, month.month, i + 1));
-    }
-    
-    // Add empty cells to complete the grid (6 rows max)
-    while (days.length < 42) { // 6 rows * 7 columns
-      days.add(lastDay.add(Duration(days: days.length - lastDay.day + 1)));
-    }
-    
-    return days;
-  }
-
-  bool _isDayCompleted(GoalsProvider goalsProvider, DateTime day) {
-    return goalsProvider.isGoalCompletedForDate(widget.goal.id, day);
-  }
-
-  Color _getDayColor(GoalsProvider goalsProvider, DateTime day) {
-    if (day.month != _currentMonth.month) {
-      return Colors.transparent;
-    }
-    
-    if (_isDayCompleted(goalsProvider, day)) {
-      return AppColors.electricGreen; // Completed day
-    } else {
-      return AppColors.borderColor; // Incomplete day
-    }
+    final index = dayOfMonth - 1;
+    return index < bitString.length && bitString[index] == '1';
   }
 
   @override
   Widget build(BuildContext context) {
-    final List<String> weekdays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-    
-    return Consumer<GoalsProvider>(
-      builder: (context, goalsProvider, child) {
-        return Column(
-          children: [
-            // Weekday headers
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: weekdays.map((day) => 
-                SizedBox(
-                  width: 24,
-                  child: Text(
-                    day,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: Colors.grey,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                )
-              ).toList(),
-            ),
-            const SizedBox(height: 4),
-            // Calendar grid with bigger cells
-            SizedBox(
-              height: 140, // Increased height
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final double cellSize = constraints.maxWidth / 7 - 4; // Increased cell size
-                  return Wrap(
-                    spacing: 2, // Increased spacing
-                    runSpacing: 2, // Increased run spacing
-                    children: List.generate(_daysInMonth.length, (index) {
-                      final DateTime day = _daysInMonth[index];
-                      final bool isCurrentMonth = day.month == _currentMonth.month;
-                      
-                      // Get the color based on completion status
-                      final Color dayColor = _getDayColor(goalsProvider, day);
-                      
-                      // Check if we should show the target emoji
-                      bool showTargetEmoji = false;
-                      if (!widget.goal.isHabit && 
-                          widget.goal.endDate != null && 
-                          day.isAtSameMomentAs(widget.goal.endDate!)) {
-                        showTargetEmoji = true;
-                      }
-                      
-                      return GestureDetector(
-                        onTap: () {
-                          if (isCurrentMonth) {
-                            // Add visual feedback animation
-                            setState(() {
-                              // Trigger a rebuild with animation
-                            });
-                            
-                            // Toggle the day's completion status
-                            final bool isCompleted = _isDayCompleted(goalsProvider, day);
-                            widget.onDayToggle(widget.goal.id, !isCompleted);
-                          }
-                        },
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          width: cellSize > 24 ? 24 : cellSize,
-                          height: cellSize > 24 ? 24 : cellSize,
-                          decoration: BoxDecoration(
-                            color: isCurrentMonth ? dayColor : Colors.transparent,
-                            borderRadius: BorderRadius.circular(6), // Slightly rounded squares
-                            border: isCurrentMonth 
-                              ? null 
-                              : Border.all(color: Colors.grey[200]!, width: 1),
-                          ),
-                          child: Center(
-                            child: showTargetEmoji
-                              ? Text(
-                                  '${day.day}🎯', // Day number + Target emoji
-                                  style: const TextStyle(
-                                    fontSize: 8,
-                                    color: AppColors.textColor,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                )
-                              : Text(
-                                  isCurrentMonth ? '${day.day}' : '',
-                                  style: TextStyle(
-                                    fontSize: 8,
-                                    color: dayColor == AppColors.electricGreen ? Colors.white : AppColors.textColor,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                          ),
-                        ),
-                      );
-                    }),
-                  );
-                },
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        children: [
+          _buildWeekdayLabels(),
+          const SizedBox(height: 4),
+          _buildCalendarGrid(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeekdayLabels() {
+    final weekdays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: weekdays.map((day) => Text(day, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))).toList(),
+    );
+  }
+
+  Widget _buildCalendarGrid() {
+    final days = _getCalendarDays(DateTime.now());
+    final darkerShade = HSLColor.fromColor(baseColor).withLightness(0.7).toColor();
+    final darkestShade = HSLColor.fromColor(baseColor).withLightness(0.4).toColor();
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 7,
+        crossAxisSpacing: 2,
+        mainAxisSpacing: 2,
+      ),
+      itemCount: days.length,
+      itemBuilder: (context, index) {
+        final day = days[index];
+        final isCompleted = _isDayCompleted(day);
+        final isCurrentMonth = day.month == DateTime.now().month;
+
+        Color cellColor;
+        if (isCompleted) {
+          cellColor = darkestShade;
+        } else if (isCurrentMonth) {
+          cellColor = darkerShade;
+        } else {
+          cellColor = Colors.grey[300]!;
+        }
+
+        return Container(
+          height: 25,
+          width: 25,
+          decoration: BoxDecoration(
+            color: cellColor,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Center(
+            child: Text(
+              '${day.day}',
+              style: TextStyle(
+                color: isCompleted || isCurrentMonth ? Colors.white : Colors.grey[500],
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
               ),
             ),
-          ],
+          ),
         );
       },
     );
+  }
+
+  List<DateTime> _getCalendarDays(DateTime month) {
+    final firstDayOfMonth = DateTime(month.year, month.month, 1);
+    final lastDayOfMonth = DateTime(month.year, month.month + 1, 0);
+
+    final List<DateTime> days = [];
+
+    // Add trailing days from the previous month
+    int daysBefore = firstDayOfMonth.weekday;
+    if (daysBefore == 7) daysBefore = 0; // Sunday is 7, but we want it to be 0
+    for (int i = daysBefore; i > 0; i--) {
+      days.add(firstDayOfMonth.subtract(Duration(days: i)));
+    }
+
+    // Add all days of the current month
+    for (int i = 0; i < lastDayOfMonth.day; i++) {
+      days.add(firstDayOfMonth.add(Duration(days: i)));
+    }
+
+    // Add leading days from the next month
+    final daysAfter = 42 - days.length; // 6 weeks * 7 days
+    for (int i = 1; i <= daysAfter; i++) {
+      days.add(lastDayOfMonth.add(Duration(days: i)));
+    }
+
+    return days;
   }
 }

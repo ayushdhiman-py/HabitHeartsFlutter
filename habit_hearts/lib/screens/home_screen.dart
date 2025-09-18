@@ -2,7 +2,9 @@ import 'package:lottie/lottie.dart';
 import '../widgets/lottie_header_animation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../providers/theme_provider.dart';
 import 'package:intl/intl.dart';
+import 'dart:ui';
 import '../providers/habit_hearts_auth_provider.dart';
 import '../providers/goals_provider.dart';
 import '../theme/app_theme.dart';
@@ -30,13 +32,10 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentStreak = 5; // Sample streak data
   int _longestStreak = 12; // Sample streak data
   final GlobalKey<_DateCarouselState> _dateCarouselKey = GlobalKey<_DateCarouselState>();
-  bool _showTitle = false;
 
   @override
   void initState() {
     super.initState();
-
-    _scrollController.addListener(_scrollListener);
     
     // Load data
     _loadData();
@@ -101,17 +100,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _scrollListener() {
-    if (_scrollController.offset > 100 != _showTitle) {
-      setState(() {
-        _showTitle = _scrollController.offset > 100;
-      });
-    }
-  }
-
   @override
   void dispose() {
-    _scrollController.removeListener(_scrollListener);
     _scrollController.dispose();
     super.dispose();
   }
@@ -138,121 +128,31 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<HabitHeartsAuthProvider>(context);
+    final themeProvider = Provider.of<ThemeProvider>(context);
 
     return Scaffold(
-      body: CustomScrollView(
-        controller: _scrollController,
-        slivers: [
-          // Animated Header with reduced height
-          SliverAppBar(
-            expandedHeight: 150.0, // Reduced from 200 to 150
-            floating: false,
-            pinned: true,
-            backgroundColor: AppColors.electricBlue,
-            centerTitle: true,
-            title: _showTitle ? const Text('HabitHearts') : null,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Image.asset(
-                    'assets/images/headerBg.png',
-                    fit: BoxFit.cover,
-                  ),
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                                                Lottie.asset(
-                            'assets/animations/RW1j2z2aZy.lottie',
-                            width: 200,
-                            height: 200,
-                            fit: BoxFit.contain,
-                            decoder: lottieFileDecoder, // Custom decoder for .lottie files
-                            errorBuilder: (context, error, stackTrace) {
-                              // Try a fallback .json animation
-                              return Lottie.asset(
-                                'assets/animations/calendar.json',
-                                width: 200,
-                                height: 200,
-                                fit: BoxFit.contain,
-                                errorBuilder: (context, error, stackTrace) {
-                                  // If both fail, show fallback UI
-                                  return Container(
-                                    width: 200,
-                                    height: 200,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: const Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Icon(
-                                          Icons.animation_outlined,
-                                          size: 48,
-                                          color: Colors.white,
-                                        ),
-                                        SizedBox(height: 8),
-                                        Text(
-                                          'Animation Error',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
-                              );
-                            },
-                            frameBuilder: (context, child, composition) {
-                              // Show a loading indicator while the animation is loading
-                              if (composition == null) {
-                                return Container(
-                                  width: 200,
-                                  height: 200,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Center(
-                                    child: CircularProgressIndicator(
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                    ),
-                                  ),
-                                );
-                              }
-                              return child;
-                            },
-                          ),
-                      Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Hi, ${_getGreeting()} ${authProvider.user?.displayName ?? ''}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          
-                        ],
-                      ),
-                    ],
-                  ),
-                  
-                ],
-              ),
+      appBar: AppBar(
+        title: const Text('HabitHearts'),
+        backgroundColor: Colors.transparent,
+        flexibleSpace: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0),
+            child: Container(
+              color: themeProvider.selectedColor.withOpacity(0.3),
             ),
           ),
-          
-          // Main Content
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
+        ),
+      ),
+      body: SingleChildScrollView(
+        controller: _scrollController,
+        child: Column(
+          children: [
+            _Header(
+              getGreeting: _getGreeting,
+              authProvider: authProvider,
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -514,8 +414,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
       floatingActionButton: Container(
         decoration: BoxDecoration(
@@ -543,6 +443,109 @@ class _HomeScreenState extends State<HomeScreen> {
   
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
+  }
+}
+
+class _Header extends StatelessWidget {
+  final String Function() getGreeting;
+  final HabitHeartsAuthProvider authProvider;
+
+  const _Header({
+    required this.getGreeting,
+    required this.authProvider,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Image.asset(
+          'assets/images/headerBg.png',
+          fit: BoxFit.cover,
+          height: 150,
+          width: double.infinity,
+        ),
+        Lottie.asset(
+          'assets/animations/RW1j2z2aZy.lottie',
+          width: 150,
+          height: 150,
+          fit: BoxFit.contain,
+          decoder: lottieFileDecoder, // Custom decoder for .lottie files
+          errorBuilder: (context, error, stackTrace) {
+            // Try a fallback .json animation
+            return Lottie.asset(
+              'assets/animations/calendar.json',
+              width: 200,
+              height: 200,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) {
+                // If both fail, show fallback UI
+                return Container(
+                  width: 200,
+                  height: 200,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.animation_outlined,
+                        size: 48,
+                        color: Colors.white,
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Animation Error',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+          frameBuilder: (context, child, composition) {
+            // Show a loading indicator while the animation is loading
+            if (composition == null) {
+              return Container(
+                width: 200,
+                height: 200,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+              );
+            }
+            return child;
+          },
+        ),
+        Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'Hi, ${getGreeting()} ${authProvider.user?.displayName ?? ''}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 }
 
