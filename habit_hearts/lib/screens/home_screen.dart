@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/dark_mode_provider.dart';
 import 'package:intl/intl.dart';
-import 'dart:ui' as ui;
 import '../providers/habit_hearts_auth_provider.dart';
 import '../providers/goals_provider.dart';
 import '../theme/app_theme.dart';
@@ -18,6 +17,8 @@ import '../widgets/emoji_selector.dart';
 import '../widgets/swipeable_task_item.dart';
 import '../widgets/swipeable_goal_item.dart';
 import '../utils/lottie_decoder.dart';
+import '../widgets/themed_background.dart';
+import 'dart:ui' as ui;
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -470,6 +471,7 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
               ),
             ),
           ),
+          elevation: 0,
         );
       },
     );

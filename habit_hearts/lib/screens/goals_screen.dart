@@ -537,6 +537,7 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
               ),
             ),
           ),
+          elevation: 0,
         );
       },
     );

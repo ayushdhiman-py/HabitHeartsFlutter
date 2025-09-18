@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class AppColors {
   // Modern gradient color palette with soft, friendly tones
@@ -17,6 +18,11 @@ class AppColors {
   static const Color darkTextColor = Color(0xFFFFFFFF);
   static const Color darkSecondaryTextColor = Color(0xFFB0B0B0);
   static const Color darkBorderColor = Color(0xFF333333);
+  
+  // Light theme background colors (lighter shades)
+  static const Color lightBackground = Color(0xFFFFFFFF);      // Pure white background
+  static const Color lightCardBackground = Color(0xFFF8F9FA);  // Very light gray for cards
+  static const Color lightSecondaryBackground = Color(0xFFE6EEF5); // Light blue
   
   // Gradient combinations
   static const List<Color> purpleToPinkGradient = [electricBlue, hotPink];
@@ -51,24 +57,25 @@ class AppTheme {
         primary: AppColors.electricBlue,
         secondary: AppColors.hotPink,
       ),
-      scaffoldBackgroundColor: AppColors.primaryBackground,
-      fontFamily: 'Poppins', // Clean rounded sans-serif font
+      scaffoldBackgroundColor: AppColors.lightBackground,
+      fontFamily: 'Poppins',
       appBarTheme: AppBarTheme(
-        backgroundColor: Colors.transparent, // Transparent for glassmorphism
-        foregroundColor: Colors.white,
+        backgroundColor: AppColors.lightBackground,
+        foregroundColor: AppColors.textColor,
         elevation: 0,
         titleTextStyle: const TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.w600,
-          color: Colors.white,
+          color: AppColors.textColor,
           fontFamily: 'Poppins',
         ),
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        backgroundColor: Colors.white.withOpacity(0.3), // Match AppBar opacity
+        backgroundColor: AppColors.lightBackground,
         selectedItemColor: AppColors.electricBlue,
         unselectedItemColor: AppColors.secondaryTextColor,
-        elevation: 0, // Remove elevation for glassmorphism
+        elevation: 0,
         selectedLabelStyle: const TextStyle(
           fontWeight: FontWeight.w600,
           fontFamily: 'Poppins',
@@ -87,7 +94,7 @@ class AppTheme {
           ),
           elevation: 4,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(50), // Fully pill-shaped
+            borderRadius: BorderRadius.circular(50),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         ),
@@ -102,11 +109,11 @@ class AppTheme {
         ),
       ),
       cardTheme: CardTheme(
-        color: AppColors.cardBackground,
+        color: AppColors.lightCardBackground,
         elevation: 4,
         shadowColor: Colors.black.withOpacity(0.05),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24), // Extra rounded (2xl)
+          borderRadius: BorderRadius.circular(24),
           side: const BorderSide(
             color: AppColors.borderColor,
             width: 0.5,
@@ -156,9 +163,9 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.cardBackground.withOpacity(0.7),
+        fillColor: AppColors.lightCardBackground.withOpacity(0.7),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16), // Medium rounded (xl)
+          borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
@@ -188,23 +195,24 @@ class AppTheme {
         brightness: Brightness.dark,
       ),
       scaffoldBackgroundColor: AppColors.darkBackground,
-      fontFamily: 'Poppins', // Clean rounded sans-serif font
+      fontFamily: 'Poppins',
       appBarTheme: AppBarTheme(
-        backgroundColor: Colors.transparent, // Transparent for glassmorphism
-        foregroundColor: Colors.white,
+        backgroundColor: AppColors.darkBackground,
+        foregroundColor: AppColors.darkTextColor,
         elevation: 0,
         titleTextStyle: const TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.w600,
-          color: Colors.white,
+          color: AppColors.darkTextColor,
           fontFamily: 'Poppins',
         ),
+        systemOverlayStyle: SystemUiOverlayStyle.light,
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        backgroundColor: AppColors.darkCardBackground.withOpacity(0.3), // Match AppBar opacity
+        backgroundColor: AppColors.darkBackground,
         selectedItemColor: AppColors.electricBlue,
         unselectedItemColor: AppColors.darkSecondaryTextColor,
-        elevation: 0, // Remove elevation for glassmorphism
+        elevation: 0,
         selectedLabelStyle: const TextStyle(
           fontWeight: FontWeight.w600,
           fontFamily: 'Poppins',
@@ -223,7 +231,7 @@ class AppTheme {
           ),
           elevation: 4,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(50), // Fully pill-shaped
+            borderRadius: BorderRadius.circular(50),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         ),
@@ -242,7 +250,7 @@ class AppTheme {
         elevation: 4,
         shadowColor: Colors.black.withOpacity(0.2),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24), // Extra rounded (2xl)
+          borderRadius: BorderRadius.circular(24),
           side: const BorderSide(
             color: AppColors.darkBorderColor,
             width: 0.5,
@@ -294,7 +302,7 @@ class AppTheme {
         filled: true,
         fillColor: AppColors.darkCardBackground.withOpacity(0.7),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16), // Medium rounded (xl)
+          borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(

@@ -446,6 +446,7 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
               ),
             ),
           ),
+          elevation: 0,
           actions: [
             IconButton(
               icon: Icon(
