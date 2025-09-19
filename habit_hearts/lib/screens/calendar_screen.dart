@@ -491,7 +491,7 @@ class _EmojiSelectorButton extends StatelessWidget {
     return InkWell(
       onTap: onSelectEmoji,
       child: InputDecorator(
-        decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Emoji'),
+        decoration: const InputDecoration(border: const OutlineInputBorder(), labelText: 'Emoji'),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [const Icon(Icons.emoji_emotions_outlined, size: 18), const SizedBox(width: 8), Text(selectedEmoji ?? 'Select')],

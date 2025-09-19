@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../providers/theme_provider.dart';
 import '../providers/dark_mode_provider.dart';
 import 'package:intl/intl.dart';
+import 'dart:math' as math;
 import '../providers/habit_hearts_auth_provider.dart';
 import '../providers/goals_provider.dart';
 import '../theme/app_theme.dart';
@@ -1505,7 +1506,7 @@ class _GoalsSection extends StatelessWidget {
               const SizedBox(height: 12),
               // Heatmap for goal progress
               Padding(
-                padding: const EdgeInsets.all(5),
+                padding: const EdgeInsets.all(2),
                 child: _MonthlyGoalHeatmap(
                   goal: goal,
                   userGoalProgress: userGoalProgress,
@@ -1520,7 +1521,7 @@ class _GoalsSection extends StatelessWidget {
   }
 }
 
-// Monthly Goal Heatmap
+// Monthly Goal Heatmap (40-day scrolling view)
 class _MonthlyGoalHeatmap extends StatefulWidget {
   final Goal goal;
   final Map<String, Map<String, String>> userGoalProgress;
@@ -1537,36 +1538,22 @@ class _MonthlyGoalHeatmap extends StatefulWidget {
 }
 
 class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
-  late DateTime _currentMonth;
-  late List<DateTime> _daysInMonth;
+  int _startIndex = 0; // Starting index for the 40-day window
+  late DateTime _startDate; // Start date for the heatmap (goal creation date)
 
   @override
   void initState() {
     super.initState();
-    _currentMonth = DateTime.now();
-    _daysInMonth = _getDaysInMonth(_currentMonth);
+    // Set the start date to the goal creation date
+    _startDate = widget.goal.createdAt;
   }
 
-  List<DateTime> _getDaysInMonth(DateTime month) {
+  List<DateTime> _get40Days() {
     final List<DateTime> days = [];
-    final DateTime firstDay = DateTime(month.year, month.month, 1);
-    final DateTime lastDay = DateTime(month.year, month.month + 1, 0);
-    
-    // Add empty cells for days before the first day of the month
-    for (int i = 0; i < firstDay.weekday - 1; i++) {
-      days.add(firstDay.subtract(Duration(days: firstDay.weekday - 1 - i)));
+    // Generate 40 consecutive days starting from _startIndex
+    for (int i = _startIndex; i < _startIndex + 40; i++) {
+      days.add(_startDate.add(Duration(days: i)));
     }
-    
-    // Add all days of the month
-    for (int i = 0; i < lastDay.day; i++) {
-      days.add(DateTime(month.year, month.month, i + 1));
-    }
-    
-    // Add empty cells to complete the grid (6 rows max)
-    while (days.length < 42) { // 6 rows * 7 columns
-      days.add(lastDay.add(Duration(days: days.length - lastDay.day + 1)));
-    }
-    
     return days;
   }
 
@@ -1584,50 +1571,88 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
     return index < bitString.length && bitString[index] == '1';
   }
 
+  void _previous40Days() {
+    setState(() {
+      _startIndex = math.max(0, _startIndex - 40);
+    });
+  }
+
+  void _next40Days() {
+    setState(() {
+      _startIndex += 40;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final List<String> weekdays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+    final List<DateTime> daysToShow = _get40Days();
+    final bool canGoBack = _startIndex > 0;
+    final bool canGoForward = true; // Always allow going forward
     
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Weekday headers
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: weekdays.map((day) => 
-            SizedBox(
-              width: 24,
-              child: Text(
-                day,
-                textAlign: TextAlign.center,
+        // Navigation controls
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Previous button
+              IconButton(
+                onPressed: canGoBack ? _previous40Days : null,
+                icon: const Icon(Icons.arrow_back_ios, size: 16),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+              // Date range display
+              Text(
+                daysToShow.isNotEmpty 
+                  ? '${DateFormat('MMM d').format(daysToShow.first)} - ${DateFormat('MMM d, yyyy').format(daysToShow.last)}'
+                  : 'No data',
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
                   color: Theme.of(context).brightness == Brightness.dark 
-                      ? AppColors.darkSecondaryTextColor 
-                      : AppColors.secondaryTextColor,
-                  fontWeight: FontWeight.bold,
+                      ? AppColors.darkTextColor 
+                      : AppColors.textColor,
                 ),
               ),
-            )
-          ).toList(),
+              // Next button
+              IconButton(
+                onPressed: _next40Days,
+                icon: const Icon(Icons.arrow_forward_ios, size: 16),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 2),
-        // Calendar grid with bigger cells
-        SizedBox(
-          height: 140, // Increased height
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final double cellSize = constraints.maxWidth / 7 - 4; // Increased cell size
-              return Wrap(
-                spacing: 2, // Increased spacing
-                runSpacing: 2, // Increased run spacing
-                children: List.generate(_daysInMonth.length, (index) {
-                  final DateTime day = _daysInMonth[index];
-                  final bool isCurrentMonth = day.month == _currentMonth.month;
+        // Calendar grid with compact design using Wrap for actual size control
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final double totalWidth = constraints.maxWidth;
+            final double spacing = 1.0;
+            final double boxSize = 16.0;
+            final int boxesPerRow = 10;
+            // We want exactly 6 rows
+            final int numberOfRows = 6;
+            // Calculate height: 6 boxes + 5 spacings (spacing between rows)
+            final double totalHeight = (24.0 * numberOfRows) + (spacing * (numberOfRows - 1));
+            
+            return SizedBox(
+              height: totalHeight,
+              child: GridView.builder(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 10,
+                  crossAxisSpacing: spacing,
+                  mainAxisSpacing: spacing,
+                ),
+                itemCount: 40,
+                itemBuilder: (context, index) {
+                  final DateTime day = daysToShow[index];
+                  final bool isCompleted = _isDayCompleted(day);
                   
-                  // Check if the day is completed
-                  final bool isCompleted = isCurrentMonth ? _isDayCompleted(day) : false;
-                  
-                  // Check if we should show the target emoji
                   bool showTargetEmoji = false;
                   if (!widget.goal.isHabit && 
                       widget.goal.endDate != null && 
@@ -1637,56 +1662,60 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
                   
                   return GestureDetector(
                     onTap: () {
-                      if (isCurrentMonth) {
-                        // Add visual feedback animation
-                        setState(() {
-                          // Trigger a rebuild with animation
-                        });
-                        
-                        // Toggle the day's completion status
-                        widget.onDayToggle(widget.goal.id, !isCompleted);
-                      }
+                      widget.onDayToggle(widget.goal.id, !isCompleted);
                     },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: cellSize > 24 ? 24 : cellSize,
-                      height: cellSize > 24 ? 24 : cellSize,
+                    child: Container(
+                      width: 12.0,
+                      height: 12.0,
                       decoration: BoxDecoration(
-                        color: isCurrentMonth 
-                          ? (isCompleted 
-                              ? AppColors.electricGreen 
-                              : AppColors.borderColor)
-                          : Colors.transparent,
-                        borderRadius: BorderRadius.circular(6), // Slightly rounded squares
-                        border: isCurrentMonth 
-                          ? null 
-                          : Border.all(color: Colors.grey[200]!, width: 1),
+                        color: isCompleted 
+                            ? AppColors.electricGreen.withOpacity(0.8) 
+                            : Theme.of(context).brightness == Brightness.dark
+                                ? AppColors.darkCardBackground
+                                : AppColors.lightCardBackground,
+                        borderRadius: BorderRadius.circular(2),
+                        border: Border.all(
+                          color: isCompleted 
+                              ? AppColors.electricGreen.withOpacity(0.8)
+                              : Theme.of(context).brightness == Brightness.dark
+                                  ? AppColors.darkBorderColor
+                                  : AppColors.borderColor,
+                          width: 1,
+                        ),
                       ),
                       child: Center(
                         child: showTargetEmoji
                           ? Text(
-                              '${day.day}🎯', // Day number + Target emoji
-                              style: const TextStyle(
-                                fontSize: 8,
-                                color: AppColors.textColor,
-                                fontWeight: FontWeight.bold,
+                              '${day.day}🎯',
+                              style: TextStyle(
+                                fontSize: 5,
+                                color: isCompleted 
+                                    ? Colors.white 
+                                    : (Theme.of(context).brightness == Brightness.dark 
+                                        ? AppColors.darkTextColor 
+                                        : AppColors.textColor),
+                                fontWeight: FontWeight.w600,
                               ),
                             )
                           : Text(
-                              isCurrentMonth ? '${day.day}' : '',
+                              '${day.day}',
                               style: TextStyle(
                                 fontSize: 8,
-                                color: isCompleted ? Colors.white : AppColors.textColor,
-                                fontWeight: FontWeight.bold,
+                                color: isCompleted 
+                                    ? Colors.white 
+                                    : (Theme.of(context).brightness == Brightness.dark 
+                                        ? AppColors.darkTextColor 
+                                        : AppColors.textColor),
+                                fontWeight: isCompleted ? FontWeight.w600 : FontWeight.normal,
                               ),
                             ),
                       ),
                     ),
                   );
-                }),
-              );
-            },
-          ),
+                },
+              ),
+            );
+          },
         ),
       ],
     );
