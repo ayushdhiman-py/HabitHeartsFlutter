@@ -142,7 +142,6 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
-  late PageController _pageController;
 
   final List<Widget> _screens = [
     const HomeScreen(),
@@ -151,24 +150,10 @@ class _MainScreenState extends State<MainScreen> {
     const ProfileScreen(),
   ];
 
-  @override
-  void initState() {
-    super.initState();
-    _pageController = PageController(initialPage: _currentIndex);
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
   void _onItemTapped(int index) {
     setState(() {
       _currentIndex = index;
     });
-    // Jump to the page without rebuilding the whole screen
-    _pageController.jumpToPage(index);
   }
 
   @override
@@ -185,13 +170,8 @@ class _MainScreenState extends State<MainScreen> {
                   color: darkModeProvider.isDarkMode 
                       ? AppColors.darkBackground 
                       : AppColors.lightBackground,
-                  child: PageView(
-                    controller: _pageController,
-                    onPageChanged: (index) {
-                      setState(() {
-                        _currentIndex = index;
-                      });
-                    },
+                  child: IndexedStack(
+                    index: _currentIndex,
                     children: _screens,
                   ),
                 ),
