@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_slidable/flutter_slidable.dart';
 import '../models/task.dart';
 import '../theme/app_theme.dart';
 
@@ -60,85 +59,110 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
       builder: (context, child) {
         return Transform.scale(
           scale: _scaleAnimation.value,
-          child: Card(
-            color: Theme.of(context).brightness == Brightness.dark 
-                ? AppColors.darkCardBackground 
-                : AppColors.lightCardBackground,
-            margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
-            child: Slidable(
-              endActionPane: ActionPane(
-                motion: const ScrollMotion(),
-                children: [
-                  SlidableAction(
-                    onPressed: (_) => widget.onEdit(widget.task),
-                    backgroundColor: AppColors.electricBlue,
-                    foregroundColor: Colors.white,
-                    icon: Icons.edit,
-                    label: 'Edit',
-                    borderRadius: BorderRadius.circular(16),
-                    spacing: 2,
-                  ),
-                  SlidableAction(
-                    onPressed: (_) => widget.onDelete(widget.task),
-                    backgroundColor: AppColors.brightRed,
-                    foregroundColor: Colors.white,
-                    icon: Icons.delete,
-                    label: 'Delete',
-                    borderRadius: BorderRadius.circular(16),
-                    spacing: 2,
-                  ),
-                ],
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark 
+                  ? AppColors.darkCardBackground 
+                  : AppColors.lightCardBackground,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Theme.of(context).brightness == Brightness.dark 
+                    ? AppColors.darkBorderColor 
+                    : AppColors.borderColor,
+                width: 1,
               ),
-              child: GestureDetector(
-                onTap: _handleToggle,
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  leading: Icon(
-                    widget.task.completed ? Icons.check_box : Icons.check_box_outline_blank,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.1),
+                  spreadRadius: 1,
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: GestureDetector(
+              onTap: _handleToggle,
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                leading: Icon(
+                  widget.task.completed ? Icons.check_box : Icons.check_box_outline_blank,
+                  color: widget.task.completed 
+                      ? AppColors.electricGreen 
+                      : (Theme.of(context).brightness == Brightness.dark 
+                          ? AppColors.darkSecondaryTextColor 
+                          : AppColors.secondaryTextColor),
+                  size: 24,
+                ),
+                title: Text(
+                  widget.task.text,
+                  style: TextStyle(
+                    fontSize: 16,
+                    decoration: widget.task.completed ? TextDecoration.lineThrough : null,
                     color: widget.task.completed 
-                        ? AppColors.electricGreen 
-                        : (Theme.of(context).brightness == Brightness.dark 
+                        ? (Theme.of(context).brightness == Brightness.dark 
                             ? AppColors.darkSecondaryTextColor 
-                            : AppColors.secondaryTextColor),
-                    size: 22,
+                            : AppColors.secondaryTextColor)
+                        : (Theme.of(context).brightness == Brightness.dark 
+                            ? AppColors.darkTextColor 
+                            : AppColors.textColor),
+                    fontWeight: widget.task.completed ? FontWeight.normal : FontWeight.w600,
                   ),
-                  title: Text(
-                    widget.task.text,
-                    style: TextStyle(
-                      fontSize: 15,
-                      decoration: widget.task.completed ? TextDecoration.lineThrough : null,
-                      color: widget.task.completed 
-                          ? (Theme.of(context).brightness == Brightness.dark 
+                ),
+                subtitle: widget.task.startTime != null || widget.task.endTime != null
+                    ? Text(
+                        '${widget.task.startTime ?? ''} - ${widget.task.endTime ?? ''}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).brightness == Brightness.dark 
                               ? AppColors.darkSecondaryTextColor 
-                              : AppColors.secondaryTextColor)
-                          : (Theme.of(context).brightness == Brightness.dark 
+                              : AppColors.secondaryTextColor,
+                        ),
+                      )
+                    : null,
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (widget.task.emoji != null)
+                      Text(
+                        widget.task.emoji!,
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: IconButton(
+                        onPressed: () => widget.onEdit(widget.task),
+                        icon: Icon(
+                          Icons.edit_outlined,
+                          size: 20,
+                          color: Theme.of(context).brightness == Brightness.dark 
                               ? AppColors.darkTextColor 
-                              : AppColors.textColor),
-                      fontWeight: widget.task.completed ? FontWeight.normal : FontWeight.w500,
+                              : AppColors.textColor,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        splashRadius: 20,
+                      ),
                     ),
-                  ),
-                  subtitle: widget.task.startTime != null || widget.task.endTime != null
-                      ? Text(
-                          '${widget.task.startTime ?? ''} - ${widget.task.endTime ?? ''}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(context).brightness == Brightness.dark 
-                                ? AppColors.darkSecondaryTextColor 
-                                : AppColors.secondaryTextColor,
-                          ),
-                        )
-                      : null,
-                  trailing: widget.task.emoji != null
-                      ? Text(
-                          widget.task.emoji!,
-                          style: TextStyle(
-                            fontSize: 20,
-                            color: Theme.of(context).brightness == Brightness.dark 
-                                ? AppColors.darkTextColor 
-                                : AppColors.textColor,
-                          ),
-                        )
-                      : null,
+                    const SizedBox(width: 4),
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: IconButton(
+                        onPressed: () => widget.onDelete(widget.task),
+                        icon: Icon(
+                          Icons.delete_outlined,
+                          size: 20,
+                          color: AppColors.brightRed,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        splashRadius: 20,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

@@ -59,7 +59,7 @@ class CalendarProvider with ChangeNotifier {
   }
   
   // Load events for a date range
-  Future<void> loadEvents(String userId, DateTime startDate, DateTime endDate) async {
+  Future<void> loadEvents(String userId, List<String> linkedUserIds, DateTime startDate, DateTime endDate) async {
     // Check if we already have events for this date range to avoid unnecessary API calls
     final hasEventsForRange = _events.any((event) {
       final eventDate = event.date is DateTime ? event.date as DateTime : null;
@@ -78,7 +78,13 @@ class CalendarProvider with ChangeNotifier {
     notifyListeners();
     
     try {
-      _events = await ApiService.getCalendarEvents(userId, startDate, endDate);
+      List<String> allUserIds = [userId, ...linkedUserIds];
+      List<CalendarEvent> allEvents = [];
+      for (String id in allUserIds) {
+        List<CalendarEvent> userEvents = await ApiService.getCalendarEvents(id, startDate, endDate);
+        allEvents.addAll(userEvents);
+      }
+      _events = allEvents;
     } catch (e) {
       _error = e.toString();
       print('Error loading events: $e');

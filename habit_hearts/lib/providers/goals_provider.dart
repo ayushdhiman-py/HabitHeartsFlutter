@@ -20,7 +20,7 @@ class GoalsProvider with ChangeNotifier {
   Map<String, int> get longestStreaks => _longestStreaks;
 
   // Load goals and progress from API
-  Future<void> loadGoals(String userId) async {
+  Future<void> loadGoals(String userId, List<String> linkedUserIds) async {
     _isLoading = true;
     notifyListeners();
 
@@ -35,6 +35,12 @@ class GoalsProvider with ChangeNotifier {
       final goals = await ApiService.getGoals(userId);
       _goals = goals;
       
+      // Load goals for linked users
+      for (String linkedUserId in linkedUserIds) {
+        final linkedGoals = await ApiService.getGoals(linkedUserId);
+        _goals.addAll(linkedGoals);
+      }
+
       // Load user's goal progress data
       final userData = await ApiService.getUserGoalProgress(userId);
       if (userData != null && userData.goalProgress != null) {
@@ -163,6 +169,29 @@ class GoalsProvider with ChangeNotifier {
     } catch (e) {
       print('Error toggling goal progress for user: $e');
       return false;
+    }
+  }
+
+  // Optimistically toggle goal progress
+  Future<void> optimisticallyToggleGoalProgress(String userId, String goalId, bool completed) async {
+    final goalIndex = _goals.indexWhere((g) => g.id == goalId);
+    if (goalIndex == -1) return;
+
+    final originalGoal = _goals[goalIndex];
+    final updatedGoal = originalGoal.copyWith(completed: completed);
+
+    _goals[goalIndex] = updatedGoal;
+    notifyListeners();
+
+    try {
+      final success = await toggleGoalProgressForUser(userId, goalId, completed);
+      if (!success) {
+        _goals[goalIndex] = originalGoal;
+        notifyListeners();
+      }
+    } catch (e) {
+      _goals[goalIndex] = originalGoal;
+      notifyListeners();
     }
   }
 

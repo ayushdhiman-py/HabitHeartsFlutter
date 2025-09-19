@@ -44,7 +44,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     if (authProvider.habitHeartsUser != null) {
       final firstDay = DateTime(_focusedDay.year, _focusedDay.month, 1);
       final lastDay = DateTime(_focusedDay.year, _focusedDay.month + 1, 0);
-      calendarProvider.loadEvents(authProvider.habitHeartsUser!.uid, firstDay, lastDay);
+      calendarProvider.loadEvents(authProvider.habitHeartsUser!.uid, authProvider.habitHeartsUser?.linkedUsers ?? [], firstDay, lastDay);
     }
   }
 
@@ -154,14 +154,15 @@ class _EventList extends StatelessWidget {
 
   void _showEditEventModal(BuildContext context, CalendarEvent event) {
     final calendarProvider = Provider.of<CalendarProvider>(context, listen: false);
+    final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
       builder: (_) => _EditEventModal(
         event: event,
-        onEventUpdated: () => calendarProvider.loadEvents(event.createdBy, DateTime(event.date.year, event.date.month, 1), DateTime(event.date.year, event.date.month + 1, 0)),
-        onEventDeleted: () => calendarProvider.loadEvents(event.createdBy, DateTime(event.date.year, event.date.month, 1), DateTime(event.date.year, event.date.month + 1, 0)),
+        onEventUpdated: () => calendarProvider.loadEvents(event.createdBy, authProvider.habitHeartsUser?.linkedUsers ?? [], DateTime(event.date.year, event.date.month, 1), DateTime(event.date.year, event.date.month + 1, 0)),
+        onEventDeleted: () => calendarProvider.loadEvents(event.createdBy, authProvider.habitHeartsUser?.linkedUsers ?? [], DateTime(event.date.year, event.date.month, 1), DateTime(event.date.year, event.date.month + 1, 0)),
       ),
     );
   }

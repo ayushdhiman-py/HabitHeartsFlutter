@@ -68,7 +68,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final goalsProvider = Provider.of<GoalsProvider>(context, listen: false);
       final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
       if (authProvider.user != null) {
-        goalsProvider.loadGoals(authProvider.user!.uid);
+        goalsProvider.loadGoals(authProvider.user!.uid, authProvider.habitHeartsUser?.linkedUsers ?? []);
       }
     });
   }
@@ -86,6 +86,15 @@ class _HomeScreenState extends State<HomeScreen> {
       
       // Load tasks from API
       final tasks = await ApiService.getTasksForDate(authProvider.user!.uid, date);
+      
+      // Load tasks for linked users
+      if (authProvider.habitHeartsUser?.linkedUsers != null) {
+        for (String linkedUserId in authProvider.habitHeartsUser!.linkedUsers) {
+          final linkedTasks = await ApiService.getTasksForDate(linkedUserId, date);
+          tasks.addAll(linkedTasks);
+        }
+      }
+
       print('Loaded ${tasks.length} tasks from API');
       if (mounted) {
         setState(() {
@@ -347,13 +356,10 @@ class _HomeScreenState extends State<HomeScreen> {
                             return _GoalsSection(
                               goals: goalsProvider.goals,
                               userGoalProgress: goalsProvider.userGoalProgress,
-                              onGoalProgressToggle: (goalId, completed) async {
-                                // Get current user ID
+                              onGoalProgressToggle: (goalId, completed) {
                                 final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
                                 final userId = authProvider.user?.uid ?? 'unknown';
-                                
-                                // Toggle goal progress for the user
-                                await goalsProvider.toggleGoalProgressForUser(userId, goalId, completed);
+                                goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, completed);
                               },
                             );
                           },
@@ -1347,7 +1353,9 @@ class _GoalsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (goals.isEmpty) {
+    final uncompletedGoals = goals.where((goal) => !goal.completed).toList();
+
+    if (uncompletedGoals.isEmpty) {
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(12),
@@ -1405,9 +1413,9 @@ class _GoalsSection extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       padding: const EdgeInsets.only(top: 0), // Remove default padding
-      itemCount: goals.length,
+      itemCount: uncompletedGoals.length,
       itemBuilder: (context, index) {
-        final goal = goals[index];
+        final goal = uncompletedGoals[index];
         final progress = _calculateProgress(goal.id);
         return Container(
           margin: const EdgeInsets.only(bottom: 8),
@@ -1643,6 +1651,7 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
             return SizedBox(
               height: totalHeight,
               child: GridView.builder(
+                physics: const NeverScrollableScrollPhysics(), // Disable scrolling on the heatmap
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 10,
                   crossAxisSpacing: spacing,

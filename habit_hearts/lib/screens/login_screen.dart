@@ -78,8 +78,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : Image.network(
-                        'https://developers.google.com/identity/images/g-logo.png',
+                    : Image.asset(
+                        'assets/images/google-logo.png',
                         width: 20,
                         height: 20,
                       ),

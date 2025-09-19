@@ -427,4 +427,47 @@ class ApiService {
   static Future<habit_hearts_user.User?> getUserGoalProgress(String userId) async {
     return getUser(userId);
   }
+
+  // Link users
+  static Future<bool> linkUsers(String userId, String partnerCode) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/users/link'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'userId': userId,
+          'partnerCode': partnerCode,
+        }),
+      );
+      if (response.statusCode == 200) {
+        _clearCache('user_$userId');
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Unlink users
+  static Future<bool> unlinkUsers(String userId, String partnerId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/users/unlink'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'userId': userId,
+          'partnerId': partnerId,
+        }),
+      );
+      if (response.statusCode == 200) {
+        _clearCache('user_$userId');
+        _clearCache('user_$partnerId');
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
 }

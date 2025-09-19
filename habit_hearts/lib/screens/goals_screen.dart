@@ -7,7 +7,7 @@ import '../providers/goals_provider.dart';
 import '../providers/habit_hearts_auth_provider.dart';
 import '../models/goal.dart';
 import '../theme/app_theme.dart';
-import '../widgets/swipeable_goal_item.dart';
+import '../widgets/modern_goal_item.dart'; // Changed from swipeable_goal_item.dart
 import 'dart:ui' as ui;
 
 class GoalsScreen extends StatefulWidget {
@@ -25,7 +25,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
       final goalsProvider = Provider.of<GoalsProvider>(context, listen: false);
       final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
       if (authProvider.user != null) {
-        goalsProvider.loadGoals(authProvider.user!.uid);
+        goalsProvider.loadGoals(authProvider.user!.uid, authProvider.habitHeartsUser?.linkedUsers ?? []);
       }
     });
   }
@@ -50,14 +50,11 @@ class _GoalsScreenState extends State<GoalsScreen> {
           if (goalsProvider.goals.isEmpty) return _EmptyGoalsState(onAddGoal: _showAddGoalModal);
           return _GoalsList(
             goals: goalsProvider.goals,
-            onToggleCompletion: (goalId) async {
+            onToggleCompletion: (goalId) {
               final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
               final userId = authProvider.user?.uid ?? 'unknown';
-              
-              // Find the goal to determine its current completion status
               final goal = goalsProvider.goals.firstWhere((g) => g.id == goalId);
-              // Toggle the completion status (if currently true, pass false and vice versa)
-              await goalsProvider.toggleGoalProgressForUser(userId, goalId, !goal.completed);
+              goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, !goal.completed);
             },
           );
         },
@@ -151,7 +148,7 @@ class _GoalsList extends StatelessWidget {
       separatorBuilder: (_, __) => const SizedBox(height: 16),
       itemBuilder: (context, index) {
         final goal = goals[index];
-        return SwipeableGoalItem(
+        return ModernGoalItem(
           key: ValueKey(goal.id),
           goal: goal,
           progress: goalsProvider.calculateGoalProgress(goal.id),

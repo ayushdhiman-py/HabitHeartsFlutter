@@ -1,0 +1,332 @@
+import 'package:flutter/material.dart';
+import '../models/goal.dart';
+import '../theme/app_theme.dart';
+import 'gradient_progress_bar.dart';
+
+class ModernGoalItem extends StatefulWidget {
+  final Goal goal;
+  final double progress;
+  final Function(Goal) onEdit;
+  final Function(Goal) onDelete;
+  final Function(String) onToggle;
+
+  const ModernGoalItem({
+    super.key,
+    required this.goal,
+    required this.progress,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onToggle,
+  });
+
+  @override
+  State<ModernGoalItem> createState() => _ModernGoalItemState();
+}
+
+class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 100),
+      vsync: this,
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  void _handleToggle() {
+    // Start animation
+    _animationController.forward().then((_) {
+      // Reset animation
+      _animationController.reverse();
+      // Call the toggle function
+      widget.onToggle(widget.goal.id);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _scaleAnimation,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _scaleAnimation.value,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark 
+                  ? AppColors.darkCardBackground 
+                  : AppColors.lightCardBackground,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Theme.of(context).brightness == Brightness.dark 
+                    ? AppColors.darkBorderColor 
+                    : AppColors.borderColor,
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.1),
+                  spreadRadius: 1,
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Main content area
+                GestureDetector(
+                  onTap: _handleToggle,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: widget.goal.isHabit
+                        // Compact single-line layout for habits
+                        ? Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              // Checkbox
+                              Icon(
+                                widget.goal.completed ? Icons.check_box : Icons.check_box_outline_blank,
+                                color: widget.goal.completed ? AppColors.electricGreen : AppColors.secondaryTextColor,
+                                size: 24,
+                              ),
+                              const SizedBox(width: 12),
+                              // Habit tag
+                              if (widget.goal.isHabit)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.electricBlue.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: AppColors.electricBlue,
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'habit',
+                                    style: TextStyle(
+                                      color: AppColors.electricBlue,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(width: 8),
+                              // Emoji if available
+                              if (widget.goal.emoji != null)
+                                Text(
+                                  widget.goal.emoji!,
+                                  style: const TextStyle(fontSize: 16),
+                                ),
+                              const SizedBox(width: 8),
+                              // Title
+                              Expanded(
+                                child: Text(
+                                  widget.goal.text,
+                                  style: TextStyle(
+                                    decoration: widget.goal.completed ? TextDecoration.lineThrough : null,
+                                    color: widget.goal.completed ? AppColors.secondaryTextColor : AppColors.textColor,
+                                    fontWeight: widget.goal.completed ? FontWeight.normal : FontWeight.w600,
+                                    fontSize: 16,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              // Action buttons - positioned directly adjacent
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: IconButton(
+                                      onPressed: () => widget.onEdit(widget.goal),
+                                      icon: Icon(
+                                        Icons.edit_outlined,
+                                        size: 20,
+                                        color: Theme.of(context).brightness == Brightness.dark
+                                            ? AppColors.darkTextColor
+                                            : AppColors.textColor,
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      splashRadius: 20,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: IconButton(
+                                      onPressed: () => widget.onDelete(widget.goal),
+                                      icon: Icon(
+                                        Icons.delete_outlined,
+                                        size: 20,
+                                        color: AppColors.brightRed,
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      splashRadius: 20,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          )
+                        // Full layout for goals with progress
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Top row with checkbox, title, and actions
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Checkbox
+                                  Icon(
+                                    widget.goal.completed ? Icons.check_box : Icons.check_box_outline_blank,
+                                    color: widget.goal.completed ? AppColors.electricGreen : AppColors.secondaryTextColor,
+                                    size: 24,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  // Title and tags
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          widget.goal.text,
+                                          style: TextStyle(
+                                            decoration: widget.goal.completed ? TextDecoration.lineThrough : null,
+                                            color: widget.goal.completed ? AppColors.secondaryTextColor : AppColors.textColor,
+                                            fontWeight: widget.goal.completed ? FontWeight.normal : FontWeight.w600,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        // Tags row
+                                        Row(
+                                          children: [
+                                            // Show "habit" tag for habit goals
+                                            if (widget.goal.isHabit)
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.electricBlue.withOpacity(0.1),
+                                                  borderRadius: BorderRadius.circular(12),
+                                                  border: Border.all(
+                                                    color: AppColors.electricBlue,
+                                                    width: 1,
+                                                  ),
+                                                ),
+                                                child: const Text(
+                                                  'habit',
+                                                  style: TextStyle(
+                                                    color: AppColors.electricBlue,
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                            const SizedBox(width: 8),
+                                            // Show emoji if available
+                                            if (widget.goal.emoji != null)
+                                              Text(
+                                                widget.goal.emoji!,
+                                                style: const TextStyle(fontSize: 16),
+                                              ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  // Action buttons
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: IconButton(
+                                          onPressed: () => widget.onEdit(widget.goal),
+                                          icon: Icon(
+                                            Icons.edit_outlined,
+                                            size: 20,
+                                            color: Theme.of(context).brightness == Brightness.dark
+                                                ? AppColors.darkTextColor
+                                                : AppColors.textColor,
+                                          ),
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          splashRadius: 20,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: IconButton(
+                                          onPressed: () => widget.onDelete(widget.goal),
+                                          icon: Icon(
+                                            Icons.delete_outlined,
+                                            size: 20,
+                                            color: AppColors.brightRed,
+                                          ),
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          splashRadius: 20,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                  ),
+                ),
+                // Progress section for non-habit goals
+                if (!widget.goal.isHabit)
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Progress bar
+                        GradientProgressBar(
+                          value: widget.progress / 100,
+                          height: 8,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${widget.progress.toStringAsFixed(0)}% completed',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.secondaryTextColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}

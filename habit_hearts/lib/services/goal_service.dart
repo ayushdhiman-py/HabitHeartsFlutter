@@ -8,17 +8,26 @@ class GoalService {
     try {
       StreamController<List<Goal>> controller = StreamController();
 
-      // Fetch goals for the user and linked users
-      ApiService.getGoals(userId).then((userGoals) {
-        List<Goal> allGoals = [...userGoals];
-        // You might want to fetch linked user goals here as well
-        controller.add(allGoals);
-        controller.close();
-      }).catchError((error) {
-        print('Error getting goals: $error');
-        controller.add([]);
-        controller.close();
-      });
+      Future<void> fetchGoals() async {
+        try {
+          List<Goal> allGoals = [];
+          List<String> allUserIds = [userId, ...linkedUserIds];
+
+          for (String id in allUserIds) {
+            List<Goal> userGoals = await ApiService.getGoals(id);
+            allGoals.addAll(userGoals);
+          }
+
+          controller.add(allGoals);
+          controller.close();
+        } catch (error) {
+          print('Error getting goals: $error');
+          controller.add([]);
+          controller.close();
+        }
+      }
+
+      fetchGoals();
 
       return controller.stream;
     } catch (e) {

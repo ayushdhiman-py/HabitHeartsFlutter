@@ -40,8 +40,7 @@ class UserService {
   // Link users
   Future<void> linkUsers(String currentUserUid, String partnerCode) async {
     try {
-      // This functionality would need to be implemented in the backend API
-      print('Linking users functionality needs to be implemented in the backend API');
+      await ApiService.linkUsers(currentUserUid, partnerCode);
     } catch (e) {
       print('Error linking users: $e');
     }
@@ -50,8 +49,7 @@ class UserService {
   // Unlink users
   Future<void> unlinkUsers(String currentUserUid, String partnerUid) async {
     try {
-      // This functionality would need to be implemented in the backend API
-      print('Unlinking users functionality needs to be implemented in the backend API');
+      await ApiService.unlinkUsers(currentUserUid, partnerUid);
     } catch (e) {
       print('Error unlinking users: $e');
     }

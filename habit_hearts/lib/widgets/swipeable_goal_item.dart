@@ -97,6 +97,7 @@ class _SwipeableGoalItemState extends State<SwipeableGoalItem> with SingleTicker
                       leading: Icon(
                         widget.goal.completed ? Icons.check_box : Icons.check_box_outline_blank,
                         color: widget.goal.completed ? AppColors.electricGreen : AppColors.secondaryTextColor,
+                        size: 24,
                       ),
                       title: Text(
                         widget.goal.text,
@@ -106,35 +107,67 @@ class _SwipeableGoalItemState extends State<SwipeableGoalItem> with SingleTicker
                           fontWeight: widget.goal.completed ? FontWeight.normal : FontWeight.w500,
                         ),
                       ),
-                      trailing: widget.goal.emoji != null
-                          ? Text(
-                              widget.goal.emoji!,
-                              style: const TextStyle(fontSize: 24),
-                            )
-                          : null,
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Progress bar
-                          GradientProgressBar(
-                            value: widget.progress / 100,
-                            height: 12,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '${widget.progress.toStringAsFixed(0)}% completed',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: AppColors.secondaryTextColor,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
+                      trailing: SizedBox(
+                        height: 30,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            // Show "habit" tag for habit goals
+                            if (widget.goal.isHabit)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.electricBlue.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: AppColors.electricBlue,
+                                    width: 1,
+                                  ),
+                                ),
+                                child: const Text(
+                                  'habit',
+                                  style: TextStyle(
+                                    color: AppColors.electricBlue,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            // Show emoji if available
+                            if (widget.goal.emoji != null)
+                              Text(
+                                widget.goal.emoji!,
+                                style: const TextStyle(fontSize: 20),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
+                    // Progress bar - only show for non-habit goals
+                    if (!widget.goal.isHabit)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Progress bar
+                            GradientProgressBar(
+                              value: widget.progress / 100,
+                              height: 12,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '${widget.progress.toStringAsFixed(0)}% completed',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: AppColors.secondaryTextColor,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
               ),
