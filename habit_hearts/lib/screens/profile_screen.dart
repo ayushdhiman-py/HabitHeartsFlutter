@@ -139,7 +139,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: themeProvider.selectedColor.withOpacity(0.1),
+                            color: themeProvider.selectedColor.withOpacity(0.3),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: themeProvider.selectedColor,

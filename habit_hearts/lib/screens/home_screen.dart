@@ -157,10 +157,10 @@ class _HomeScreenState extends State<HomeScreen> {
                           Center(
                             child: Text(
                               DateFormat('MMMM yyyy').format(_selectedDate),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.black,
+                                color: Theme.of(context).textTheme.titleLarge?.color ?? Colors.black,
                               ),
                             ),
                           ),
@@ -416,7 +416,7 @@ class _HomeScreenState extends State<HomeScreen> {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: themeProvider.selectedColor.withOpacity(0.4),
+                  color: themeProvider.selectedColor.withOpacity(0.3),
                   blurRadius: 8,
                   offset: const Offset(0, 4),
                 ),
@@ -506,6 +506,7 @@ class _Header extends StatelessWidget {
           width: 150,
           height: 150,
           fit: BoxFit.contain,
+          repeat: false, // Stop the animation from looping
           decoder: lottieFileDecoder, // Custom decoder for .lottie files
           errorBuilder: (context, error, stackTrace) {
             // Try a fallback .json animation
@@ -514,6 +515,7 @@ class _Header extends StatelessWidget {
               width: 200,
               height: 200,
               fit: BoxFit.contain,
+              repeat: false, // Stop the fallback animation from looping
               errorBuilder: (context, error, stackTrace) {
                 // If both fail, show fallback UI
                 return Container(

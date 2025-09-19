@@ -178,7 +178,7 @@ class _MainScreenState extends State<MainScreen> {
                 bottomNavigationBar: ClipRRect(
                   child: ClipRect(
                     child: BackdropFilter(
-                      filter: ui.ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0), // Match AppBar blur intensity
+                      filter: ui.ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0), // Match AppBar blur intensity
                       child: Container(
                         decoration: BoxDecoration(
                           color: themeProvider.selectedColor.withOpacity(0.3), // Match AppBar opacity
