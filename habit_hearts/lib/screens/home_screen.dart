@@ -157,9 +157,12 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: Text(
                               DateFormat('MMMM yyyy').format(_selectedDate),
                               style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).textTheme.titleLarge?.color ?? Colors.black,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w600,
+                                color: Theme.of(context).textTheme.titleLarge?.color ?? 
+                                    (Theme.of(context).brightness == Brightness.dark 
+                                        ? AppColors.darkTextColor 
+                                        : AppColors.textColor),
                               ),
                             ),
                           ),
@@ -200,7 +203,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                       
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 1),
                   
                   // Date Carousel with better styling
                       _DateCarousel(
@@ -214,7 +217,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           _loadTasksForDate(date);
                         },
                       ),
-                  const SizedBox(height: 5),
+                  const SizedBox(height: 3),
                   
                   // Tasks Section
                   Row(
@@ -229,9 +232,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       Text(
                         '${_tasks.where((task) => !task.completed).length} pending',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
-                          color: Colors.grey,
+                          color: Theme.of(context).brightness == Brightness.dark 
+                              ? AppColors.darkSecondaryTextColor 
+                              : AppColors.secondaryTextColor,
                         ),
                       ),
                     ],
@@ -571,7 +576,7 @@ class _DateCarouselState extends State<_DateCarousel> {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 100,
+      height: 70,
       child: PageView.builder(
         controller: _pageController,
         onPageChanged: (index) {
@@ -592,7 +597,7 @@ class _DateCarouselState extends State<_DateCarousel> {
               widget.onDateSelected(date);
             },
             child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 8),
+              margin: const EdgeInsets.symmetric(horizontal: 4),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -601,32 +606,23 @@ class _DateCarouselState extends State<_DateCarousel> {
                     _getWeekday(date),
                     style: TextStyle(
                       color: isSelected ? AppColors.electricBlue : Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.6),
-                      fontSize: 14,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontSize: 12,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  // Date circle with improved design
+                  const SizedBox(height: 4),
+                  // Date circle with minimal design
                   AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: 48,
-                    height: 48,
+                    duration: const Duration(milliseconds: 150),
+                    width: 36,
+                    height: 36,
                     decoration: BoxDecoration(
                       color: isSelected 
                           ? AppColors.electricBlue 
                           : Theme.of(context).brightness == Brightness.dark 
                               ? Colors.grey[800] 
-                              : Colors.grey[100],
+                              : Colors.grey[200],
                       shape: BoxShape.circle,
-                      boxShadow: isSelected
-                          ? [
-                              BoxShadow(
-                                color: AppColors.electricBlue.withOpacity(0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 4),
-                              ),
-                            ]
-                          : [],
                     ),
                     child: Center(
                       child: Text(
@@ -635,21 +631,21 @@ class _DateCarouselState extends State<_DateCarousel> {
                           color: isSelected 
                               ? Colors.white 
                               : Theme.of(context).textTheme.bodyLarge?.color,
-                          fontSize: 18,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          fontSize: 14,
+                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  // Show month for first day of month
+                  const SizedBox(height: 2),
+                  // Show month for first day of month (smaller and more subtle)
                   if (date.day == 1)
                     Text(
                       DateFormat('MMM').format(date),
                       style: TextStyle(
-                        color: isSelected ? AppColors.electricBlue : Theme.of(context).textTheme.bodySmall?.color,
-                        fontSize: 10,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        color: isSelected ? AppColors.electricBlue : Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
+                        fontSize: 9,
+                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                       ),
                     ),
                 ],
@@ -710,34 +706,53 @@ class _TaskList extends StatelessWidget {
   Widget build(BuildContext context) {
     if (tasks.isEmpty) {
       return Container(
-        padding: const EdgeInsets.all(16),
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.grey[100],
-          borderRadius: BorderRadius.circular(12),
+          color: Theme.of(context).brightness == Brightness.dark 
+              ? AppColors.darkCardBackground 
+              : AppColors.lightCardBackground,
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: Colors.grey[300]!,
+            color: Theme.of(context).brightness == Brightness.dark 
+                ? AppColors.darkBorderColor 
+                : AppColors.borderColor,
             width: 1,
           ),
         ),
-        child: const Column(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.checklist, size: 48, color: Colors.grey),
-            SizedBox(height: 10),
+            Icon(
+              Icons.checklist_outlined, 
+              size: 32, 
+              color: Theme.of(context).brightness == Brightness.dark 
+                  ? AppColors.darkSecondaryTextColor 
+                  : AppColors.secondaryTextColor,
+            ),
+            const SizedBox(height: 8),
             Text(
               'No tasks yet',
-              style: TextStyle(
+              style: GoogleFonts.poppins(
                 fontSize: 16,
-                color: Colors.grey,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).brightness == Brightness.dark 
+                    ? AppColors.darkTextColor 
+                    : AppColors.textColor,
               ),
             ),
-            SizedBox(height: 5),
+            const SizedBox(height: 4),
             Text(
-              'Tap the + button to add your first task',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
+              'Tap the + button below to add your first task',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.openSans(
+                fontSize: 13,
+                color: Theme.of(context).brightness == Brightness.dark 
+                    ? AppColors.darkSecondaryTextColor 
+                    : AppColors.secondaryTextColor,
               ),
             ),
+            const SizedBox(height: 8),
           ],
         ),
       );
@@ -1333,34 +1348,53 @@ class _GoalsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     if (goals.isEmpty) {
       return Container(
-        padding: const EdgeInsets.all(16),
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.grey[100],
-          borderRadius: BorderRadius.circular(12),
+          color: Theme.of(context).brightness == Brightness.dark 
+              ? AppColors.darkCardBackground 
+              : AppColors.lightCardBackground,
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: Colors.grey[300]!,
+            color: Theme.of(context).brightness == Brightness.dark 
+                ? AppColors.darkBorderColor 
+                : AppColors.borderColor,
             width: 1,
           ),
         ),
-        child: const Column(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.flag, size: 48, color: Colors.grey),
-            SizedBox(height: 10),
+            Icon(
+              Icons.flag_outlined, 
+              size: 32, 
+              color: Theme.of(context).brightness == Brightness.dark 
+                  ? AppColors.darkSecondaryTextColor 
+                  : AppColors.secondaryTextColor,
+            ),
+            const SizedBox(height: 8),
             Text(
               'No goals yet',
-              style: TextStyle(
+              style: GoogleFonts.poppins(
                 fontSize: 16,
-                color: Colors.grey,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).brightness == Brightness.dark 
+                    ? AppColors.darkTextColor 
+                    : AppColors.textColor,
               ),
             ),
-            SizedBox(height: 5),
+            const SizedBox(height: 4),
             Text(
               'Set your first goal to start tracking progress',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.openSans(
+                fontSize: 13,
+                color: Theme.of(context).brightness == Brightness.dark 
+                    ? AppColors.darkSecondaryTextColor 
+                    : AppColors.secondaryTextColor,
               ),
             ),
+            const SizedBox(height: 8),
           ],
         ),
       );
@@ -1376,12 +1410,16 @@ class _GoalsSection extends StatelessWidget {
         final progress = _calculateProgress(goal.id);
         return Container(
           margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(17), // Increased from 12 to 17 (12 + 5)
+          padding: const EdgeInsets.all(17),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).brightness == Brightness.dark 
+                ? AppColors.darkCardBackground 
+                : AppColors.lightCardBackground,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: Colors.grey[300]!,
+              color: Theme.of(context).brightness == Brightness.dark 
+                  ? AppColors.darkBorderColor 
+                  : AppColors.borderColor,
               width: 1,
             ),
             boxShadow: [
@@ -1561,9 +1599,11 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
               child: Text(
                 day,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 10,
-                  color: Colors.grey,
+                  color: Theme.of(context).brightness == Brightness.dark 
+                      ? AppColors.darkSecondaryTextColor 
+                      : AppColors.secondaryTextColor,
                   fontWeight: FontWeight.bold,
                 ),
               ),

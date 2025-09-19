@@ -61,6 +61,9 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
         return Transform.scale(
           scale: _scaleAnimation.value,
           child: Card(
+            color: Theme.of(context).brightness == Brightness.dark 
+                ? AppColors.darkCardBackground 
+                : AppColors.lightCardBackground,
             margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
             child: Slidable(
               endActionPane: ActionPane(
@@ -72,7 +75,8 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
                     foregroundColor: Colors.white,
                     icon: Icons.edit,
                     label: 'Edit',
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(16),
+                    spacing: 2,
                   ),
                   SlidableAction(
                     onPressed: (_) => widget.onDelete(widget.task),
@@ -80,37 +84,59 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
                     foregroundColor: Colors.white,
                     icon: Icons.delete,
                     label: 'Delete',
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(16),
+                    spacing: 2,
                   ),
                 ],
               ),
               child: GestureDetector(
                 onTap: _handleToggle,
                 child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   leading: Icon(
                     widget.task.completed ? Icons.check_box : Icons.check_box_outline_blank,
-                    color: widget.task.completed ? AppColors.electricGreen : AppColors.secondaryTextColor,
+                    color: widget.task.completed 
+                        ? AppColors.electricGreen 
+                        : (Theme.of(context).brightness == Brightness.dark 
+                            ? AppColors.darkSecondaryTextColor 
+                            : AppColors.secondaryTextColor),
+                    size: 22,
                   ),
                   title: Text(
                     widget.task.text,
                     style: TextStyle(
+                      fontSize: 15,
                       decoration: widget.task.completed ? TextDecoration.lineThrough : null,
-                      color: widget.task.completed ? AppColors.secondaryTextColor : AppColors.textColor,
+                      color: widget.task.completed 
+                          ? (Theme.of(context).brightness == Brightness.dark 
+                              ? AppColors.darkSecondaryTextColor 
+                              : AppColors.secondaryTextColor)
+                          : (Theme.of(context).brightness == Brightness.dark 
+                              ? AppColors.darkTextColor 
+                              : AppColors.textColor),
                       fontWeight: widget.task.completed ? FontWeight.normal : FontWeight.w500,
                     ),
                   ),
                   subtitle: widget.task.startTime != null || widget.task.endTime != null
                       ? Text(
                           '${widget.task.startTime ?? ''} - ${widget.task.endTime ?? ''}',
-                          style: const TextStyle(
-                            color: AppColors.secondaryTextColor,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(context).brightness == Brightness.dark 
+                                ? AppColors.darkSecondaryTextColor 
+                                : AppColors.secondaryTextColor,
                           ),
                         )
                       : null,
                   trailing: widget.task.emoji != null
                       ? Text(
                           widget.task.emoji!,
-                          style: const TextStyle(fontSize: 24),
+                          style: TextStyle(
+                            fontSize: 20,
+                            color: Theme.of(context).brightness == Brightness.dark 
+                                ? AppColors.darkTextColor 
+                                : AppColors.textColor,
+                          ),
                         )
                       : null,
                 ),
