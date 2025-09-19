@@ -3,6 +3,7 @@ import '../widgets/lottie_header_animation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../providers/theme_provider.dart';
 import '../providers/dark_mode_provider.dart';
 import 'package:intl/intl.dart';
@@ -32,8 +33,6 @@ class _HomeScreenState extends State<HomeScreen> {
   DateTime _selectedDate = DateTime.now();
   bool _isLoading = true;
   List<Task> _tasks = [];
-  int _currentStreak = 5; // Sample streak data
-  int _longestStreak = 12; // Sample streak data
   final GlobalKey<_DateCarouselState> _dateCarouselKey = GlobalKey<_DateCarouselState>();
 
   @override
@@ -201,7 +200,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                       
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 2),
                   
                   // Date Carousel with better styling
                       _DateCarousel(
@@ -215,69 +214,18 @@ class _HomeScreenState extends State<HomeScreen> {
                           _loadTasksForDate(date);
                         },
                       ),
-                  const SizedBox(height: 20),
-                  
-                  // Streak Indicator
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.electricBlue.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: AppColors.electricBlue,
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _StreakIndicator(
-                          title: 'Current Streak',
-                          value: _currentStreak,
-                          icon: Icons.local_fire_department,
-                          color: AppColors.electricGreen,
-                        ),
-                        _StreakIndicator(
-                          title: 'Longest Streak',
-                          value: _longestStreak,
-                          icon: Icons.emoji_events,
-                          color: AppColors.vibrantOrange,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 5),
                   
                   // Tasks Section
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          const Text(
-                            'Your Tasks',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          SizedBox(
-                            width: 64,
-                            height: 64,
-                            child: Lottie.asset(
-                              'assets/animations/calendar.json',
-                              fit: BoxFit.contain,
-                              errorBuilder: (context, error, stackTrace) {
-                                // If the Lottie file fails, show a fallback icon
-                                return const Icon(
-                                  Icons.calendar_today,
-                                  size: 48,
-                                );
-                              },
-                            ),
-                          ),
-                        ],
+                      const Text(
+                        'Your Tasks',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       Text(
                         '${_tasks.where((task) => !task.completed).length} pending',
@@ -288,6 +236,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 10), // Add consistent spacing after title
                   _isLoading
                       ? const _TaskListSkeleton._()
                       : _TaskList(
@@ -374,7 +323,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           },
                         ),
                   
-                  const SizedBox(height: 35), // Increased from 15 to 35
+                  const SizedBox(height: 10), // Reduced from 35 to 10 for consistency
                   
                   // Goals Section
                   const Text(
@@ -572,8 +521,8 @@ class _Header extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              'Hi, ${getGreeting()} ${authProvider.user?.displayName ?? ''}',
-              style: const TextStyle(
+              'HI, ${getGreeting().toUpperCase()} ${authProvider.user?.displayName?.toUpperCase() ?? ''}',
+              style: GoogleFonts.poppins(
                 color: Colors.white,
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -622,7 +571,7 @@ class _DateCarouselState extends State<_DateCarousel> {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 80, // Reduced from 100 to 80
+      height: 100,
       child: PageView.builder(
         controller: _pageController,
         onPageChanged: (index) {
@@ -643,7 +592,7 @@ class _DateCarouselState extends State<_DateCarousel> {
               widget.onDateSelected(date);
             },
             child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 2), // Reduced margin for more items
+              margin: const EdgeInsets.symmetric(horizontal: 8),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -651,51 +600,58 @@ class _DateCarouselState extends State<_DateCarousel> {
                   Text(
                     _getWeekday(date),
                     style: TextStyle(
-                      color: isSelected ? AppColors.electricBlue : Colors.grey,
-                      fontSize: 12, // Reduced font size
+                      color: isSelected ? AppColors.electricBlue : Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.6),
+                      fontSize: 14,
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
-                  const SizedBox(height: 6), // Reduced spacing
-                  // Oval container with date inside a circle
-                  Container(
-                    width: 45, // Reduced width
-                    height: 30, // Reduced height
+                  const SizedBox(height: 8),
+                  // Date circle with improved design
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: 48,
+                    height: 48,
                     decoration: BoxDecoration(
                       color: isSelected 
-                          ? AppColors.electricBlue.withOpacity(0.1) 
-                          : Colors.grey[100],
-                      borderRadius: BorderRadius.circular(15), // Adjusted for smaller size
-                      border: Border.all(
-                        color: isSelected ? AppColors.electricBlue : Colors.grey[300]!,
-                        width: 1,
-                      ),
+                          ? AppColors.electricBlue 
+                          : Theme.of(context).brightness == Brightness.dark 
+                              ? Colors.grey[800] 
+                              : Colors.grey[100],
+                      shape: BoxShape.circle,
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: AppColors.electricBlue.withOpacity(0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ]
+                          : [],
                     ),
                     child: Center(
-                      child: Container(
-                        width: 24, // Reduced width
-                        height: 24, // Reduced height
-                        decoration: BoxDecoration(
-                          color: isSelected ? AppColors.electricBlue : Colors.white,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: isSelected ? AppColors.electricBlue : Colors.grey[300]!,
-                            width: 1,
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(
-                            '${date.day}',
-                            style: TextStyle(
-                              color: isSelected ? Colors.white : Colors.black,
-                              fontSize: 14, // Reduced font size
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            ),
-                          ),
+                      child: Text(
+                        '${date.day}',
+                        style: TextStyle(
+                          color: isSelected 
+                              ? Colors.white 
+                              : Theme.of(context).textTheme.bodyLarge?.color,
+                          fontSize: 18,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                         ),
                       ),
                     ),
                   ),
+                  const SizedBox(height: 4),
+                  // Show month for first day of month
+                  if (date.day == 1)
+                    Text(
+                      DateFormat('MMM').format(date),
+                      style: TextStyle(
+                        color: isSelected ? AppColors.electricBlue : Theme.of(context).textTheme.bodySmall?.color,
+                        fontSize: 10,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -1173,56 +1129,6 @@ class _HandwritingUnderlineAnimation extends StatefulWidget {
   @override
   _HandwritingUnderlineAnimationState createState() =>
       _HandwritingUnderlineAnimationState();
-}
-
-// Streak Indicator Widget
-class _StreakIndicator extends StatelessWidget {
-  final String title;
-  final int value;
-  final IconData icon;
-  final Color color;
-
-  const _StreakIndicator({
-    required this.title,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            icon,
-            color: color,
-            size: 24,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '$value',
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Colors.grey,
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 class _HandwritingUnderlineAnimationState

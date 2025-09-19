@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class AppColors {
   // Modern gradient color palette with soft, friendly tones
@@ -58,16 +59,30 @@ class AppTheme {
         secondary: AppColors.hotPink,
       ),
       scaffoldBackgroundColor: AppColors.lightBackground,
-      fontFamily: 'Poppins',
+      textTheme: TextTheme(
+        // Headings with Poppins (modern and clean)
+        headlineLarge: GoogleFonts.poppins(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.textColor),
+        headlineMedium: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textColor),
+        headlineSmall: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textColor),
+        titleLarge: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textColor),
+        titleMedium: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textColor),
+        titleSmall: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textColor),
+        // Body text with Open Sans (highly readable and professional)
+        bodyLarge: GoogleFonts.openSans(fontSize: 16, color: AppColors.textColor),
+        bodyMedium: GoogleFonts.openSans(fontSize: 14, color: AppColors.secondaryTextColor),
+        bodySmall: GoogleFonts.openSans(fontSize: 12, color: AppColors.secondaryTextColor),
+        labelLarge: GoogleFonts.openSans(fontSize: 16, fontWeight: FontWeight.bold),
+        labelMedium: GoogleFonts.openSans(fontSize: 14),
+        labelSmall: GoogleFonts.openSans(fontSize: 12),
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: AppColors.lightBackground,
         foregroundColor: AppColors.textColor,
         elevation: 0,
-        titleTextStyle: const TextStyle(
+        titleTextStyle: GoogleFonts.poppins(
           fontSize: 20,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.bold,
           color: AppColors.textColor,
-          fontFamily: 'Poppins',
         ),
         systemOverlayStyle: SystemUiOverlayStyle.dark,
       ),
@@ -76,21 +91,17 @@ class AppTheme {
         selectedItemColor: AppColors.electricBlue,
         unselectedItemColor: AppColors.secondaryTextColor,
         elevation: 0,
-        selectedLabelStyle: const TextStyle(
-          fontWeight: FontWeight.w600,
-          fontFamily: 'Poppins',
+        selectedLabelStyle: GoogleFonts.poppins(
+          fontWeight: FontWeight.bold,
         ),
-        unselectedLabelStyle: const TextStyle(
-          fontFamily: 'Poppins',
-        ),
+        unselectedLabelStyle: GoogleFonts.poppins(),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.electricBlue,
           foregroundColor: Colors.white,
-          textStyle: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontFamily: 'Poppins',
+          textStyle: GoogleFonts.poppins(
+            fontWeight: FontWeight.bold,
           ),
           elevation: 4,
           shape: RoundedRectangleBorder(
@@ -102,9 +113,8 @@ class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.electricBlue,
-          textStyle: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontFamily: 'Poppins',
+          textStyle: GoogleFonts.poppins(
+            fontWeight: FontWeight.bold,
           ),
         ),
       ),
@@ -118,47 +128,6 @@ class AppTheme {
             color: AppColors.borderColor,
             width: 0.5,
           ),
-        ),
-      ),
-      textTheme: TextTheme(
-        headlineLarge: const TextStyle(
-          fontSize: 32,
-          fontWeight: FontWeight.bold,
-          color: AppColors.textColor,
-          fontFamily: 'Poppins',
-        ),
-        headlineMedium: const TextStyle(
-          fontSize: 24,
-          fontWeight: FontWeight.w600,
-          color: AppColors.textColor,
-          fontFamily: 'Poppins',
-        ),
-        headlineSmall: const TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
-          color: AppColors.textColor,
-          fontFamily: 'Poppins',
-        ),
-        titleMedium: const TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.w500,
-          color: AppColors.textColor,
-          fontFamily: 'Poppins',
-        ),
-        bodyLarge: const TextStyle(
-          fontSize: 16,
-          color: AppColors.textColor,
-          fontFamily: 'Poppins',
-        ),
-        bodyMedium: const TextStyle(
-          fontSize: 14,
-          color: AppColors.secondaryTextColor,
-          fontFamily: 'Poppins',
-        ),
-        labelLarge: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w500,
-          fontFamily: 'Poppins',
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -176,9 +145,8 @@ class AppTheme {
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
         ),
-        hintStyle: const TextStyle(
+        hintStyle: GoogleFonts.openSans(
           color: AppColors.secondaryTextColor,
-          fontFamily: 'Poppins',
         ),
       ),
     );
@@ -195,16 +163,30 @@ class AppTheme {
         brightness: Brightness.dark,
       ),
       scaffoldBackgroundColor: AppColors.darkBackground,
-      fontFamily: 'Poppins',
+      textTheme: TextTheme(
+        // Headings with Poppins (modern and clean)
+        headlineLarge: GoogleFonts.poppins(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.darkTextColor),
+        headlineMedium: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.darkTextColor),
+        headlineSmall: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.darkTextColor),
+        titleLarge: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.darkTextColor),
+        titleMedium: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkTextColor),
+        titleSmall: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.darkTextColor),
+        // Body text with Open Sans (highly readable and professional)
+        bodyLarge: GoogleFonts.openSans(fontSize: 16, color: AppColors.darkTextColor),
+        bodyMedium: GoogleFonts.openSans(fontSize: 14, color: AppColors.darkSecondaryTextColor),
+        bodySmall: GoogleFonts.openSans(fontSize: 12, color: AppColors.darkSecondaryTextColor),
+        labelLarge: GoogleFonts.openSans(fontSize: 16, fontWeight: FontWeight.bold),
+        labelMedium: GoogleFonts.openSans(fontSize: 14),
+        labelSmall: GoogleFonts.openSans(fontSize: 12),
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: AppColors.darkBackground,
         foregroundColor: AppColors.darkTextColor,
         elevation: 0,
-        titleTextStyle: const TextStyle(
+        titleTextStyle: GoogleFonts.poppins(
           fontSize: 20,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.bold,
           color: AppColors.darkTextColor,
-          fontFamily: 'Poppins',
         ),
         systemOverlayStyle: SystemUiOverlayStyle.light,
       ),
@@ -213,21 +195,17 @@ class AppTheme {
         selectedItemColor: AppColors.electricBlue,
         unselectedItemColor: AppColors.darkSecondaryTextColor,
         elevation: 0,
-        selectedLabelStyle: const TextStyle(
-          fontWeight: FontWeight.w600,
-          fontFamily: 'Poppins',
+        selectedLabelStyle: GoogleFonts.poppins(
+          fontWeight: FontWeight.bold,
         ),
-        unselectedLabelStyle: const TextStyle(
-          fontFamily: 'Poppins',
-        ),
+        unselectedLabelStyle: GoogleFonts.poppins(),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.electricBlue,
           foregroundColor: Colors.white,
-          textStyle: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontFamily: 'Poppins',
+          textStyle: GoogleFonts.poppins(
+            fontWeight: FontWeight.bold,
           ),
           elevation: 4,
           shape: RoundedRectangleBorder(
@@ -239,9 +217,8 @@ class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.electricBlue,
-          textStyle: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontFamily: 'Poppins',
+          textStyle: GoogleFonts.poppins(
+            fontWeight: FontWeight.bold,
           ),
         ),
       ),
@@ -255,47 +232,6 @@ class AppTheme {
             color: AppColors.darkBorderColor,
             width: 0.5,
           ),
-        ),
-      ),
-      textTheme: TextTheme(
-        headlineLarge: const TextStyle(
-          fontSize: 32,
-          fontWeight: FontWeight.bold,
-          color: AppColors.darkTextColor,
-          fontFamily: 'Poppins',
-        ),
-        headlineMedium: const TextStyle(
-          fontSize: 24,
-          fontWeight: FontWeight.w600,
-          color: AppColors.darkTextColor,
-          fontFamily: 'Poppins',
-        ),
-        headlineSmall: const TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
-          color: AppColors.darkTextColor,
-          fontFamily: 'Poppins',
-        ),
-        titleMedium: const TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.w500,
-          color: AppColors.darkTextColor,
-          fontFamily: 'Poppins',
-        ),
-        bodyLarge: const TextStyle(
-          fontSize: 16,
-          color: AppColors.darkTextColor,
-          fontFamily: 'Poppins',
-        ),
-        bodyMedium: const TextStyle(
-          fontSize: 14,
-          color: AppColors.darkSecondaryTextColor,
-          fontFamily: 'Poppins',
-        ),
-        labelLarge: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w500,
-          fontFamily: 'Poppins',
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -313,9 +249,8 @@ class AppTheme {
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
         ),
-        hintStyle: const TextStyle(
+        hintStyle: GoogleFonts.openSans(
           color: AppColors.darkSecondaryTextColor,
-          fontFamily: 'Poppins',
         ),
       ),
     );
