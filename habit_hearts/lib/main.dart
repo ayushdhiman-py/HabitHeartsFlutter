@@ -164,6 +164,9 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _onItemTapped(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
     // Jump to the page without rebuilding the whole screen
     _pageController.jumpToPage(index);
   }
@@ -193,52 +196,53 @@ class _MainScreenState extends State<MainScreen> {
                   ),
                 ),
                 bottomNavigationBar: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                  child: BackdropFilter(
-                    filter: ui.ImageFilter.blur(sigmaX: 15.0, sigmaY: 15.0), // Match AppBar blur intensity
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: themeProvider.selectedColor.withOpacity(0.3), // Match AppBar opacity
-                        border: Border(
-                          top: BorderSide(
-                            color: themeProvider.selectedColor.withOpacity(0.25),
-                            width: 0.5,
+                  child: ClipRect(
+                    child: BackdropFilter(
+                      filter: ui.ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0), // Match AppBar blur intensity
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: themeProvider.selectedColor.withOpacity(0.3), // Match AppBar opacity
+                          border: Border(
+                            top: BorderSide(
+                              color: themeProvider.selectedColor.withOpacity(0.25),
+                              width: 0.5,
+                            ),
                           ),
                         ),
-                      ),
-                      child: BottomNavigationBar(
-                        type: BottomNavigationBarType.fixed,
-                        currentIndex: _currentIndex,
-                        onTap: _onItemTapped,
-                        backgroundColor: Colors.transparent,
-                        selectedItemColor: darkModeProvider.isDarkMode 
-                            ? Colors.white 
-                            : Colors.black,
-                        unselectedItemColor: darkModeProvider.isDarkMode 
-                            ? Colors.white70 
-                            : Colors.black54,
-                        items: const [
-                          BottomNavigationBarItem(
-                            icon: Icon(Icons.home_outlined),
-                            activeIcon: Icon(Icons.home),
-                            label: 'Home',
-                          ),
-                          BottomNavigationBarItem(
-                            icon: Icon(Icons.calendar_month_outlined),
-                            activeIcon: Icon(Icons.calendar_month),
-                            label: 'Calendar',
-                          ),
-                          BottomNavigationBarItem(
-                            icon: Icon(Icons.flag_outlined),
-                            activeIcon: Icon(Icons.flag),
-                            label: 'Goals',
-                          ),
-                          BottomNavigationBarItem(
-                            icon: Icon(Icons.person_outline),
-                            activeIcon: Icon(Icons.person),
-                            label: 'Profile',
-                          ),
-                        ],
+                        child: BottomNavigationBar(
+                          type: BottomNavigationBarType.fixed,
+                          currentIndex: _currentIndex,
+                          onTap: _onItemTapped,
+                          backgroundColor: Colors.transparent,
+                          selectedItemColor: darkModeProvider.isDarkMode 
+                              ? Colors.white 
+                              : Colors.black,
+                          unselectedItemColor: darkModeProvider.isDarkMode 
+                              ? Colors.white70 
+                              : Colors.black54,
+                          items: const [
+                            BottomNavigationBarItem(
+                              icon: Icon(Icons.home_outlined),
+                              activeIcon: Icon(Icons.home),
+                              label: 'Home',
+                            ),
+                            BottomNavigationBarItem(
+                              icon: Icon(Icons.calendar_month_outlined),
+                              activeIcon: Icon(Icons.calendar_month),
+                              label: 'Calendar',
+                            ),
+                            BottomNavigationBarItem(
+                              icon: Icon(Icons.flag_outlined),
+                              activeIcon: Icon(Icons.flag),
+                              label: 'Goals',
+                            ),
+                            BottomNavigationBarItem(
+                              icon: Icon(Icons.person_outline),
+                              activeIcon: Icon(Icons.person),
+                              label: 'Profile',
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
