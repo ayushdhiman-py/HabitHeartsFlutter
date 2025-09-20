@@ -65,7 +65,7 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
         return Transform.scale(
           scale: _scaleAnimation.value,
           child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 4), // Reduced vertical margin from 8 to 4
             decoration: BoxDecoration(
               color: Theme.of(context).brightness == Brightness.dark
                   ? AppColors.darkCardBackground

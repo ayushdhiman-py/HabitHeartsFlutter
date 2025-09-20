@@ -54,6 +54,9 @@ class _GoalsScreenState extends State<GoalsScreen> {
               final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
               final userId = authProvider.user?.uid ?? 'unknown';
               final goal = goalsProvider.goals.firstWhere((g) => g.id == goalId);
+              // Immediately update the UI for instant feedback
+              goalsProvider.immediatelyToggleGoalProgress(goalId, !goal.completed);
+              // Then update the backend
               goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, !goal.completed, updateGoalStatus: true);
             },
           );
@@ -133,21 +136,88 @@ class _GoalsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final goalsProvider = Provider.of<GoalsProvider>(context, listen: false);
-    return ListView.separated(
-      padding: const EdgeInsets.all(16.0),
-      itemCount: goals.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 16),
-      itemBuilder: (context, index) {
-        final goal = goals[index];
-        return ModernGoalItem(
-          key: ValueKey(goal.id),
-          goal: goal,
-          progress: goalsProvider.calculateGoalProgress(goal.id),
-          onEdit: (g) => _showEditGoalModal(context, g),
-          onDelete: (g) => _showDeleteConfirmationDialog(context, g),
-          onToggle: onToggleCompletion,
+    
+    // Separate habits and goals
+    final habits = goals.where((goal) => goal.isHabit).toList();
+    final nonHabits = goals.where((goal) => !goal.isHabit).toList();
+    
+    // Create a combined list with section headers
+    final List<Widget> items = [];
+    
+    // Add habits section if there are habits
+    if (habits.isNotEmpty) {
+      items.add(const Padding(
+        padding: EdgeInsets.fromLTRB(0, 0, 0, 8),
+        child: Text(
+          'Habits',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ));
+      
+      for (int i = 0; i < habits.length; i++) {
+        final goal = habits[i];
+        items.add(
+          ModernGoalItem(
+            key: ValueKey(goal.id),
+            goal: goal,
+            progress: goalsProvider.calculateGoalProgress(goal.id),
+            onEdit: (g) => _showEditGoalModal(context, g),
+            onDelete: (g) => _showDeleteConfirmationDialog(context, g),
+            onToggle: onToggleCompletion,
+          ),
         );
-      },
+        
+        // Add separator except after the last habit
+        if (i < habits.length - 1) {
+          items.add(const SizedBox(height: 8));
+        }
+      }
+    }
+    
+    // Add goals section if there are goals
+    if (nonHabits.isNotEmpty) {
+      // Add some spacing before the goals section if there were habits
+      if (habits.isNotEmpty) {
+        items.add(const SizedBox(height: 16));
+      }
+      
+      items.add(const Padding(
+        padding: EdgeInsets.fromLTRB(0, 0, 0, 8),
+        child: Text(
+          'Goals',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ));
+      
+      for (int i = 0; i < nonHabits.length; i++) {
+        final goal = nonHabits[i];
+        items.add(
+          ModernGoalItem(
+            key: ValueKey(goal.id),
+            goal: goal,
+            progress: goalsProvider.calculateGoalProgress(goal.id),
+            onEdit: (g) => _showEditGoalModal(context, g),
+            onDelete: (g) => _showDeleteConfirmationDialog(context, g),
+            onToggle: onToggleCompletion,
+          ),
+        );
+        
+        // Add separator except after the last goal
+        if (i < nonHabits.length - 1) {
+          items.add(const SizedBox(height: 8));
+        }
+      }
+    }
+    
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16), // Added horizontal padding to match home screen
+      children: items,
     );
   }
 
@@ -179,6 +249,8 @@ class _GoalsList extends StatelessWidget {
       ),
     );
   }
+
+  
 }
 
 class _AddGoalModal extends StatefulWidget {

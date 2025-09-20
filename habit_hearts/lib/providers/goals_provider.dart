@@ -202,6 +202,45 @@ class GoalsProvider with ChangeNotifier {
     }
   }
 
+  // Immediately update the UI for a specific day (used by "Done Today" button for instant feedback)
+  void immediatelyToggleGoalProgress(String goalId, bool completed) {
+    final DateTime today = DateTime.now();
+    final yearMonth = '${today.year}-${today.month.toString().padLeft(2, '0')}';
+    final day = today.day;
+    
+    // Create a copy of the progress data to modify
+    final updatedProgress = Map<String, Map<String, String>>.from(_userGoalProgress);
+    
+    // Initialize the goal entry if it doesn't exist
+    if (!updatedProgress.containsKey(goalId)) {
+      updatedProgress[goalId] = {};
+    }
+    
+    // Initialize the month entry if it doesn't exist
+    if (!updatedProgress[goalId]!.containsKey(yearMonth)) {
+      updatedProgress[goalId]![yearMonth] = '';
+    }
+    
+    // Get the current bit string for the month
+    String bitString = updatedProgress[goalId]![yearMonth]!;
+    
+    // Ensure the bit string is long enough for the current day
+    if (bitString.length < day) {
+      bitString = bitString.padRight(day, '0');
+    }
+    
+    // Update the bit for the current day
+    final index = day - 1;
+    final newBitString = bitString.replaceRange(index, index + 1, completed ? '1' : '0');
+    
+    // Update the progress data
+    updatedProgress[goalId]![yearMonth] = newBitString;
+    
+    // Update the state and notify listeners
+    _userGoalProgress = updatedProgress;
+    notifyListeners();
+  }
+
   // Optimistically toggle entire goal completion status (used by goal items)
   Future<void> optimisticallyToggleGoalProgress(String userId, String goalId, bool completed, {bool updateGoalStatus = true}) async {
     try {

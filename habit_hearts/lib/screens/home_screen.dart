@@ -325,8 +325,10 @@ class _HomeScreenState extends State<HomeScreen> {
                               onGoalProgressToggle: (goalId, completed) {
                                 final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
                                 final userId = authProvider.user?.uid ?? 'unknown';
-                                // For "Done Today" button, we don't want to update the goal's overall status
-                                goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, completed, updateGoalStatus: false);
+                                // Immediately update the UI for instant feedback
+                                goalsProvider.immediatelyToggleGoalProgress(goalId, completed);
+                                // Then update the backend
+                                goalsProvider.markDayAsComplete(userId, goalId, completed);
                               },
                             );
                           },
@@ -1225,7 +1227,7 @@ class _GoalsSection extends StatelessWidget {
                         }
                       }
                       
-                      // Toggle the state (if currently completed, mark as not completed and vice versa)
+                      // Immediately update the UI by calling the toggle function
                       print('DEBUG: Setting goal ${goal.id} completion for today to: ${!isTodayCompleted}');
                       // Use the onGoalProgressToggle callback which has access to GoalsProvider
                       onGoalProgressToggle(goal.id, !isTodayCompleted);
@@ -1415,7 +1417,8 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
                     onTap: () {
                       widget.onDayToggle(widget.goal.id, !isCompleted);
                     },
-                    child: Container(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150), // Add quick animation
                       width: 12.0,
                       height: 12.0,
                       decoration: BoxDecoration(
