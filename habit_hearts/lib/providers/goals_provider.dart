@@ -52,17 +52,10 @@ class GoalsProvider with ChangeNotifier {
 
     try {
       final userId = _authProvider!.user!.uid;
-      final linkedUserIds = _authProvider!.habitHeartsUser?.linkedUsers ?? [];
-
-      // Load goals from API
+      
+      // Load goals from API (now includes goals from linked users)
       final goals = await ApiService.getGoals(userId);
       _goals = goals;
-
-      // Load goals for linked users
-      for (String linkedUserId in linkedUserIds) {
-        final linkedGoals = await ApiService.getGoals(linkedUserId);
-        _goals.addAll(linkedGoals);
-      }
 
       // Load user's goal progress data
       final userData = await ApiService.getUserGoalProgress(userId);

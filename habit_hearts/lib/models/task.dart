@@ -55,7 +55,7 @@ class Task {
       dueDate: json['dueDate'] != null ? DateTime.fromMillisecondsSinceEpoch(json['dueDate']) : null,
       completed: json['completed'],
       createdBy: json['createdBy'],
-      creatorName: json['creatorName'],
+      creatorName: json['creatorName'] ?? 'Unknown',
       createdAt: DateTime.fromMillisecondsSinceEpoch(json['createdAt']),
       updatedAt: DateTime.fromMillisecondsSinceEpoch(json['updatedAt']),
       status: json['status'],

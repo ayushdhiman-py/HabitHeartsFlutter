@@ -225,6 +225,7 @@ class _EventList extends StatelessWidget {
       itemBuilder: (context, index) {
         final event = events[index];
         return Container(
+          key: ValueKey(event.id),
           decoration: BoxDecoration(
             color: Theme.of(context).cardTheme.color,
             borderRadius: BorderRadius.circular(12),
@@ -272,11 +273,32 @@ class _EventList extends StatelessWidget {
                       ),
                     ),
                   ),
-            title: Text(
-              event.title,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  event.title,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                Visibility(
+                  visible: event.creatorName.isNotEmpty && event.creatorName != 'You',
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      'by ${event.creatorName}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).brightness == Brightness.dark 
+                            ? AppColors.darkSecondaryTextColor 
+                            : AppColors.secondaryTextColor,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
                   ),
+                ),
+              ],
             ),
             subtitle: event.startTime != null
                 ? Text(

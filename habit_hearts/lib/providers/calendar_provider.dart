@@ -128,16 +128,12 @@ class CalendarProvider with ChangeNotifier {
 
     try {
       final userId = _authProvider!.user!.uid;
-      final linkedUserIds = _authProvider!.habitHeartsUser?.linkedUsers ?? [];
-      List<String> allUserIds = [userId, ...linkedUserIds];
-      List<CalendarEvent> allEvents = [];
-      for (String id in allUserIds) {
-        print('Fetching events for user $id from ${startDate.toIso8601String()} to ${endDate.toIso8601String()}');
-        List<CalendarEvent> userEvents = await ApiService.getCalendarEvents(id, startDate, endDate);
-        print('Fetched ${userEvents.length} events for user $id');
-        allEvents.addAll(userEvents);
-      }
-      _events = allEvents;
+      
+      // Load events from API (now includes events from linked users)
+      print('Fetching events for user $userId from ${startDate.toIso8601String()} to ${endDate.toIso8601String()}');
+      final events = await ApiService.getCalendarEvents(userId, startDate, endDate);
+      print('Fetched ${events.length} events for user $userId');
+      _events = events;
       print('Total events loaded: ${_events.length}');
     } catch (e) {
       _error = e.toString();

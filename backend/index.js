@@ -289,10 +289,36 @@ app.get('/api/tasks/:userId/:date', async (req, res) => {
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
     
+    // First, get the user to check their linked users
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (!userDoc.exists) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    const userData = userDoc.data();
+    const linkedUsers = userData.linkedUsers || [];
+    
+    // Include the current user in the list of users to fetch tasks for
+    const allUserIds = [userId, ...linkedUsers];
+    
     // Use a simpler query that doesn't require a composite index
     const snapshot = await db.collection('tasks')
-      .where('createdBy', '==', userId)
+      .where('createdBy', 'in', allUserIds)
       .get();
+    
+    // Fetch user data for all users to get their display names
+    const userDocs = await Promise.all(
+      allUserIds.map(uid => db.collection('users').doc(uid).get())
+    );
+    
+    // Create a map of user ID to display name
+    const userNames = {};
+    userDocs.forEach(userDoc => {
+      if (userDoc.exists) {
+        const data = userDoc.data();
+        userNames[userDoc.id] = data.displayName || 'Unknown';
+      }
+    });
     
     // Filter by date on the client side
       const tasks = snapshot.docs
@@ -335,9 +361,15 @@ app.get('/api/tasks/:userId/:date', async (req, res) => {
           // Remove the original 'id' field from the data to avoid conflict with the document ID
           const { id, ...dataWithoutId } = data;
           
+          // Determine creator name - 'You' for current user, actual name for others
+          const creatorName = data.createdBy === userId 
+            ? 'You' 
+            : (userNames[data.createdBy] || 'Unknown');
+          
           return {
             id: doc.id,
             ...dataWithoutId,
+            creatorName, // Add the creator name
             createdAt,
             updatedAt,
             dueDate
@@ -510,9 +542,36 @@ app.delete('/api/tasks/:id', async (req, res) => {
 app.get('/api/goals/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
+    
+    // First, get the user to check their linked users
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (!userDoc.exists) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    const userData = userDoc.data();
+    const linkedUsers = userData.linkedUsers || [];
+    
+    // Include the current user in the list of users to fetch goals for
+    const allUserIds = [userId, ...linkedUsers];
+    
     const snapshot = await db.collection('goals')
-      .where('createdBy', '==', userId)
+      .where('createdBy', 'in', allUserIds)
       .get();
+    
+    // Fetch user data for all users to get their display names
+    const userDocs = await Promise.all(
+      allUserIds.map(uid => db.collection('users').doc(uid).get())
+    );
+    
+    // Create a map of user ID to display name
+    const userNames = {};
+    userDocs.forEach(userDoc => {
+      if (userDoc.exists) {
+        const data = userDoc.data();
+        userNames[userDoc.id] = data.displayName || 'Unknown';
+      }
+    });
     
     const goals = snapshot.docs.map(doc => {
       const data = doc.data();
@@ -563,10 +622,16 @@ app.get('/api/goals/:userId', async (req, res) => {
       
       // Remove the original 'id' field from the data to avoid conflict with the document ID
       const { id, ...dataWithoutId } = data;
+      
+      // Determine creator name - 'You' for current user, actual name for others
+      const creatorName = data.createdBy === userId 
+        ? 'You' 
+        : (userNames[data.createdBy] || 'Unknown');
 
       return {
         id: doc.id,
         ...dataWithoutId,
+        creatorName, // Add the creator name
         createdAt,
         updatedAt,
         isHabit: data.isHabit || false,
@@ -758,7 +823,19 @@ app.get('/api/calendarEvents/:userId', async (req, res) => {
     const { userId } = req.params;
     const { startDate, endDate } = req.query;
     
-    let query = db.collection('calendarEvents').where('createdBy', '==', userId);
+    // First, get the user to check their linked users
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (!userDoc.exists) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    const userData = userDoc.data();
+    const linkedUsers = userData.linkedUsers || [];
+    
+    // Include the current user in the list of users to fetch events for
+    const allUserIds = [userId, ...linkedUsers];
+    
+    let query = db.collection('calendarEvents').where('createdBy', 'in', allUserIds);
     
     if (startDate) {
       query = query.where('date', '>=', new Date(startDate));
@@ -771,6 +848,20 @@ app.get('/api/calendarEvents/:userId', async (req, res) => {
     }
     
     const snapshot = await query.get();
+    
+    // Fetch user data for all users to get their display names
+    const userDocs = await Promise.all(
+      allUserIds.map(uid => db.collection('users').doc(uid).get())
+    );
+    
+    // Create a map of user ID to display name
+    const userNames = {};
+    userDocs.forEach(userDoc => {
+      if (userDoc.exists) {
+        const data = userDoc.data();
+        userNames[userDoc.id] = data.displayName || 'Unknown';
+      }
+    });
     
     const events = snapshot.docs.map(doc => {
       const data = doc.data();
@@ -821,10 +912,16 @@ app.get('/api/calendarEvents/:userId', async (req, res) => {
 
       // Remove the original 'id' field from the data to avoid conflict with the document ID
       const { id, ...dataWithoutId } = data;
+      
+      // Determine creator name - 'You' for current user, actual name for others
+      const creatorName = data.createdBy === userId 
+        ? 'You' 
+        : (userNames[data.createdBy] || 'Unknown');
 
       return {
         id: doc.id,
         ...dataWithoutId,
+        creatorName, // Add the creator name
         date: eventDate,
         endDate: eventEndDate,
         createdAt,

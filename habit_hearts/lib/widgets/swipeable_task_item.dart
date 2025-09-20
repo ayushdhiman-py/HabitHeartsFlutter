@@ -123,20 +123,41 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
                           : AppColors.secondaryTextColor),
                   size: 20, // Reduced from 24 to 20
                 ),
-                title: Text(
-                  widget.task.text,
-                  style: TextStyle(
-                    fontSize: 15, // Reduced from 16 to 15
-                    decoration: widget.task.completed ? TextDecoration.lineThrough : null,
-                    color: widget.task.completed 
-                        ? (Theme.of(context).brightness == Brightness.dark 
-                            ? AppColors.darkSecondaryTextColor 
-                            : AppColors.secondaryTextColor)
-                        : (Theme.of(context).brightness == Brightness.dark 
-                            ? AppColors.darkTextColor 
-                            : AppColors.textColor),
-                    fontWeight: widget.task.completed ? FontWeight.normal : FontWeight.w600,
-                  ),
+                title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.task.text,
+                      style: TextStyle(
+                        fontSize: 15, // Reduced from 16 to 15
+                        decoration: widget.task.completed ? TextDecoration.lineThrough : null,
+                        color: widget.task.completed 
+                            ? (Theme.of(context).brightness == Brightness.dark 
+                                ? AppColors.darkSecondaryTextColor 
+                                : AppColors.secondaryTextColor)
+                            : (Theme.of(context).brightness == Brightness.dark 
+                                ? AppColors.darkTextColor 
+                                : AppColors.textColor),
+                        fontWeight: widget.task.completed ? FontWeight.normal : FontWeight.w600,
+                      ),
+                    ),
+                    Visibility(
+                      visible: widget.task.creatorName.isNotEmpty && widget.task.creatorName != 'You',
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          'by ${widget.task.creatorName}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Theme.of(context).brightness == Brightness.dark 
+                                ? AppColors.darkSecondaryTextColor 
+                                : AppColors.secondaryTextColor,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 subtitle: widget.task.startTime != null || widget.task.endTime != null
                     ? Text(
