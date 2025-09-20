@@ -1086,6 +1086,21 @@ class _GoalsSection extends StatelessWidget {
     required this.onGoalProgressToggle,
   });
 
+  bool _isTodayCompleted(Goal goal, Map<String, Map<String, String>> userGoalProgress) {
+    final DateTime today = DateTime.now();
+    final yearMonth = '${today.year}-${today.month.toString().padLeft(2, '0')}';
+    final dayOfMonth = today.day;
+
+    if (!userGoalProgress.containsKey(goal.id)) return false;
+    if (!userGoalProgress[goal.id]!.containsKey(yearMonth)) return false;
+
+    final bitString = userGoalProgress[goal.id]![yearMonth]!;
+    if (dayOfMonth < 1 || dayOfMonth > bitString.length) return false;
+
+    final index = dayOfMonth - 1;
+    return index < bitString.length && bitString[index] == '1';
+  }
+
   @override
   Widget build(BuildContext context) {
     // Filter goals to show only uncompleted ones, limit to 3
@@ -1192,36 +1207,28 @@ class _GoalsSection extends StatelessWidget {
                   ),
                   // Done Today Button
                   ElevatedButton(
-                    onPressed: () async {
-                      final bool? result = await showDialog<bool>(
-                        context: context,
-                        builder: (BuildContext context) {
-                          return AlertDialog(
-                            title: const Text('Update Progress'),
-                            content: const Text('Did you complete this goal today?'),
-                            actions: <Widget>[
-                              TextButton(
-                                child: const Text('Cancel'),
-                                onPressed: () => Navigator.of(context).pop(null),
-                              ),
-                              TextButton(
-                                child: const Text('No'),
-                                onPressed: () => Navigator.of(context).pop(false),
-                              ),
-                              TextButton(
-                                child: const Text('Yes'),
-                                onPressed: () => Navigator.of(context).pop(true),
-                              ),
-                            ],
-                          );
-                        },
-                      );
-
-                      if (result != null) {
-                        print('DEBUG: Setting goal ${goal.id} completion to: $result');
-                        // Use the onGoalProgressToggle callback which has access to GoalsProvider
-                        onGoalProgressToggle(goal.id, result);
+                    onPressed: () {
+                      // Get today's date
+                      final DateTime today = DateTime.now();
+                      
+                      // Check if today is already marked as completed
+                      bool isTodayCompleted = false;
+                      final yearMonth = '${today.year}-${today.month.toString().padLeft(2, '0')}';
+                      final dayOfMonth = today.day;
+                      
+                      if (userGoalProgress.containsKey(goal.id) && 
+                          userGoalProgress[goal.id]!.containsKey(yearMonth)) {
+                        final bitString = userGoalProgress[goal.id]![yearMonth]!;
+                        if (dayOfMonth >= 1 && dayOfMonth <= bitString.length) {
+                          final index = dayOfMonth - 1;
+                          isTodayCompleted = index < bitString.length && bitString[index] == '1';
+                        }
                       }
+                      
+                      // Toggle the state (if currently completed, mark as not completed and vice versa)
+                      print('DEBUG: Setting goal ${goal.id} completion for today to: ${!isTodayCompleted}');
+                      // Use the onGoalProgressToggle callback which has access to GoalsProvider
+                      onGoalProgressToggle(goal.id, !isTodayCompleted);
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.electricGreen,
@@ -1235,9 +1242,9 @@ class _GoalsSection extends StatelessWidget {
                       elevation: 2,
                       shadowColor: Colors.black26,
                     ),
-                    child: const Text(
-                      'Done Today',
-                      style: TextStyle(
+                    child: Text(
+                      _isTodayCompleted(goal, userGoalProgress) ? 'Undo Today' : 'Done Today',
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
