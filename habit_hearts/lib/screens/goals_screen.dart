@@ -43,7 +43,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     return Scaffold(
-      appBar: _ThemedAppBar(title: 'Goals'),
+      appBar: _ThemedAppBar(title: 'Goals', onAddGoal: _showAddGoalModal),
       body: Consumer<GoalsProvider>(
         builder: (context, goalsProvider, child) {
           if (goalsProvider.isLoading) return const _GoalsLoadingSkeleton();
@@ -56,15 +56,6 @@ class _GoalsScreenState extends State<GoalsScreen> {
               final goal = goalsProvider.goals.firstWhere((g) => g.id == goalId);
               goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, !goal.completed, updateGoalStatus: true);
             },
-          );
-        },
-      ),
-      floatingActionButton: Consumer<ThemeProvider>(
-        builder: (context, themeProvider, child) {
-          return FloatingActionButton(
-            onPressed: _showAddGoalModal,
-            backgroundColor: themeProvider.selectedColor,
-            child: const Icon(Icons.add, color: Colors.white),
           );
         },
       ),
@@ -236,9 +227,14 @@ class _AddGoalModalState extends State<_AddGoalModal> {
   }
 
   Future<void> _selectDate({bool isStart = true}) async {
+    DateTime initial = (isStart ? _selectedStartDate : _selectedEndDate) ?? DateTime.now();
+    if (initial.year < 2000) { // Handle epoch date
+      initial = DateTime.now();
+    }
+
     final picked = await showDatePicker(
       context: context,
-      initialDate: (isStart ? _selectedStartDate : _selectedEndDate) ?? DateTime.now(),
+      initialDate: initial,
       firstDate: isStart ? DateTime.now().subtract(const Duration(days: 365)) : _selectedStartDate ?? DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
@@ -250,35 +246,43 @@ class _AddGoalModalState extends State<_AddGoalModal> {
             _selectedEndDate = picked;
           }
         } else {
-          _selectedEndDate = picked;
+          if (_selectedStartDate != null && picked.isBefore(_selectedStartDate!)) {
+            // Show an error or handle appropriately
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('End date cannot be before the start date.')),
+            );
+          } else {
+            _selectedEndDate = picked;
+          }
         }
       });
     }
   }
-
   void _addGoal() async {
     if (_goalController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a goal')));
       return;
     }
 
-    final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
-    final newGoal = Goal(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      text: _goalController.text.trim(),
-      completed: false,
-      createdBy: authProvider.user?.uid ?? 'unknown',
-      creatorName: authProvider.user?.displayName ?? 'Unknown',
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-      status: 'active',
-      emoji: _selectedEmoji,
-      startDate: _isHabit ? null : _selectedStartDate,
-      endDate: _isHabit ? null : _selectedEndDate,
-      isHabit: _isHabit,
-    );
+    if (!_isHabit && _selectedEndDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select an end date.')));
+      return;
+    }
 
-    await Provider.of<GoalsProvider>(context, listen: false).addGoal(context, newGoal);
+    final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
+    final goalsProvider = Provider.of<GoalsProvider>(context, listen: false);
+
+    final goalData = {
+      'text': _goalController.text.trim(),
+      'emoji': _selectedEmoji,
+      'startDate': _isHabit ? null : _selectedStartDate,
+      'endDate': _isHabit ? null : _selectedEndDate,
+      'isHabit': _isHabit,
+      'createdBy': authProvider.user?.uid ?? 'unknown',
+      'creatorName': authProvider.user?.displayName ?? 'Unknown',
+    };
+
+    await goalsProvider.addGoal(context, goalData);
 
     if (mounted) {
       Navigator.of(context).pop();
@@ -386,9 +390,14 @@ class _EditGoalModalState extends State<_EditGoalModal> {
   }
 
   Future<void> _selectDate({bool isStart = true}) async {
+    DateTime initial = (isStart ? _selectedStartDate : _selectedEndDate) ?? DateTime.now();
+    if (initial.year < 2000) { // Handle epoch date
+      initial = DateTime.now();
+    }
+
     final picked = await showDatePicker(
       context: context,
-      initialDate: (isStart ? _selectedStartDate : _selectedEndDate) ?? DateTime.now(),
+      initialDate: initial,
       firstDate: isStart ? DateTime.now().subtract(const Duration(days: 365)) : _selectedStartDate ?? DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
@@ -400,7 +409,14 @@ class _EditGoalModalState extends State<_EditGoalModal> {
             _selectedEndDate = picked;
           }
         } else {
-          _selectedEndDate = picked;
+          if (_selectedStartDate != null && picked.isBefore(_selectedStartDate!)) {
+            // Show an error or handle appropriately
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('End date cannot be before the start date.')),
+            );
+          } else {
+            _selectedEndDate = picked;
+          }
         }
       });
     }
@@ -409,6 +425,11 @@ class _EditGoalModalState extends State<_EditGoalModal> {
   void _updateGoal() async {
     if (_goalController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a goal')));
+      return;
+    }
+
+    if (!_isHabit && _selectedEndDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select an end date.')));
       return;
     }
 
@@ -507,8 +528,9 @@ class _DatePicker extends StatelessWidget {
 
 class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
+  final VoidCallback? onAddGoal;
   
-  const _ThemedAppBar({required this.title});
+  const _ThemedAppBar({required this.title, this.onAddGoal});
   
   @override
   Widget build(BuildContext context) {
@@ -535,6 +557,27 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
             ),
           ),
           elevation: 0,
+          actions: [
+            if (onAddGoal != null)
+              Container(
+                margin: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: themeProvider.selectedColor,
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: themeProvider.selectedColor.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.add, color: Colors.white),
+                  onPressed: onAddGoal,
+                ),
+              ),
+          ],
         );
       },
     );

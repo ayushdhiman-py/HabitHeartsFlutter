@@ -72,7 +72,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     return Scaffold(
-      appBar: _ThemedAppBar(title: 'Calendar'),
+      appBar: _ThemedAppBar(title: 'Calendar', onAddEvent: () => _showAddEventModal(context)),
       body: Consumer<CalendarProvider>(
         builder: (context, calendarProvider, child) => Column(
           children: [
@@ -98,15 +98,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
             Expanded(child: _EventList(selectedDay: _selectedDay)),
           ],
         ),
-      ),
-      floatingActionButton: Consumer<ThemeProvider>(
-        builder: (context, themeProvider, child) {
-          return FloatingActionButton(
-            onPressed: () => _showAddEventModal(context),
-            backgroundColor: themeProvider.selectedColor,
-            child: const Icon(Icons.add, color: Colors.white),
-          );
-        },
       ),
     );
   }
@@ -504,8 +495,9 @@ class _EmojiSelectorButton extends StatelessWidget {
 
 class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
+  final VoidCallback? onAddEvent;
   
-  const _ThemedAppBar({required this.title});
+  const _ThemedAppBar({required this.title, this.onAddEvent});
   
   @override
   Widget build(BuildContext context) {
@@ -532,6 +524,27 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
             ),
           ),
           elevation: 0,
+          actions: [
+            if (onAddEvent != null)
+              Container(
+                margin: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: themeProvider.selectedColor,
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: themeProvider.selectedColor.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.add, color: Colors.white),
+                  onPressed: onAddEvent,
+                ),
+              ),
+          ],
         );
       },
     );

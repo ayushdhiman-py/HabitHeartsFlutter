@@ -52,6 +52,33 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
     });
   }
 
+  void _confirmDelete(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete Task'),
+          content: const Text('Are you sure you want to delete this task?'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('Delete'),
+              onPressed: () {
+                Navigator.of(context).pop();
+                widget.onDelete(widget.task);
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -60,12 +87,13 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
         return Transform.scale(
           scale: _scaleAnimation.value,
           child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            width: double.infinity, // Make the container take full width
+            margin: const EdgeInsets.symmetric(vertical: 2), // Reduced from 4 to 2 for more compact spacing
             decoration: BoxDecoration(
               color: Theme.of(context).brightness == Brightness.dark 
                   ? AppColors.darkCardBackground 
                   : AppColors.lightCardBackground,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(12), // Reduced from 16 to 12
               border: Border.all(
                 color: Theme.of(context).brightness == Brightness.dark 
                     ? AppColors.darkBorderColor 
@@ -84,7 +112,8 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
             child: GestureDetector(
               onTap: _handleToggle,
               child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2), // Reduced from 4 to 2 for more compact spacing
+                visualDensity: const VisualDensity(horizontal: 0, vertical: -2), // Add visual density to reduce overall height
                 leading: Icon(
                   widget.task.completed ? Icons.check_box : Icons.check_box_outline_blank,
                   color: widget.task.completed 
@@ -92,12 +121,12 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
                       : (Theme.of(context).brightness == Brightness.dark 
                           ? AppColors.darkSecondaryTextColor 
                           : AppColors.secondaryTextColor),
-                  size: 24,
+                  size: 20, // Reduced from 24 to 20
                 ),
                 title: Text(
                   widget.task.text,
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 15, // Reduced from 16 to 15
                     decoration: widget.task.completed ? TextDecoration.lineThrough : null,
                     color: widget.task.completed 
                         ? (Theme.of(context).brightness == Brightness.dark 
@@ -113,7 +142,7 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
                     ? Text(
                         '${widget.task.startTime ?? ''} - ${widget.task.endTime ?? ''}',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 11, // Reduced from 12 to 11
                           color: Theme.of(context).brightness == Brightness.dark 
                               ? AppColors.darkSecondaryTextColor 
                               : AppColors.secondaryTextColor,
@@ -130,13 +159,13 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
                       ),
                     const SizedBox(width: 8),
                     SizedBox(
-                      width: 24,
-                      height: 24,
+                      width: 20, // Reduced from 24 to 20
+                      height: 20, // Reduced from 24 to 20
                       child: IconButton(
                         onPressed: () => widget.onEdit(widget.task),
                         icon: Icon(
                           Icons.edit_outlined,
-                          size: 20,
+                          size: 18, // Reduced from 20 to 18
                           color: Theme.of(context).brightness == Brightness.dark 
                               ? AppColors.darkTextColor 
                               : AppColors.textColor,
@@ -146,15 +175,15 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
                         splashRadius: 20,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6), // Reduced from 8 to 6
                     SizedBox(
-                      width: 24,
-                      height: 24,
+                      width: 20, // Reduced from 24 to 20
+                      height: 20, // Reduced from 24 to 20
                       child: IconButton(
-                        onPressed: () => widget.onDelete(widget.task),
+                        onPressed: () => _confirmDelete(context),
                         icon: Icon(
                           Icons.delete_outlined,
-                          size: 20,
+                          size: 18, // Reduced from 20 to 18
                           color: AppColors.brightRed,
                         ),
                         padding: EdgeInsets.zero,

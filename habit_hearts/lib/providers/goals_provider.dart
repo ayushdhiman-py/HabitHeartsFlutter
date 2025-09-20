@@ -29,7 +29,7 @@ class GoalsProvider with ChangeNotifier {
   Map<String, int> get longestStreaks => _longestStreaks;
 
   // Load goals and progress from API
-  Future<void> loadGoals(String userId, List<String> linkedUserIds) async {
+  Future<void> loadGoals(String? userId, List<String> linkedUserIds) async {
     _isLoading = true;
     notifyListeners();
 
@@ -72,12 +72,28 @@ class GoalsProvider with ChangeNotifier {
   }
 
   // Add a new goal
-  Future<void> addGoal(BuildContext context, Goal goal) async {
+  Future<void> addGoal(BuildContext context, Map<String, dynamic> goalData) async {
     try {
+      final now = DateTime.now();
+      final goal = Goal(
+        id: '', // ID will be assigned by Firestore
+        text: goalData['text'],
+        completed: false,
+        createdBy: goalData['createdBy'],
+        creatorName: goalData['creatorName'],
+        createdAt: now,
+        updatedAt: now,
+        status: 'active',
+        emoji: goalData['emoji'],
+        startDate: goalData['startDate'],
+        endDate: goalData['endDate'],
+        isHabit: goalData['isHabit'],
+      );
+
       final newGoal = await ApiService.createGoal(goal);
       if (newGoal != null) {
-        _goals.add(newGoal);
-        notifyListeners();
+        final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
+        await loadGoals(authProvider.user?.uid, authProvider.habitHeartsUser?.linkedUsers ?? []);
       }
     } catch (e) {
       print('Error adding goal: $e');
@@ -90,23 +106,8 @@ class GoalsProvider with ChangeNotifier {
     try {
       final result = await ApiService.updateGoal(updatedGoal);
       if (result != null) {
-        final index = _goals.indexWhere((goal) => goal.id == updatedGoal.id);
-        if (index != -1) {
-          _goals[index] = result; // Use the returned goal from API
-          // After updating the goal, reload the user's goal progress to ensure consistency
-          final userData = await ApiService.getUserGoalProgress(updatedGoal.createdBy);
-          if (userData != null && userData.goalProgress != null) {
-            _userGoalProgress.clear();
-            _currentStreaks.clear();
-            _longestStreaks.clear();
-            userData.goalProgress.forEach((goalId, progressSummary) {
-              _userGoalProgress[goalId] = Map<String, String>.from(progressSummary.monthlyData);
-              _currentStreaks[goalId] = progressSummary.currentStreak;
-              _longestStreaks[goalId] = progressSummary.longestStreak;
-            });
-          }
-          notifyListeners();
-        }
+        final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
+        await loadGoals(authProvider.user?.uid, authProvider.habitHeartsUser?.linkedUsers ?? []);
       }
     } catch (e) {
       print('Error updating goal: $e');
@@ -117,39 +118,29 @@ class GoalsProvider with ChangeNotifier {
   // Delete a goal
   Future<void> deleteGoal(BuildContext context, String goalId) async {
     try {
-      // Get the user ID from the auth provider
       final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
       final userId = authProvider.user?.uid;
 
       if (userId == null) {
-        throw Exception("User not logged in. Cannot delete goal progress.");
+        throw Exception("User not logged in.");
       }
 
-      // Step 1: Delete the user's progress for this goal from the 'users' table.
-      // Note: This requires a new function in your ApiService and backend.
+      // Optimistically remove from UI
+      _goals.removeWhere((goal) => goal.id == goalId);
+      notifyListeners();
+
+      // Call API to delete
+      final goalDeletionSuccess = await ApiService.deleteGoal(goalId);
       final progressDeletionSuccess = await ApiService.removeGoalProgressForUser(userId, goalId);
-      print('DEBUG: ApiService.removeGoalProgressForUser success: $progressDeletionSuccess');
 
-      if (progressDeletionSuccess) {
-        // Step 2: Delete the actual goal document from the 'goals' table.
-        final goalDeletionSuccess = await ApiService.deleteGoal(goalId);
-        print('DEBUG: ApiService.deleteGoal success: $goalDeletionSuccess');
-
-        if (goalDeletionSuccess) {
-          // Update local state to reflect the deletion in the UI
-          _goals = _goals.where((goal) => goal.id != goalId).toList();
-          _userGoalProgress.remove(goalId);
-          _currentStreaks.remove(goalId);
-          _longestStreaks.remove(goalId);
-          notifyListeners();
-        }
-      } else {
-        // Handle the case where progress deletion failed
-        print('Error deleting goal progress for goalId: $goalId');
+      if (!goalDeletionSuccess || !progressDeletionSuccess) {
+        // If either fails, reload goals to revert UI
+        await loadGoals(userId, authProvider.habitHeartsUser?.linkedUsers ?? []);
       }
     } catch (e) {
       print('Error deleting goal: $e');
-      // Optionally show an error message to the user
+      final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
+      await loadGoals(authProvider.user?.uid, authProvider.habitHeartsUser?.linkedUsers ?? []);
     }
   }
 
@@ -213,51 +204,23 @@ class GoalsProvider with ChangeNotifier {
 
   // Optimistically toggle entire goal completion status (used by goal items)
   Future<void> optimisticallyToggleGoalProgress(String userId, String goalId, bool completed, {bool updateGoalStatus = true}) async {
-    // Store original state for rollback
-    final originalProgress = Map<String, Map<String, String>>.from(_userGoalProgress);
-    Goal? originalGoal;
-    int goalIndex = -1;
-    
-    // If we need to update the goal's overall status, store original goal
-    if (updateGoalStatus) {
-      goalIndex = _goals.indexWhere((g) => g.id == goalId);
-      if (goalIndex != -1) {
-        originalGoal = _goals[goalIndex];
-      }
-    }
-
-    // Update UI optimistically
-    if (updateGoalStatus && goalIndex != -1 && originalGoal != null) {
-      final updatedGoal = originalGoal.copyWith(completed: completed);
-      _goals[goalIndex] = updatedGoal;
-    }
-    notifyListeners();
-
     try {
-      if (updateGoalStatus && goalIndex != -1 && originalGoal != null) {
-        final updatedGoal = originalGoal.copyWith(completed: completed);
+      if (updateGoalStatus) {
+        final goal = _goals.firstWhere((g) => g.id == goalId);
+        final updatedGoal = goal.copyWith(completed: completed);
         final result = await ApiService.updateGoal(updatedGoal);
-        if (result == null) {
-          // Revert on failure
-          _goals[goalIndex] = originalGoal;
-          notifyListeners();
+        if (result != null) {
+          await loadGoals(userId, []);
         }
       } else {
-        // This is for daily progress updates (e.g., from "Done Today" button)
         final success = await toggleGoalProgressForUser(userId, goalId, completed);
-        if (!success) {
-          // Revert on failure
-          _userGoalProgress = originalProgress;
-          notifyListeners();
+        if (success) {
+          await loadGoals(userId, []);
         }
       }
     } catch (e) {
-      // Revert on error
-      _userGoalProgress = originalProgress;
-      if (updateGoalStatus && goalIndex != -1 && originalGoal != null) {
-        _goals[goalIndex] = originalGoal;
-      }
-      notifyListeners();
+      print('Error toggling goal progress: $e');
+      await loadGoals(userId, []);
     }
   }
 
@@ -333,7 +296,15 @@ class GoalsProvider with ChangeNotifier {
     final startDate = goal.startDate!;
     final endDate = goal.endDate!;
 
+    if (endDate.isBefore(startDate)) {
+      return {'completedPercentage': 0.0, 'missedPercentage': 0.0};
+    }
+
     int totalDays = endDate.difference(startDate).inDays + 1;
+    if (totalDays <= 0) {
+      return {'completedPercentage': 0.0, 'missedPercentage': 0.0};
+    }
+    
     int completedDays = 0;
     int missedDays = 0;
 
