@@ -13,6 +13,16 @@ class AppColors {
   static const Color brightRed = Color(0xFFF56565);        // Red for errors
   static const Color mint = Color(0xFF8AE4FF);             // Sky blue
   
+  // Additional theme colors
+  static const Color deepTeal = Color(0xFF26A69A);         // Deep teal
+  static const Color coral = Color(0xFFFF7043);            // Vibrant coral
+  static const Color lavender = Color(0xFFB39DDB);         // Soft lavender
+  static const Color mintGreen = Color(0xFF80CBC4);        // Mint green
+  static const Color peach = Color(0xFFFFAB91);            // Soft peach
+  static const Color periwinkle = Color(0xFF7986CB);       // Periwinkle blue
+  static const Color rose = Color(0xFFF48FB1);             // Soft rose
+  static const Color turquoise = Color(0xFF4DB6AC);        // Turquoise
+  
   // Dark theme colors
   static const Color darkBackground = Color(0xFF121212);
   static const Color darkCardBackground = Color(0xFF1E1E1E);
@@ -30,6 +40,12 @@ class AppColors {
   static const List<Color> tealToBlueGradient = [mint, electricBlue];
   static const List<Color> greenToTealGradient = [electricGreen, mint];
   static const List<Color> coralToPinkGradient = [vibrantOrange, hotPink];
+  
+  // Additional gradient combinations
+  static const List<Color> sunsetGradient = [vibrantOrange, hotPink];
+  static const List<Color> oceanGradient = [electricBlue, mint];
+  static const List<Color> forestGradient = [electricGreen, deepTeal];
+  static const List<Color> lavenderGradient = [brightPurple, lavender];
   
   // Background and text colors
   static const Color primaryBackground = Color(0xFFF8F9FA);     // Off-white background

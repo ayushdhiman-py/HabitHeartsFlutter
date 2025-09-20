@@ -115,6 +115,7 @@ class HabitHeartsAuthProvider with ChangeNotifier {
       await _loadUserDocument(_user!.uid);
     } catch (e) {
       print('Error unlinking from partner: $e');
+      rethrow;
     }
   }
 }

@@ -2,6 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme.dart';
 
+class ThemeColorOption {
+  final String name;
+  final List<Color> colors;
+  
+  ThemeColorOption({required this.name, required this.colors});
+}
+
 class ThemeProvider with ChangeNotifier {
   Color _selectedColor = AppColors.mint;
   static const String _themeColorKey = 'selected_theme_color';
@@ -52,5 +59,41 @@ class ThemeProvider with ChangeNotifier {
         AppColors.sunnyYellow,
         AppColors.brightRed,
         AppColors.mint,
+        AppColors.deepTeal,
+        AppColors.coral,
+        AppColors.lavender,
+        AppColors.mintGreen,
+        AppColors.peach,
+        AppColors.periwinkle,
+        AppColors.rose,
+        AppColors.turquoise,
+      ];
+      
+  // List of available gradient options
+  static List<ThemeColorOption> get gradientOptions => [
+        ThemeColorOption(
+          name: 'Sunset',
+          colors: AppColors.sunsetGradient,
+        ),
+        ThemeColorOption(
+          name: 'Ocean',
+          colors: AppColors.oceanGradient,
+        ),
+        ThemeColorOption(
+          name: 'Forest',
+          colors: AppColors.forestGradient,
+        ),
+        ThemeColorOption(
+          name: 'Lavender Dream',
+          colors: AppColors.lavenderGradient,
+        ),
+        ThemeColorOption(
+          name: 'Purple Pink',
+          colors: AppColors.purpleToPinkGradient,
+        ),
+        ThemeColorOption(
+          name: 'Teal Blue',
+          colors: AppColors.tealToBlueGradient,
+        ),
       ];
 }
