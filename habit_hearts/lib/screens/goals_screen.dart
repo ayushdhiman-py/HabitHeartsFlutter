@@ -54,7 +54,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
               final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
               final userId = authProvider.user?.uid ?? 'unknown';
               final goal = goalsProvider.goals.firstWhere((g) => g.id == goalId);
-              goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, !goal.completed);
+              goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, !goal.completed, updateGoalStatus: true);
             },
           );
         },

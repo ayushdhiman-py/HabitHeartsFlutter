@@ -153,7 +153,8 @@ class _SwipeableGoalItemState extends State<SwipeableGoalItem> with SingleTicker
                           children: [
                             // Progress bar
                             GradientProgressBar(
-                              value: widget.progress / 100,
+                              completedPercentage: widget.progress / 100,
+                              missedPercentage: 0.0,
                               height: 12,
                             ),
                             const SizedBox(height: 8),

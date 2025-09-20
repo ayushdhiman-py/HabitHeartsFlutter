@@ -146,7 +146,7 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
                         splashRadius: 20,
                       ),
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 8),
                     SizedBox(
                       width: 24,
                       height: 24,

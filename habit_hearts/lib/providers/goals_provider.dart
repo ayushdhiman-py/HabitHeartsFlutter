@@ -4,7 +4,16 @@ import '../services/api_service.dart';
 import 'package:provider/provider.dart';
 import '../providers/habit_hearts_auth_provider.dart';
 import '../models/user.dart' as habit_hearts_user;
-import '../models/user.dart' as habit_hearts_user;
+
+// Extension to add firstWhereOrNull method to List
+extension FirstWhereOrNull<E> on List<E> {
+  E? firstWhereOrNull(bool Function(E) test) {
+    for (E element in this) {
+      if (test(element)) return element;
+    }
+    return null;
+  }
+}
 
 class GoalsProvider with ChangeNotifier {
   List<Goal> _goals = [];
@@ -84,6 +93,18 @@ class GoalsProvider with ChangeNotifier {
         final index = _goals.indexWhere((goal) => goal.id == updatedGoal.id);
         if (index != -1) {
           _goals[index] = result; // Use the returned goal from API
+          // After updating the goal, reload the user's goal progress to ensure consistency
+          final userData = await ApiService.getUserGoalProgress(updatedGoal.createdBy);
+          if (userData != null && userData.goalProgress != null) {
+            _userGoalProgress.clear();
+            _currentStreaks.clear();
+            _longestStreaks.clear();
+            userData.goalProgress.forEach((goalId, progressSummary) {
+              _userGoalProgress[goalId] = Map<String, String>.from(progressSummary.monthlyData);
+              _currentStreaks[goalId] = progressSummary.currentStreak;
+              _longestStreaks[goalId] = progressSummary.longestStreak;
+            });
+          }
           notifyListeners();
         }
       }
@@ -107,14 +128,16 @@ class GoalsProvider with ChangeNotifier {
       // Step 1: Delete the user's progress for this goal from the 'users' table.
       // Note: This requires a new function in your ApiService and backend.
       final progressDeletionSuccess = await ApiService.removeGoalProgressForUser(userId, goalId);
+      print('DEBUG: ApiService.removeGoalProgressForUser success: $progressDeletionSuccess');
 
       if (progressDeletionSuccess) {
         // Step 2: Delete the actual goal document from the 'goals' table.
         final goalDeletionSuccess = await ApiService.deleteGoal(goalId);
+        print('DEBUG: ApiService.deleteGoal success: $goalDeletionSuccess');
 
         if (goalDeletionSuccess) {
           // Update local state to reflect the deletion in the UI
-          _goals.removeWhere((goal) => goal.id == goalId);
+          _goals = _goals.where((goal) => goal.id != goalId).toList();
           _userGoalProgress.remove(goalId);
           _currentStreaks.remove(goalId);
           _longestStreaks.remove(goalId);
@@ -154,12 +177,7 @@ class GoalsProvider with ChangeNotifier {
           }
         }
         
-        // Update the goal's completed property based on today's completion status
-        final goalIndex = _goals.indexWhere((g) => g.id == goalId);
-        if (goalIndex != -1) {
-          final isCompletedToday = isGoalCompletedForDate(goalId, DateTime.now());
-          _goals[goalIndex] = _goals[goalIndex].copyWith(completed: isCompletedToday);
-        }
+
         
         notifyListeners();
         return true;
@@ -172,25 +190,73 @@ class GoalsProvider with ChangeNotifier {
     }
   }
 
-  // Optimistically toggle goal progress
-  Future<void> optimisticallyToggleGoalProgress(String userId, String goalId, bool completed) async {
-    final goalIndex = _goals.indexWhere((g) => g.id == goalId);
-    if (goalIndex == -1) return;
-
-    final originalGoal = _goals[goalIndex];
-    final updatedGoal = originalGoal.copyWith(completed: completed);
-
-    _goals[goalIndex] = updatedGoal;
-    notifyListeners();
-
+  // Optimistically toggle goal progress for a specific day (used by "Done Today" button)
+  Future<void> markDayAsComplete(String userId, String goalId, bool completed) async {
+    // Make a copy of the current progress data for optimistic update
+    final originalProgress = Map<String, Map<String, String>>.from(_userGoalProgress);
+    
     try {
       final success = await toggleGoalProgressForUser(userId, goalId, completed);
       if (!success) {
-        _goals[goalIndex] = originalGoal;
+        // Revert on failure
+        _userGoalProgress = originalProgress;
         notifyListeners();
       }
+      // If successful, the backend will have updated our progress data
+      // and we'll get the updated data through the normal data loading mechanism
     } catch (e) {
-      _goals[goalIndex] = originalGoal;
+      // Revert on error
+      _userGoalProgress = originalProgress;
+      notifyListeners();
+    }
+  }
+
+  // Optimistically toggle entire goal completion status (used by goal items)
+  Future<void> optimisticallyToggleGoalProgress(String userId, String goalId, bool completed, {bool updateGoalStatus = true}) async {
+    // Store original state for rollback
+    final originalProgress = Map<String, Map<String, String>>.from(_userGoalProgress);
+    Goal? originalGoal;
+    int goalIndex = -1;
+    
+    // If we need to update the goal's overall status, store original goal
+    if (updateGoalStatus) {
+      goalIndex = _goals.indexWhere((g) => g.id == goalId);
+      if (goalIndex != -1) {
+        originalGoal = _goals[goalIndex];
+      }
+    }
+
+    // Update UI optimistically
+    if (updateGoalStatus && goalIndex != -1 && originalGoal != null) {
+      final updatedGoal = originalGoal.copyWith(completed: completed);
+      _goals[goalIndex] = updatedGoal;
+    }
+    notifyListeners();
+
+    try {
+      if (updateGoalStatus && goalIndex != -1 && originalGoal != null) {
+        final updatedGoal = originalGoal.copyWith(completed: completed);
+        final result = await ApiService.updateGoal(updatedGoal);
+        if (result == null) {
+          // Revert on failure
+          _goals[goalIndex] = originalGoal;
+          notifyListeners();
+        }
+      } else {
+        // This is for daily progress updates (e.g., from "Done Today" button)
+        final success = await toggleGoalProgressForUser(userId, goalId, completed);
+        if (!success) {
+          // Revert on failure
+          _userGoalProgress = originalProgress;
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      // Revert on error
+      _userGoalProgress = originalProgress;
+      if (updateGoalStatus && goalIndex != -1 && originalGoal != null) {
+        _goals[goalIndex] = originalGoal;
+      }
       notifyListeners();
     }
   }
@@ -220,14 +286,32 @@ class GoalsProvider with ChangeNotifier {
     return _longestStreaks[goalId] ?? 0;
   }
 
-  // Calculate progress percentage for a goal (last 7 days)
+  // Calculate progress percentage for a goal based on actual completion data
   double calculateGoalProgress(String goalId) {
-    // This is a simplified version - in a real implementation you might want to calculate this differently
-    final currentStreak = getCurrentStreak(goalId);
-    final longestStreak = getLongestStreak(goalId);
+    // Get the goal to determine the date range
+    final goal = _goals.firstWhereOrNull((g) => g.id == goalId);
+    if (goal == null || goal.isHabit || goal.startDate == null || goal.endDate == null) {
+      return 0.0;
+    }
+
+    final startDate = goal.startDate!;
+    final endDate = goal.endDate!;
     
-    if (longestStreak == 0) return 0.0;
-    return (currentStreak / longestStreak) * 100;
+    // Calculate total days in the goal period
+    int totalDays = endDate.difference(startDate).inDays + 1;
+    if (totalDays <= 0) return 0.0;
+    
+    // Count completed days
+    int completedDays = 0;
+    for (int i = 0; i < totalDays; i++) {
+      final currentDate = startDate.add(Duration(days: i));
+      if (isGoalCompletedForDate(goalId, currentDate)) {
+        completedDays++;
+      }
+    }
+    
+    // Calculate percentage
+    return (completedDays / totalDays) * 100;
   }
 
   // Calculate current streak for a goal
@@ -238,5 +322,39 @@ class GoalsProvider with ChangeNotifier {
   // Calculate longest streak for a goal
   int calculateLongestStreak(String goalId) {
     return getLongestStreak(goalId);
+  }
+
+  // Calculate progress and missed percentage for a goal based on date range
+  Map<String, double> calculateProgressAndMissedPercentage(Goal goal) {
+    if (goal.isHabit || goal.startDate == null || goal.endDate == null) {
+      return {'completedPercentage': 0.0, 'missedPercentage': 0.0};
+    }
+
+    final startDate = goal.startDate!;
+    final endDate = goal.endDate!;
+
+    int totalDays = endDate.difference(startDate).inDays + 1;
+    int completedDays = 0;
+    int missedDays = 0;
+
+    for (int i = 0; i < totalDays; i++) {
+      final currentDate = startDate.add(Duration(days: i));
+      if (isGoalCompletedForDate(goal.id, currentDate)) {
+        completedDays++;
+      } else {
+        // Only count as missed if the day is in the past or today
+        if (currentDate.isBefore(DateTime.now()) || currentDate.isAtSameMomentAs(DateTime.now())) {
+          missedDays++;
+        }
+      }
+    }
+
+    final completedPercentage = (completedDays / totalDays) * 100;
+    final missedPercentage = (missedDays / totalDays) * 100;
+
+    return {
+      'completedPercentage': completedPercentage,
+      'missedPercentage': missedPercentage,
+    };
   }
 }

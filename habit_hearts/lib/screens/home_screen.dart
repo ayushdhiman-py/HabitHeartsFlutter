@@ -359,7 +359,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               onGoalProgressToggle: (goalId, completed) {
                                 final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
                                 final userId = authProvider.user?.uid ?? 'unknown';
-                                goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, completed);
+                                // For "Done Today" button, we don't want to update the goal's overall status
+                                goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, completed, updateGoalStatus: false);
                               },
                             );
                           },
@@ -1328,28 +1329,7 @@ class _GoalsSection extends StatelessWidget {
     required this.onGoalProgressToggle,
   });
 
-  double _calculateProgress(String goalId) {
-    final progressData = userGoalProgress[goalId];
-    if (progressData == null) return 0.0;
-    
-    // For simplicity, we'll calculate progress based on the current month
-    final now = DateTime.now();
-    final yearMonth = '${now.year}-${now.month.toString().padLeft(2, '0')}';
-    
-    final monthData = progressData[yearMonth];
-    if (monthData == null) return 0.0;
-    
-    // Count completed days in the current month
-    int completedDays = 0;
-    for (int i = 0; i < monthData.length; i++) {
-      if (monthData[i] == '1') {
-        completedDays++;
-      }
-    }
-    
-    // Calculate percentage (assuming 30 days in a month for simplicity)
-    return (completedDays / 30) * 100;
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -1416,7 +1396,10 @@ class _GoalsSection extends StatelessWidget {
       itemCount: uncompletedGoals.length,
       itemBuilder: (context, index) {
         final goal = uncompletedGoals[index];
-        final progress = _calculateProgress(goal.id);
+        final goalsProvider = Provider.of<GoalsProvider>(context);
+        final progressDetails = goalsProvider.calculateProgressAndMissedPercentage(goal);
+        final completedPercentage = progressDetails['completedPercentage']!;
+        final missedPercentage = progressDetails['missedPercentage']!;
         return Container(
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.all(17),
@@ -1457,37 +1440,41 @@ class _GoalsSection extends StatelessWidget {
                     ),
                   ),
                   // Done Today Button
-                  ElevatedButton(
-                    onPressed: () async {
-                      final bool? result = await showDialog<bool>(
-                        context: context,
-                        builder: (BuildContext context) {
-                          return AlertDialog(
-                            title: const Text('Update Progress'),
-                            content: const Text('Did you complete this goal today?'),
-                            actions: <Widget>[
-                              TextButton(
-                                child: const Text('Cancel'),
-                                onPressed: () => Navigator.of(context).pop(null),
-                              ),
-                              TextButton(
-                                child: const Text('No'),
-                                onPressed: () => Navigator.of(context).pop(false),
-                              ),
-                              TextButton(
-                                child: const Text('Yes'),
-                                onPressed: () => Navigator.of(context).pop(true),
-                              ),
-                            ],
-                          );
-                        },
-                      );
+                              ElevatedButton(
+                                onPressed: () async {
+                                  final bool? result = await showDialog<bool>(
+                                    context: context,
+                                    builder: (BuildContext context) {
+                                      return AlertDialog(
+                                        title: const Text('Update Progress'),
+                                        content: const Text('Did you complete this goal today?'),
+                                        actions: <Widget>[
+                                          TextButton(
+                                            child: const Text('Cancel'),
+                                            onPressed: () => Navigator.of(context).pop(null),
+                                          ),
+                                          TextButton(
+                                            child: const Text('No'),
+                                            onPressed: () => Navigator.of(context).pop(false),
+                                          ),
+                                          TextButton(
+                                            child: const Text('Yes'),
+                                            onPressed: () => Navigator.of(context).pop(true),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  );
 
-                      if (result != null) {
-                        print('DEBUG: Setting goal ${goal.id} completion to: $result');
-                        onGoalProgressToggle(goal.id, result);
-                      }
-                    },
+                                  if (result != null) {
+                                    print('DEBUG: Setting goal ${goal.id} completion to: $result');
+                                    // Use a separate method for "Done Today" button
+                                    final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
+                                    final userId = authProvider.user?.uid ?? 'unknown';
+                                    final goalsProvider = Provider.of<GoalsProvider>(context, listen: false);
+                                    goalsProvider.markDayAsComplete(userId, goal.id, result);
+                                  }
+                                },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.electricGreen,
                       foregroundColor: Colors.white,

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/goal.dart';
 import '../theme/app_theme.dart';
+import '../providers/goals_provider.dart';
 import 'gradient_progress_bar.dart';
 
 class ModernGoalItem extends StatefulWidget {
@@ -65,13 +67,13 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: Theme.of(context).brightness == Brightness.dark 
-                  ? AppColors.darkCardBackground 
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? AppColors.darkCardBackground
                   : AppColors.lightCardBackground,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: Theme.of(context).brightness == Brightness.dark 
-                    ? AppColors.darkBorderColor 
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? AppColors.darkBorderColor
                     : AppColors.borderColor,
                 width: 1,
               ),
@@ -87,13 +89,11 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Main content area
                 GestureDetector(
                   onTap: _handleToggle,
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: widget.goal.isHabit
-                        // Compact single-line layout for habits
                         ? Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
@@ -105,26 +105,25 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                               ),
                               const SizedBox(width: 12),
                               // Habit tag
-                              if (widget.goal.isHabit)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.electricBlue.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: AppColors.electricBlue,
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    'habit',
-                                    style: TextStyle(
-                                      color: AppColors.electricBlue,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.electricBlue.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: AppColors.electricBlue,
+                                    width: 1,
                                   ),
                                 ),
+                                child: const Text(
+                                  'habit',
+                                  style: TextStyle(
+                                    color: AppColors.electricBlue,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
                               const SizedBox(width: 8),
                               // Emoji if available
                               if (widget.goal.emoji != null)
@@ -167,7 +166,7 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                       splashRadius: 20,
                                     ),
                                   ),
-                                  const SizedBox(width: 4),
+                                  const SizedBox(width: 8), // Increased gap
                                   SizedBox(
                                     width: 24,
                                     height: 24,
@@ -187,110 +186,72 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                               ),
                             ],
                           )
-                        // Full layout for goals with progress
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                        : Row( // Full layout for goals with progress
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              // Top row with checkbox, title, and actions
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Checkbox
-                                  Icon(
-                                    widget.goal.completed ? Icons.check_box : Icons.check_box_outline_blank,
-                                    color: widget.goal.completed ? AppColors.electricGreen : AppColors.secondaryTextColor,
-                                    size: 24,
+                              // Checkbox
+                              Icon(
+                                widget.goal.completed ? Icons.check_box : Icons.check_box_outline_blank,
+                                color: widget.goal.completed ? AppColors.electricGreen : AppColors.secondaryTextColor,
+                                size: 24,
+                              ),
+                              const SizedBox(width: 12),
+                              // Emoji if available
+                              if (widget.goal.emoji != null)
+                                Text(
+                                  widget.goal.emoji!,
+                                  style: const TextStyle(fontSize: 16),
+                                ),
+                              const SizedBox(width: 8),
+                              // Title
+                              Expanded(
+                                child: Text(
+                                  widget.goal.text,
+                                  style: TextStyle(
+                                    decoration: widget.goal.completed ? TextDecoration.lineThrough : null,
+                                    color: widget.goal.completed ? AppColors.secondaryTextColor : AppColors.textColor,
+                                    fontWeight: widget.goal.completed ? FontWeight.normal : FontWeight.w600,
+                                    fontSize: 16,
                                   ),
-                                  const SizedBox(width: 12),
-                                  // Title and tags
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          widget.goal.text,
-                                          style: TextStyle(
-                                            decoration: widget.goal.completed ? TextDecoration.lineThrough : null,
-                                            color: widget.goal.completed ? AppColors.secondaryTextColor : AppColors.textColor,
-                                            fontWeight: widget.goal.completed ? FontWeight.normal : FontWeight.w600,
-                                            fontSize: 16,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        // Tags row
-                                        Row(
-                                          children: [
-                                            // Show "habit" tag for habit goals
-                                            if (widget.goal.isHabit)
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                decoration: BoxDecoration(
-                                                  color: AppColors.electricBlue.withOpacity(0.1),
-                                                  borderRadius: BorderRadius.circular(12),
-                                                  border: Border.all(
-                                                    color: AppColors.electricBlue,
-                                                    width: 1,
-                                                  ),
-                                                ),
-                                                child: const Text(
-                                                  'habit',
-                                                  style: TextStyle(
-                                                    color: AppColors.electricBlue,
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ),
-                                            const SizedBox(width: 8),
-                                            // Show emoji if available
-                                            if (widget.goal.emoji != null)
-                                              Text(
-                                                widget.goal.emoji!,
-                                                style: const TextStyle(fontSize: 16),
-                                              ),
-                                          ],
-                                        ),
-                                      ],
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              // Action buttons
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: IconButton(
+                                      onPressed: () => widget.onEdit(widget.goal),
+                                      icon: Icon(
+                                        Icons.edit_outlined,
+                                        size: 20,
+                                        color: Theme.of(context).brightness == Brightness.dark
+                                            ? AppColors.darkTextColor
+                                            : AppColors.textColor,
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      splashRadius: 20,
                                     ),
                                   ),
-                                  // Action buttons
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      SizedBox(
-                                        width: 24,
-                                        height: 24,
-                                        child: IconButton(
-                                          onPressed: () => widget.onEdit(widget.goal),
-                                          icon: Icon(
-                                            Icons.edit_outlined,
-                                            size: 20,
-                                            color: Theme.of(context).brightness == Brightness.dark
-                                                ? AppColors.darkTextColor
-                                                : AppColors.textColor,
-                                          ),
-                                          padding: EdgeInsets.zero,
-                                          constraints: const BoxConstraints(),
-                                          splashRadius: 20,
-                                        ),
+                                  const SizedBox(width: 8), // Increased gap
+                                  SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: IconButton(
+                                      onPressed: () => widget.onDelete(widget.goal),
+                                      icon: Icon(
+                                        Icons.delete_outlined,
+                                        size: 20,
+                                        color: AppColors.brightRed,
                                       ),
-                                      const SizedBox(width: 4),
-                                      SizedBox(
-                                        width: 24,
-                                        height: 24,
-                                        child: IconButton(
-                                          onPressed: () => widget.onDelete(widget.goal),
-                                          icon: Icon(
-                                            Icons.delete_outlined,
-                                            size: 20,
-                                            color: AppColors.brightRed,
-                                          ),
-                                          padding: EdgeInsets.zero,
-                                          constraints: const BoxConstraints(),
-                                          splashRadius: 20,
-                                        ),
-                                      ),
-                                    ],
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      splashRadius: 20,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -299,29 +260,39 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                   ),
                 ),
                 // Progress section for non-habit goals
-                if (!widget.goal.isHabit)
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Progress bar
-                        GradientProgressBar(
-                          value: widget.progress / 100,
-                          height: 8,
+                if (!widget.goal.isHabit && widget.goal.startDate != null && widget.goal.endDate != null) ...[
+                  Consumer<GoalsProvider>(
+                    builder: (context, goalsProvider, child) {
+                      final progressDetails = goalsProvider.calculateProgressAndMissedPercentage(widget.goal);
+                      final completedPercentage = progressDetails['completedPercentage']!;
+                      final missedPercentage = progressDetails['missedPercentage']!;
+
+                      return Container(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Progress bar
+                            GradientProgressBar(
+                              completedPercentage: completedPercentage / 100,
+                              missedPercentage: missedPercentage / 100,
+                              height: 8,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '${completedPercentage.toStringAsFixed(0)}% completed, ${missedPercentage.toStringAsFixed(0)}% missed',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.secondaryTextColor,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '${widget.progress.toStringAsFixed(0)}% completed',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.secondaryTextColor,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
+                      );
+                    },
                   ),
+                ],
               ],
             ),
           ),
