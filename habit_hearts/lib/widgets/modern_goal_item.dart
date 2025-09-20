@@ -104,27 +104,7 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                 size: 24,
                               ),
                               const SizedBox(width: 12),
-                              // Habit tag
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: AppColors.electricBlue.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: AppColors.electricBlue,
-                                    width: 1,
-                                  ),
-                                ),
-                                child: const Text(
-                                  'habit',
-                                  style: TextStyle(
-                                    color: AppColors.electricBlue,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
+
                               // Emoji if available
                               if (widget.goal.emoji != null)
                                 Text(
@@ -138,7 +118,9 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                   widget.goal.text,
                                   style: TextStyle(
                                     decoration: widget.goal.completed ? TextDecoration.lineThrough : null,
-                                    color: widget.goal.completed ? AppColors.secondaryTextColor : AppColors.textColor,
+                                    color: widget.goal.completed 
+                                        ? (Theme.of(context).brightness == Brightness.dark ? AppColors.darkSecondaryTextColor : AppColors.secondaryTextColor) 
+                                        : (Theme.of(context).brightness == Brightness.dark ? AppColors.darkTextColor : AppColors.textColor),
                                     fontWeight: widget.goal.completed ? FontWeight.normal : FontWeight.w600,
                                     fontSize: 16,
                                   ),
@@ -209,7 +191,9 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                   widget.goal.text,
                                   style: TextStyle(
                                     decoration: widget.goal.completed ? TextDecoration.lineThrough : null,
-                                    color: widget.goal.completed ? AppColors.secondaryTextColor : AppColors.textColor,
+                                    color: widget.goal.completed 
+                                        ? (Theme.of(context).brightness == Brightness.dark ? AppColors.darkSecondaryTextColor : AppColors.secondaryTextColor) 
+                                        : (Theme.of(context).brightness == Brightness.dark ? AppColors.darkTextColor : AppColors.textColor),
                                     fontWeight: widget.goal.completed ? FontWeight.normal : FontWeight.w600,
                                     fontSize: 16,
                                   ),

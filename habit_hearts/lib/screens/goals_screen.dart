@@ -31,7 +31,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     return Scaffold(
-      appBar: _ThemedAppBar(title: 'Goals', onAddGoal: _showAddGoalModal),
+      appBar: _ThemedAppBar(title: 'Goals & Habits', onAddGoal: _showAddGoalModal),
       body: Consumer<GoalsProvider>(
         builder: (context, goalsProvider, child) {
           if (goalsProvider.isLoading) return const _GoalsLoadingSkeleton();

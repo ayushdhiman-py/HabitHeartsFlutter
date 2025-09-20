@@ -110,13 +110,13 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<DarkModeProvider>(
-      builder: (context, darkModeProvider, child) {
+    return Consumer2<DarkModeProvider, ThemeProvider>(
+      builder: (context, darkModeProvider, themeProvider, child) {
         return MaterialApp(
           title: 'HabitHearts',
           debugShowCheckedModeBanner: false,
-          theme: AppTheme.lightTheme,
-          darkTheme: AppTheme.darkTheme,
+          theme: AppTheme.lightThemeWithColor(themeProvider.selectedColor),
+          darkTheme: AppTheme.darkThemeWithColor(themeProvider.selectedColor),
           themeMode: darkModeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
           home: const AuthWrapper(),
         );

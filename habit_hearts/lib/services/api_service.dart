@@ -428,6 +428,31 @@ class ApiService {
     return getUser(userId);
   }
 
+  // Get multiple users by their IDs
+  static Future<Map<String, habit_hearts_user.User>> getBatchUsers(List<String> userIds) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl$usersEndpoint/batch'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'userIds': userIds}),
+      );
+      
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> jsonData = json.decode(response.body);
+        final Map<String, habit_hearts_user.User> users = {};
+        
+        jsonData.forEach((uid, userData) {
+          users[uid] = habit_hearts_user.User.fromJson(userData);
+        });
+        
+        return users;
+      }
+      return {};
+    } catch (e) {
+      return {};
+    }
+  }
+
   // Link users
   static Future<bool> linkUsers(String userId, String partnerCode) async {
     try {

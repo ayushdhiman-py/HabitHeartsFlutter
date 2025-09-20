@@ -54,8 +54,36 @@ app.get('/api/users/:uid', async (req, res) => {
     
     const data = userDoc.data();
     // Convert Firestore Timestamps to milliseconds
-    const createdAt = data.createdAt ? data.createdAt.toMillis() : Date.now();
-    const updatedAt = data.updatedAt ? data.updatedAt.toMillis() : Date.now();
+    let createdAt = Date.now();
+    let updatedAt = Date.now();
+    
+    // Safely convert createdAt if it exists and is a Firestore Timestamp
+    if (data.createdAt) {
+      if (typeof data.createdAt.toMillis === 'function') {
+        // It's already a Firestore Timestamp
+        createdAt = data.createdAt.toMillis();
+      } else if (typeof data.createdAt === 'number') {
+        // It's already in milliseconds
+        createdAt = data.createdAt;
+      } else if (data.createdAt instanceof Date) {
+        // It's a JavaScript Date object
+        createdAt = data.createdAt.getTime();
+      }
+    }
+    
+    // Safely convert updatedAt if it exists and is a Firestore Timestamp
+    if (data.updatedAt) {
+      if (typeof data.updatedAt.toMillis === 'function') {
+        // It's already a Firestore Timestamp
+        updatedAt = data.updatedAt.toMillis();
+      } else if (typeof data.updatedAt === 'number') {
+        // It's already in milliseconds
+        updatedAt = data.updatedAt;
+      } else if (data.updatedAt instanceof Date) {
+        // It's a JavaScript Date object
+        updatedAt = data.updatedAt.getTime();
+      }
+    }
     
     res.status(200).json({
       ...data,
@@ -65,6 +93,72 @@ app.get('/api/users/:uid', async (req, res) => {
   } catch (error) {
     console.error('Error getting user:', error);
     res.status(500).json({ message: 'Error getting user' });
+  }
+});
+
+// Get multiple users by their IDs
+app.post('/api/users/batch', async (req, res) => {
+  try {
+    const { userIds } = req.body;
+    
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({ message: 'userIds must be a non-empty array' });
+    }
+    
+    // Limit to 10 users at a time to prevent abuse
+    if (userIds.length > 10) {
+      return res.status(400).json({ message: 'Cannot fetch more than 10 users at a time' });
+    }
+    
+    // Fetch all users in parallel
+    const userPromises = userIds.map(uid => db.collection('users').doc(uid).get());
+    const userDocs = await Promise.all(userPromises);
+    
+    // Process the results
+    const users = {};
+    userDocs.forEach((doc, index) => {
+      const uid = userIds[index];
+      if (doc.exists) {
+        const data = doc.data();
+        // Convert Firestore Timestamps to milliseconds
+        let createdAt = Date.now();
+        let updatedAt = Date.now();
+        
+        // Safely convert createdAt if it exists and is a Firestore Timestamp
+        if (data.createdAt) {
+          if (typeof data.createdAt.toMillis === 'function') {
+            createdAt = data.createdAt.toMillis();
+          } else if (typeof data.createdAt === 'number') {
+            createdAt = data.createdAt;
+          } else if (data.createdAt instanceof Date) {
+            createdAt = data.createdAt.getTime();
+          }
+        }
+        
+        // Safely convert updatedAt if it exists and is a Firestore Timestamp
+        if (data.updatedAt) {
+          if (typeof data.updatedAt.toMillis === 'function') {
+            updatedAt = data.updatedAt.toMillis();
+          } else if (typeof data.updatedAt === 'number') {
+            updatedAt = data.updatedAt;
+          } else if (data.updatedAt instanceof Date) {
+            updatedAt = data.updatedAt.getTime();
+          }
+        }
+        
+        users[uid] = {
+          ...data,
+          uid,
+          createdAt,
+          updatedAt
+        };
+      }
+    });
+    
+    res.status(200).json(users);
+  } catch (error) {
+    console.error('Error getting users:', error);
+    res.status(500).json({ message: 'Error getting users' });
   }
 });
 
@@ -106,6 +200,86 @@ app.put('/api/users/:uid', async (req, res) => {
   }
 });
 
+// User linking endpoints
+app.post('/api/users/link', async (req, res) => {
+  try {
+    const { userId, partnerCode } = req.body;
+    
+    // Find the partner user by their unique code
+    const partnerSnapshot = await db.collection('users')
+      .where('uniqueCode', '==', partnerCode)
+      .limit(1)
+      .get();
+    
+    if (partnerSnapshot.empty) {
+      return res.status(404).json({ message: 'Partner not found with that code' });
+    }
+    
+    const partnerDoc = partnerSnapshot.docs[0];
+    const partnerUid = partnerDoc.id;
+    const partnerData = partnerDoc.data();
+    
+    // Check if they're already linked
+    const currentUserDoc = await db.collection('users').doc(userId).get();
+    if (!currentUserDoc.exists) {
+      return res.status(404).json({ message: 'Current user not found' });
+    }
+    
+    const currentUserData = currentUserDoc.data();
+    
+    // Check if already linked
+    if (currentUserData.linkedUsers && currentUserData.linkedUsers.includes(partnerUid)) {
+      return res.status(400).json({ message: 'Users are already linked' });
+    }
+    
+    // Update both users to link them
+    await db.collection('users').doc(userId).update({
+      linkedUsers: admin.firestore.FieldValue.arrayUnion(partnerUid),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    
+    await db.collection('users').doc(partnerUid).update({
+      linkedUsers: admin.firestore.FieldValue.arrayUnion(userId),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    
+    res.status(200).json({ 
+      message: 'Users linked successfully',
+      partner: {
+        uid: partnerUid,
+        displayName: partnerData.displayName,
+        email: partnerData.email,
+        photoURL: partnerData.photoURL
+      }
+    });
+  } catch (error) {
+    console.error('Error linking users:', error);
+    res.status(500).json({ message: 'Error linking users' });
+  }
+});
+
+app.post('/api/users/unlink', async (req, res) => {
+  try {
+    const { userId, partnerId } = req.body;
+    
+    // Update both users to unlink them
+    await db.collection('users').doc(userId).update({
+      linkedUsers: admin.firestore.FieldValue.arrayRemove(partnerId),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    
+    await db.collection('users').doc(partnerId).update({
+      linkedUsers: admin.firestore.FieldValue.arrayRemove(userId),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    
+    res.status(200).json({ message: 'Users unlinked successfully' });
+  } catch (error) {
+    console.error('Error unlinking users:', error);
+    res.status(500).json({ message: 'Error unlinking users' });
+  }
+});
+
 // Task endpoints
 app.get('/api/tasks/:userId/:date', async (req, res) => {
   try {
@@ -121,25 +295,54 @@ app.get('/api/tasks/:userId/:date', async (req, res) => {
       .get();
     
     // Filter by date on the client side
-    const tasks = snapshot.docs
-      .map(doc => {
-        const data = doc.data();
-        // Convert Firestore Timestamps to milliseconds
-        const createdAt = data.createdAt ? data.createdAt.toMillis() : Date.now();
-        const updatedAt = data.updatedAt ? data.updatedAt.toMillis() : Date.now();
-        const dueDate = data.dueDate ? data.dueDate.toMillis() : null;
-        
-        // Remove the original 'id' field from the data to avoid conflict with the document ID
-        const { id, ...dataWithoutId } = data;
-        
-        return {
-          id: doc.id,
-          ...dataWithoutId,
-          createdAt,
-          updatedAt,
-          dueDate
-        };
-      })
+      const tasks = snapshot.docs
+        .map(doc => {
+          const data = doc.data();
+          // Convert Firestore Timestamps to milliseconds
+          let createdAt = Date.now();
+          if (data.createdAt) {
+            if (typeof data.createdAt.toMillis === 'function') {
+              createdAt = data.createdAt.toMillis();
+            } else if (typeof data.createdAt === 'number') {
+              createdAt = data.createdAt;
+            } else if (data.createdAt instanceof Date) {
+              createdAt = data.createdAt.getTime();
+            }
+          }
+          
+          let updatedAt = Date.now();
+          if (data.updatedAt) {
+            if (typeof data.updatedAt.toMillis === 'function') {
+              updatedAt = data.updatedAt.toMillis();
+            } else if (typeof data.updatedAt === 'number') {
+              updatedAt = data.updatedAt;
+            } else if (data.updatedAt instanceof Date) {
+              updatedAt = data.updatedAt.getTime();
+            }
+          }
+          
+          let dueDate = null;
+          if (data.dueDate) {
+            if (typeof data.dueDate.toMillis === 'function') {
+              dueDate = data.dueDate.toMillis();
+            } else if (typeof data.dueDate === 'number') {
+              dueDate = data.dueDate;
+            } else if (data.dueDate instanceof Date) {
+              dueDate = data.dueDate.getTime();
+            }
+          }
+          
+          // Remove the original 'id' field from the data to avoid conflict with the document ID
+          const { id, ...dataWithoutId } = data;
+          
+          return {
+            id: doc.id,
+            ...dataWithoutId,
+            createdAt,
+            updatedAt,
+            dueDate
+          };
+        })
       .filter(task => {
         if (!task.dueDate) return false;
         const taskDate = new Date(task.dueDate);
@@ -172,16 +375,50 @@ app.post('/api/tasks', async (req, res) => {
     const docRef = await db.collection('tasks').add(taskData);
     console.log('Task created with ID:', docRef.id);
     
+    // Safely convert Firestore Timestamps to milliseconds for the response
+    let dueDate = null;
+    if (taskData.dueDate) {
+      if (typeof taskData.dueDate.toMillis === 'function') {
+        dueDate = taskData.dueDate.toMillis();
+      } else if (typeof taskData.dueDate === 'number') {
+        dueDate = taskData.dueDate;
+      } else if (taskData.dueDate instanceof Date) {
+        dueDate = taskData.dueDate.getTime();
+      }
+    }
+    
+    let taskCreatedAt = Date.now();
+    if (taskData.createdAt) {
+      if (typeof taskData.createdAt.toMillis === 'function') {
+        taskCreatedAt = taskData.createdAt.toMillis();
+      } else if (typeof taskData.createdAt === 'number') {
+        taskCreatedAt = taskData.createdAt;
+      } else if (taskData.createdAt instanceof Date) {
+        taskCreatedAt = taskData.createdAt.getTime();
+      }
+    }
+    
+    let taskUpdatedAt = Date.now();
+    if (taskData.updatedAt) {
+      if (typeof taskData.updatedAt.toMillis === 'function') {
+        taskUpdatedAt = taskData.updatedAt.toMillis();
+      } else if (typeof taskData.updatedAt === 'number') {
+        taskUpdatedAt = taskData.updatedAt;
+      } else if (taskData.updatedAt instanceof Date) {
+        taskUpdatedAt = taskData.updatedAt.getTime();
+      }
+    }
+
     res.status(201).json({ 
       id: docRef.id, 
       text: taskData.text,
       description: taskData.description,
-      dueDate: taskData.dueDate ? taskData.dueDate.toMillis() : null,
+      dueDate: dueDate,
       completed: taskData.completed,
       createdBy: taskData.createdBy,
       creatorName: taskData.creatorName,
-      createdAt: taskData.createdAt ? taskData.createdAt.toMillis() : Date.now(),
-      updatedAt: taskData.updatedAt ? taskData.updatedAt.toMillis() : Date.now(),
+      createdAt: taskCreatedAt,
+      updatedAt: taskUpdatedAt,
       status: taskData.status,
       emoji: taskData.emoji,
       startTime: taskData.startTime,
@@ -224,10 +461,23 @@ app.put('/api/tasks/:id', async (req, res) => {
     console.log('Task updated successfully:', taskId);
     
     // Return the updated task data in the response
+    let taskUpdatedAt = Date.now();
+    if (taskData.updatedAt) {
+      if (typeof taskData.updatedAt.toMillis === 'function') {
+        taskUpdatedAt = taskData.updatedAt.toMillis();
+      } else if (typeof taskData.updatedAt === 'number') {
+        taskUpdatedAt = taskData.updatedAt;
+      } else if (taskData.updatedAt instanceof Date) {
+        taskUpdatedAt = taskData.updatedAt.getTime();
+      } else {
+        taskUpdatedAt = taskData.updatedAt;
+      }
+    }
+    
     res.status(200).json({ 
       id: taskId,
       ...taskData,
-      updatedAt: taskData.updatedAt ? taskData.updatedAt : Date.now()
+      updatedAt: taskUpdatedAt
     });
   } catch (error) {
     console.error('Error updating task:', error);
@@ -267,10 +517,49 @@ app.get('/api/goals/:userId', async (req, res) => {
     const goals = snapshot.docs.map(doc => {
       const data = doc.data();
       // Convert Firestore Timestamps to milliseconds
-      const createdAt = data.createdAt ? data.createdAt.toMillis() : Date.now();
-      const updatedAt = data.updatedAt ? data.updatedAt.toMillis() : Date.now();
-      const startDate = data.startDate ? data.startDate.toMillis() : null;
-      const endDate = data.endDate ? data.endDate.toMillis() : null;
+      let createdAt = Date.now();
+      if (data.createdAt) {
+        if (typeof data.createdAt.toMillis === 'function') {
+          createdAt = data.createdAt.toMillis();
+        } else if (typeof data.createdAt === 'number') {
+          createdAt = data.createdAt;
+        } else if (data.createdAt instanceof Date) {
+          createdAt = data.createdAt.getTime();
+        }
+      }
+      
+      let updatedAt = Date.now();
+      if (data.updatedAt) {
+        if (typeof data.updatedAt.toMillis === 'function') {
+          updatedAt = data.updatedAt.toMillis();
+        } else if (typeof data.updatedAt === 'number') {
+          updatedAt = data.updatedAt;
+        } else if (data.updatedAt instanceof Date) {
+          updatedAt = data.updatedAt.getTime();
+        }
+      }
+      
+      let startDate = null;
+      if (data.startDate) {
+        if (typeof data.startDate.toMillis === 'function') {
+          startDate = data.startDate.toMillis();
+        } else if (typeof data.startDate === 'number') {
+          startDate = data.startDate;
+        } else if (data.startDate instanceof Date) {
+          startDate = data.startDate.getTime();
+        }
+      }
+      
+      let endDate = null;
+      if (data.endDate) {
+        if (typeof data.endDate.toMillis === 'function') {
+          endDate = data.endDate.toMillis();
+        } else if (typeof data.endDate === 'number') {
+          endDate = data.endDate;
+        } else if (data.endDate instanceof Date) {
+          endDate = data.endDate.getTime();
+        }
+      }
       
       // Remove the original 'id' field from the data to avoid conflict with the document ID
       const { id, ...dataWithoutId } = data;
@@ -315,6 +604,51 @@ app.post('/api/goals', async (req, res) => {
     }
     
     const docRef = await db.collection('goals').add(goalData);
+    // Safely convert Firestore Timestamps to milliseconds for the response
+    let goalStartDate = null;
+    if (goalData.startDate) {
+      if (typeof goalData.startDate.toMillis === 'function') {
+        goalStartDate = goalData.startDate.toMillis();
+      } else if (typeof goalData.startDate === 'number') {
+        goalStartDate = goalData.startDate;
+      } else if (goalData.startDate instanceof Date) {
+        goalStartDate = goalData.startDate.getTime();
+      }
+    }
+    
+    let goalEndDate = null;
+    if (goalData.endDate) {
+      if (typeof goalData.endDate.toMillis === 'function') {
+        goalEndDate = goalData.endDate.toMillis();
+      } else if (typeof goalData.endDate === 'number') {
+        goalEndDate = goalData.endDate;
+      } else if (goalData.endDate instanceof Date) {
+        goalEndDate = goalData.endDate.getTime();
+      }
+    }
+    
+    let goalCreatedAt = Date.now();
+    if (goalData.createdAt) {
+      if (typeof goalData.createdAt.toMillis === 'function') {
+        goalCreatedAt = goalData.createdAt.toMillis();
+      } else if (typeof goalData.createdAt === 'number') {
+        goalCreatedAt = goalData.createdAt;
+      } else if (goalData.createdAt instanceof Date) {
+        goalCreatedAt = goalData.createdAt.getTime();
+      }
+    }
+    
+    let goalUpdatedAt = Date.now();
+    if (goalData.updatedAt) {
+      if (typeof goalData.updatedAt.toMillis === 'function') {
+        goalUpdatedAt = goalData.updatedAt.toMillis();
+      } else if (typeof goalData.updatedAt === 'number') {
+        goalUpdatedAt = goalData.updatedAt;
+      } else if (goalData.updatedAt instanceof Date) {
+        goalUpdatedAt = goalData.updatedAt.getTime();
+      }
+    }
+    
     res.status(201).json({ 
       id: docRef.id, 
       text: goalData.text,
@@ -324,11 +658,11 @@ app.post('/api/goals', async (req, res) => {
       emoji: goalData.emoji,
       status: goalData.status,
       isHabit: goalData.isHabit || false,
-      startDate: goalData.startDate ? goalData.startDate.toMillis() : null,
-      endDate: goalData.endDate ? goalData.endDate.toMillis() : null,
+      startDate: goalStartDate,
+      endDate: goalEndDate,
       // Convert back to milliseconds for the response
-      createdAt: goalData.createdAt ? goalData.createdAt.toMillis() : Date.now(),
-      updatedAt: goalData.updatedAt ? goalData.updatedAt.toMillis() : Date.now()
+      createdAt: goalCreatedAt,
+      updatedAt: goalUpdatedAt
     });
   } catch (error) {
     console.error('Error creating goal:', error);
@@ -358,11 +692,20 @@ app.put('/api/goals/:id', async (req, res) => {
     res.status(200).json({ 
       id: updatedDoc.id,
       ...updatedData,
-      createdAt: updatedData.createdAt ? updatedData.createdAt.toMillis() : Date.now(),
-      updatedAt: updatedData.updatedAt ? updatedData.updatedAt.toMillis() : Date.now(),
+      // Safely convert Firestore Timestamps to milliseconds
+      createdAt: updatedData.createdAt && typeof updatedData.createdAt.toMillis === 'function' ? 
+        updatedData.createdAt.toMillis() : 
+        (typeof updatedData.createdAt === 'number' ? updatedData.createdAt : Date.now()),
+      updatedAt: updatedData.updatedAt && typeof updatedData.updatedAt.toMillis === 'function' ? 
+        updatedData.updatedAt.toMillis() : 
+        (typeof updatedData.updatedAt === 'number' ? updatedData.updatedAt : Date.now()),
       isHabit: updatedData.isHabit || false,
-      startDate: updatedData.startDate ? updatedData.startDate.toMillis() : null,
-      endDate: updatedData.endDate ? updatedData.endDate.toMillis() : null
+      startDate: updatedData.startDate && typeof updatedData.startDate.toMillis === 'function' ? 
+        updatedData.startDate.toMillis() : 
+        (typeof updatedData.startDate === 'number' ? updatedData.startDate : null),
+      endDate: updatedData.endDate && typeof updatedData.endDate.toMillis === 'function' ? 
+        updatedData.endDate.toMillis() : 
+        (typeof updatedData.endDate === 'number' ? updatedData.endDate : null)
     });
   } catch (error) {
     console.error('Error updating goal:', error);
@@ -432,10 +775,49 @@ app.get('/api/calendarEvents/:userId', async (req, res) => {
     const events = snapshot.docs.map(doc => {
       const data = doc.data();
       // Convert Firestore Timestamps to milliseconds
-      const createdAt = data.createdAt ? data.createdAt.toMillis() : Date.now();
-      const updatedAt = data.updatedAt ? data.updatedAt.toMillis() : Date.now();
-      const eventDate = data.date ? data.date.toMillis() : null;
-      const eventEndDate = data.endDate ? data.endDate.toMillis() : null;
+      let createdAt = Date.now();
+      if (data.createdAt) {
+        if (typeof data.createdAt.toMillis === 'function') {
+          createdAt = data.createdAt.toMillis();
+        } else if (typeof data.createdAt === 'number') {
+          createdAt = data.createdAt;
+        } else if (data.createdAt instanceof Date) {
+          createdAt = data.createdAt.getTime();
+        }
+      }
+      
+      let updatedAt = Date.now();
+      if (data.updatedAt) {
+        if (typeof data.updatedAt.toMillis === 'function') {
+          updatedAt = data.updatedAt.toMillis();
+        } else if (typeof data.updatedAt === 'number') {
+          updatedAt = data.updatedAt;
+        } else if (data.updatedAt instanceof Date) {
+          updatedAt = data.updatedAt.getTime();
+        }
+      }
+      
+      let eventDate = null;
+      if (data.date) {
+        if (typeof data.date.toMillis === 'function') {
+          eventDate = data.date.toMillis();
+        } else if (typeof data.date === 'number') {
+          eventDate = data.date;
+        } else if (data.date instanceof Date) {
+          eventDate = data.date.getTime();
+        }
+      }
+      
+      let eventEndDate = null;
+      if (data.endDate) {
+        if (typeof data.endDate.toMillis === 'function') {
+          eventEndDate = data.endDate.toMillis();
+        } else if (typeof data.endDate === 'number') {
+          eventEndDate = data.endDate;
+        } else if (data.endDate instanceof Date) {
+          eventEndDate = data.endDate.getTime();
+        }
+      }
 
       // Remove the original 'id' field from the data to avoid conflict with the document ID
       const { id, ...dataWithoutId } = data;
@@ -475,19 +857,64 @@ app.post('/api/calendarEvents', async (req, res) => {
     }
     
     const docRef = await db.collection('calendarEvents').add(eventData);
+    // Safely convert Firestore Timestamps to milliseconds for the response
+    let eventDate = null;
+    if (eventData.date) {
+      if (typeof eventData.date.toMillis === 'function') {
+        eventDate = eventData.date.toMillis();
+      } else if (typeof eventData.date === 'number') {
+        eventDate = eventData.date;
+      } else if (eventData.date instanceof Date) {
+        eventDate = eventData.date.getTime();
+      }
+    }
+    
+    let eventEndDate = null;
+    if (eventData.endDate) {
+      if (typeof eventData.endDate.toMillis === 'function') {
+        eventEndDate = eventData.endDate.toMillis();
+      } else if (typeof eventData.endDate === 'number') {
+        eventEndDate = eventData.endDate;
+      } else if (eventData.endDate instanceof Date) {
+        eventEndDate = eventData.endDate.getTime();
+      }
+    }
+    
+    let eventCreatedAt = Date.now();
+    if (eventData.createdAt) {
+      if (typeof eventData.createdAt.toMillis === 'function') {
+        eventCreatedAt = eventData.createdAt.toMillis();
+      } else if (typeof eventData.createdAt === 'number') {
+        eventCreatedAt = eventData.createdAt;
+      } else if (eventData.createdAt instanceof Date) {
+        eventCreatedAt = eventData.createdAt.getTime();
+      }
+    }
+    
+    let eventUpdatedAt = Date.now();
+    if (eventData.updatedAt) {
+      if (typeof eventData.updatedAt.toMillis === 'function') {
+        eventUpdatedAt = eventData.updatedAt.toMillis();
+      } else if (typeof eventData.updatedAt === 'number') {
+        eventUpdatedAt = eventData.updatedAt;
+      } else if (eventData.updatedAt instanceof Date) {
+        eventUpdatedAt = eventData.updatedAt.getTime();
+      }
+    }
+    
     res.status(201).json({ 
       id: docRef.id, 
       title: eventData.title,
       description: eventData.description,
-      date: eventData.date ? eventData.date.toMillis() : null,
-      endDate: eventData.endDate ? eventData.endDate.toMillis() : null,
+      date: eventDate,
+      endDate: eventEndDate,
       startTime: eventData.startTime,
       endTime: eventData.endTime,
       completed: eventData.completed,
       createdBy: eventData.createdBy,
       creatorName: eventData.creatorName,
-      createdAt: eventData.createdAt ? eventData.createdAt.toMillis() : Date.now(),
-      updatedAt: eventData.updatedAt ? eventData.updatedAt.toMillis() : Date.now(),
+      createdAt: eventCreatedAt,
+      updatedAt: eventUpdatedAt,
       status: eventData.status,
       emoji: eventData.emoji
     });

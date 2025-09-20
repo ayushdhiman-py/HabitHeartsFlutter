@@ -7,6 +7,7 @@ import '../providers/theme_provider.dart';
 import '../providers/dark_mode_provider.dart';
 import '../theme/app_theme.dart';
 import '../models/user.dart' as habit_hearts_user;
+import '../services/api_service.dart';
 import 'dart:ui' as ui;
 
 class ProfileScreen extends StatefulWidget {
@@ -20,11 +21,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final TextEditingController _partnerCodeController = TextEditingController();
   bool _isLinking = false;
   String? _linkError;
+  Map<String, habit_hearts_user.User> _partnerDetails = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPartnerDetails();
+  }
 
   @override
   void dispose() {
     _partnerCodeController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadPartnerDetails() async {
+    final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
+    
+    if (authProvider.habitHeartsUser?.linkedUsers.isNotEmpty == true) {
+      try {
+        final partnerDetails = await ApiService.getBatchUsers(authProvider.habitHeartsUser!.linkedUsers);
+        setState(() {
+          _partnerDetails = partnerDetails;
+        });
+      } catch (e) {
+        print('Error loading partner details: $e');
+      }
+    }
   }
 
   void _copyToClipboard(String text) {
@@ -48,6 +71,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       await authProvider.linkWithPartner(_partnerCodeController.text);
       _partnerCodeController.clear();
+      
+      // Reload partner details after linking
+      await _loadPartnerDetails();
+      
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Successfully linked with partner')),
       );
@@ -70,6 +97,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     
     try {
       await authProvider.unlinkFromPartner(partnerUid);
+      
+      // Reload partner details after unlinking
+      await _loadPartnerDetails();
+      
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Successfully unlinked from partner')),
       );
@@ -321,8 +352,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           style: TextStyle(color: Colors.grey),
                         ),
                         const SizedBox(height: 10),
-                        // In a complete implementation, we would fetch partner details
-                        // For now, we'll show the linked user IDs
+                        // Display linked partners with their details
                         for (String partnerId in authProvider.habitHeartsUser!.linkedUsers)
                           Container(
                             margin: const EdgeInsets.only(bottom: 10),
@@ -333,12 +363,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             child: ListTile(
                               leading: CircleAvatar(
                                 backgroundColor: themeProvider.selectedColor,
-                                child: const Icon(
-                                  Icons.person,
-                                  color: Colors.white,
-                                ),
+                                backgroundImage: _partnerDetails.containsKey(partnerId) && 
+                                    _partnerDetails[partnerId]!.photoURL != null
+                                    ? NetworkImage(_partnerDetails[partnerId]!.photoURL!)
+                                    : null,
+                                child: (_partnerDetails.containsKey(partnerId) && 
+                                        _partnerDetails[partnerId]!.photoURL == null) || 
+                                      !_partnerDetails.containsKey(partnerId)
+                                    ? const Icon(
+                                        Icons.person,
+                                        color: Colors.white,
+                                      )
+                                    : null,
                               ),
-                              title: Text('Partner: ${partnerId.substring(0, min(partnerId.length, 8))}...'),
+                              title: Text(
+                                _partnerDetails.containsKey(partnerId) 
+                                  ? _partnerDetails[partnerId]!.displayName ?? 'Partner'
+                                  : 'Partner'
+                              ),
+                              subtitle: _partnerDetails.containsKey(partnerId)
+                                ? Text(_partnerDetails[partnerId]!.email ?? '')
+                                : null,
                               trailing: IconButton(
                                 icon: const Icon(
                                   Icons.link_off,

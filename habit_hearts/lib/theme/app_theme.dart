@@ -49,13 +49,13 @@ class AppColors {
 }
 
 class AppTheme {
-  static ThemeData get lightTheme {
+  static ThemeData lightThemeWithColor(Color seedColor) {
     return ThemeData(
       useMaterial3: true,
-      primaryColor: AppColors.electricBlue,
+      primaryColor: seedColor,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.electricBlue,
-        primary: AppColors.electricBlue,
+        seedColor: seedColor,
+        primary: seedColor,
         secondary: AppColors.hotPink,
       ),
       scaffoldBackgroundColor: AppColors.lightBackground,
@@ -152,13 +152,13 @@ class AppTheme {
     );
   }
   
-  static ThemeData get darkTheme {
+  static ThemeData darkThemeWithColor(Color seedColor) {
     return ThemeData(
       useMaterial3: true,
-      primaryColor: AppColors.electricBlue,
+      primaryColor: seedColor,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.electricBlue,
-        primary: AppColors.electricBlue,
+        seedColor: seedColor,
+        primary: seedColor,
         secondary: AppColors.hotPink,
         brightness: Brightness.dark,
       ),

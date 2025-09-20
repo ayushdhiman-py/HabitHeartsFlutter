@@ -21,7 +21,7 @@ class CalendarScreen extends StatefulWidget {
 }
 
 class _CalendarScreenState extends State<CalendarScreen> {
-  CalendarFormat _calendarFormat = CalendarFormat.month;
+  CalendarFormat _calendarFormat = CalendarFormat.week;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
 
@@ -64,7 +64,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final themeProvider = Provider.of<ThemeProvider>(context);
     
     return Scaffold(
-      appBar: _ThemedAppBar(title: 'Calendar', onAddEvent: () => _showAddEventModal(context)),
+      appBar: _ThemedAppBar(
+        title: 'Calendar',
+        onAddEvent: () => _showAddEventModal(context),
+        currentFormat: _calendarFormat,
+        onFormatChanged: _onFormatChanged,
+      ),
       body: Consumer<CalendarProvider>(
         builder: (context, calendarProvider, child) => Column(
           children: [
@@ -92,6 +97,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     width: 1,
                   ),
                 ),
+                todayTextStyle: TextStyle(
+                  color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
+                ),
                 defaultDecoration: BoxDecoration(
                   shape: BoxShape.circle,
                 ),
@@ -106,7 +114,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 markerSize: 6,
               ),
               headerStyle: HeaderStyle(
-                formatButtonVisible: true,
+                formatButtonVisible: false,
                 titleCentered: true,
                 formatButtonShowsNext: false,
                 leftChevronIcon: Icon(
@@ -636,9 +644,17 @@ class _EmojiSelectorButton extends StatelessWidget {
 class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final VoidCallback? onAddEvent;
-  
-  const _ThemedAppBar({required this.title, this.onAddEvent});
-  
+  final CalendarFormat currentFormat;
+  final Function(CalendarFormat) onFormatChanged;
+
+  const _ThemedAppBar({
+    super.key,
+    required this.title,
+    this.onAddEvent,
+    required this.currentFormat,
+    required this.onFormatChanged,
+  });
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
@@ -665,6 +681,36 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
           ),
           elevation: 0,
           actions: [
+            // Custom format toggle button
+            GestureDetector(
+              onTap: () {
+                if (currentFormat == CalendarFormat.month) {
+                  onFormatChanged(CalendarFormat.week);
+                } else {
+                  onFormatChanged(CalendarFormat.month);
+                }
+              },
+              child: Container(
+                margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: themeProvider.selectedColor,
+                    width: 1.5,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  color: themeProvider.selectedColor.withOpacity(0.1),
+                ),
+                child: Text(
+                  currentFormat == CalendarFormat.month ? 'Month' : 'Week',
+                  style: TextStyle(
+                    color: themeProvider.selectedColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
             if (onAddEvent != null)
               Container(
                 margin: const EdgeInsets.all(8),
