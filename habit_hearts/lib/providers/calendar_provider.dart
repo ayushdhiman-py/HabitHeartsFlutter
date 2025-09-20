@@ -10,11 +10,13 @@ class CalendarProvider with ChangeNotifier {
   List<CalendarEvent> _events = [];
   bool _isLoading = false;
   String? _error;
-  
+
   CalendarViewMode _viewMode = CalendarViewMode.month;
   DateTime _selectedDate = DateTime.now();
   DateTime _focusedDate = DateTime.now();
-  
+
+  HabitHeartsAuthProvider? _authProvider;
+
   // Getters
   List<CalendarEvent> get events => _events;
   bool get isLoading => _isLoading;
@@ -22,69 +24,121 @@ class CalendarProvider with ChangeNotifier {
   CalendarViewMode get viewMode => _viewMode;
   DateTime get selectedDate => _selectedDate;
   DateTime get focusedDate => _focusedDate;
-  
+
+  void update(HabitHeartsAuthProvider authProvider) {
+    _authProvider = authProvider;
+    if (_authProvider != null && _authProvider!.isAuthenticated) {
+      final now = DateTime.now();
+      final firstDay = DateTime(now.year, now.month, 1);
+      final lastDay = DateTime(now.year, now.month + 1, 0);
+      loadEvents(firstDay, lastDay);
+    } else {
+      _events = [];
+      notifyListeners();
+    }
+  }
+
   // Get events for a specific date
   List<CalendarEvent> getEventsForDate(DateTime date) {
-    return _events.where((event) {
+    final events = _events.where((event) {
+      // Handle different date types
       if (event.date is DateTime) {
-        return _isSameDay(event.date, date);
+        return _isSameDay(event.date as DateTime, date);
+      } else if (event.date is int) {
+        // Handle timestamp
+        final eventDate = DateTime.fromMillisecondsSinceEpoch(event.date as int);
+        return _isSameDay(eventDate, date);
+      } else if (event.date is String) {
+        // Handle string date
+        try {
+          final eventDate = DateTime.parse(event.date as String);
+          return _isSameDay(eventDate, date);
+        } catch (e) {
+          print('Error parsing date string: $e');
+          return false;
+        }
       }
       return false;
     }).toList();
+
+    if (events.isNotEmpty) {
+      print('Found ${events.length} events for ${date.toIso8601String()}');
+      for (var event in events) {
+        print('  - ${event.title} (${event.date})');
+      }
+    }
+
+    return events;
   }
-  
+
   // Helper method to check if two dates are the same day
-  bool _isSameDay(DateTime date1, DateTime date2) {
-    return date1.year == date2.year &&
-           date1.month == date2.month &&
-           date1.day == date2.day;
+  bool _isSameDay(dynamic date1, DateTime date2) {
+    DateTime? parsedDate1;
+
+    if (date1 is DateTime) {
+      parsedDate1 = date1;
+    } else if (date1 is int) {
+      parsedDate1 = DateTime.fromMillisecondsSinceEpoch(date1);
+    } else if (date1 is String) {
+      try {
+        parsedDate1 = DateTime.parse(date1);
+      } catch (e) {
+        print('Error parsing date string: $e');
+        return false;
+      }
+    }
+
+    if (parsedDate1 == null) {
+      return false;
+    }
+
+    return parsedDate1.year == date2.year &&
+        parsedDate1.month == date2.month &&
+        parsedDate1.day == date2.day;
   }
-  
+
   // Set view mode
   void setViewMode(CalendarViewMode mode) {
     _viewMode = mode;
     notifyListeners();
   }
-  
+
   // Set selected date
   void setSelectedDate(DateTime date) {
     _selectedDate = date;
     notifyListeners();
   }
-  
+
   // Set focused date
   void setFocusedDate(DateTime date) {
     _focusedDate = date;
     notifyListeners();
   }
-  
+
   // Load events for a date range
-  Future<void> loadEvents(String userId, List<String> linkedUserIds, DateTime startDate, DateTime endDate) async {
-    // Check if we already have events for this date range to avoid unnecessary API calls
-    final hasEventsForRange = _events.any((event) {
-      final eventDate = event.date is DateTime ? event.date as DateTime : null;
-      if (eventDate == null) return false;
-      return (eventDate.isAfter(startDate) || _isSameDay(eventDate, startDate)) && 
-             (eventDate.isBefore(endDate) || _isSameDay(eventDate, endDate));
-    });
-    
-    // If we already have events for this range, don't reload unless forced
-    if (hasEventsForRange && !_isLoading) {
+  Future<void> loadEvents(DateTime startDate, DateTime endDate) async {
+    if (_isLoading) return;
+    if (_authProvider == null || !_authProvider!.isAuthenticated) {
       return;
     }
-    
+
     _isLoading = true;
     _error = null;
     notifyListeners();
-    
+
     try {
+      final userId = _authProvider!.user!.uid;
+      final linkedUserIds = _authProvider!.habitHeartsUser?.linkedUsers ?? [];
       List<String> allUserIds = [userId, ...linkedUserIds];
       List<CalendarEvent> allEvents = [];
       for (String id in allUserIds) {
+        print('Fetching events for user $id from ${startDate.toIso8601String()} to ${endDate.toIso8601String()}');
         List<CalendarEvent> userEvents = await ApiService.getCalendarEvents(id, startDate, endDate);
+        print('Fetched ${userEvents.length} events for user $id');
         allEvents.addAll(userEvents);
       }
       _events = allEvents;
+      print('Total events loaded: ${_events.length}');
     } catch (e) {
       _error = e.toString();
       print('Error loading events: $e');
@@ -93,13 +147,12 @@ class CalendarProvider with ChangeNotifier {
       notifyListeners();
     }
   }
-  
+
   // Create a new event
   Future<CalendarEvent?> createEvent(BuildContext context, CalendarEvent event) async {
     try {
       final newEvent = await ApiService.createCalendarEvent(event);
       if (newEvent != null) {
-        // Add the event returned from the API (with the correct ID) to our local list
         _events.add(newEvent);
         notifyListeners();
         return newEvent;
@@ -112,13 +165,12 @@ class CalendarProvider with ChangeNotifier {
       return null;
     }
   }
-  
+
   // Update an event
   Future<CalendarEvent?> updateEvent(BuildContext context, CalendarEvent event) async {
     try {
       final success = await ApiService.updateCalendarEvent(event);
       if (success) {
-        // Update the event in our local list
         final index = _events.indexWhere((e) => e.id == event.id);
         if (index != -1) {
           _events[index] = event;
@@ -134,13 +186,12 @@ class CalendarProvider with ChangeNotifier {
       return null;
     }
   }
-  
+
   // Delete an event
   Future<bool> deleteEvent(BuildContext context, String eventId) async {
     try {
       final success = await ApiService.deleteCalendarEvent(eventId);
       if (success) {
-        // Remove the event from our local list
         _events.removeWhere((event) => event.id == eventId);
         notifyListeners();
         return true;

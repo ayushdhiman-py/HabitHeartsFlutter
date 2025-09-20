@@ -89,8 +89,15 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => HabitHeartsAuthProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        ChangeNotifierProvider(create: (_) => GoalsProvider()),
+        ChangeNotifierProxyProvider<HabitHeartsAuthProvider, GoalsProvider>(
+          create: (context) => GoalsProvider(),
+          update: (context, auth, previous) => previous!..update(auth),
+        ),
         ChangeNotifierProvider(create: (_) => CalendarProvider()),
+        ChangeNotifierProxyProvider<HabitHeartsAuthProvider, CalendarProvider>(
+          create: (context) => CalendarProvider(),
+          update: (context, auth, previous) => previous!..update(auth),
+        ),
         ChangeNotifierProvider(create: (_) => DarkModeProvider()),
       ],
       child: const MyApp(),

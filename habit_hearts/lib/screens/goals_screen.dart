@@ -18,18 +18,6 @@ class GoalsScreen extends StatefulWidget {
 }
 
 class _GoalsScreenState extends State<GoalsScreen> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final goalsProvider = Provider.of<GoalsProvider>(context, listen: false);
-      final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
-      if (authProvider.user != null) {
-        goalsProvider.loadGoals(authProvider.user!.uid, authProvider.habitHeartsUser?.linkedUsers ?? []);
-      }
-    });
-  }
-
   void _showAddGoalModal() {
     showModalBottomSheet(
       context: context,

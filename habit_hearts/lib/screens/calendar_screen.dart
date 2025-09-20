@@ -29,23 +29,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
   void initState() {
     super.initState();
     _selectedDay = _focusedDay;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadEventsForMonth());
   }
 
   bool isSameDay(DateTime? a, DateTime? b) {
     if (a == null || b == null) return false;
     return a.year == b.year && a.month == b.month && a.day == b.day;
-  }
-
-  void _loadEventsForMonth() {
-    final calendarProvider = Provider.of<CalendarProvider>(context, listen: false);
-    final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
-    if (authProvider.habitHeartsUser != null) {
-      final firstDay = DateTime(_focusedDay.year, _focusedDay.month, 1);
-      final lastDay = DateTime(_focusedDay.year, _focusedDay.month + 1, 0);
-      calendarProvider.loadEvents(authProvider.habitHeartsUser!.uid, authProvider.habitHeartsUser?.linkedUsers ?? [], firstDay, lastDay);
-    }
   }
 
   void _onDaySelected(DateTime selectedDay, DateTime focusedDay) {
@@ -65,12 +53,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   void _onPageChanged(DateTime focusedDay) {
     _focusedDay = focusedDay;
-    _loadEventsForMonth();
+    final calendarProvider = Provider.of<CalendarProvider>(context, listen: false);
+    final firstDay = DateTime(_focusedDay.year, _focusedDay.month, 1);
+    final lastDay = DateTime(_focusedDay.year, _focusedDay.month + 1, 0);
+    calendarProvider.loadEvents(firstDay, lastDay);
   }
 
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
+    
     return Scaffold(
       appBar: _ThemedAppBar(title: 'Calendar', onAddEvent: () => _showAddEventModal(context)),
       body: Consumer<CalendarProvider>(
@@ -84,18 +76,72 @@ class _CalendarScreenState extends State<CalendarScreen> {
               selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
               eventLoader: calendarProvider.getEventsForDate,
               startingDayOfWeek: StartingDayOfWeek.monday,
-              calendarStyle: const CalendarStyle(
+              calendarStyle: CalendarStyle(
                 outsideDaysVisible: true,
-                markerDecoration: BoxDecoration(color: Colors.deepOrange, shape: BoxShape.circle),
+                selectedDecoration: BoxDecoration(
+                  color: AppColors.electricBlue,
+                  shape: BoxShape.circle,
+                ),
+                todayDecoration: BoxDecoration(
+                  color: Theme.of(context).brightness == Brightness.dark 
+                      ? AppColors.darkCardBackground 
+                      : AppColors.lightCardBackground,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppColors.electricBlue,
+                    width: 1,
+                  ),
+                ),
+                defaultDecoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                ),
+                weekendDecoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                ),
+                markerDecoration: BoxDecoration(
+                  color: AppColors.electricGreen,
+                  shape: BoxShape.circle,
+                ),
+                markersMaxCount: 3,
+                markerSize: 6,
               ),
-              headerStyle: const HeaderStyle(formatButtonVisible: true, titleCentered: true),
+              headerStyle: HeaderStyle(
+                formatButtonVisible: true,
+                titleCentered: true,
+                formatButtonShowsNext: false,
+                leftChevronIcon: Icon(
+                  Icons.chevron_left,
+                  color: Theme.of(context).iconTheme.color,
+                ),
+                rightChevronIcon: Icon(
+                  Icons.chevron_right,
+                  color: Theme.of(context).iconTheme.color,
+                ),
+              ),
               availableCalendarFormats: const {CalendarFormat.month: 'Month', CalendarFormat.week: 'Week'},
               onDaySelected: _onDaySelected,
               onFormatChanged: _onFormatChanged,
               onPageChanged: _onPageChanged,
             ),
+            const SizedBox(height: 16.0),
+            if (_selectedDay != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Row(
+                  children: [
+                    Text(
+                      DateFormat('EEEE, MMMM d').format(_selectedDay!),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
             const SizedBox(height: 8.0),
-            Expanded(child: _EventList(selectedDay: _selectedDay)),
+            Expanded(
+              child: _EventList(selectedDay: _selectedDay),
+            ),
           ],
         ),
       ),
@@ -107,7 +153,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
-      builder: (_) => _AddEventModal(selectedDate: _selectedDay ?? DateTime.now(), onEventCreated: _loadEventsForMonth),
+      builder: (_) => _AddEventModal(selectedDate: _selectedDay ?? DateTime.now(), onEventCreated: () => Provider.of<CalendarProvider>(context, listen: false).loadEvents(DateTime(_focusedDay.year, _focusedDay.month, 1), DateTime(_focusedDay.year, _focusedDay.month + 1, 0))),
     );
   }
 }
@@ -122,20 +168,114 @@ class _EventList extends StatelessWidget {
     final calendarProvider = Provider.of<CalendarProvider>(context);
     final events = selectedDay != null ? calendarProvider.getEventsForDate(selectedDay!) : <CalendarEvent>[];
 
-    if (calendarProvider.isLoading) return const Center(child: CircularProgressIndicator());
-    if (calendarProvider.error != null) return Center(child: Text('Error: ${calendarProvider.error}'));
-    if (events.isEmpty) return const Center(child: Text('No events for this day', style: TextStyle(fontSize: 16, color: Colors.grey)));
+    // print('Building event list for ${selectedDay?.toIso8601String() ?? "null"} with ${events.length} events');
+    // print('Calendar provider loading state: ${calendarProvider.isLoading}');
+    // print('Calendar provider error: ${calendarProvider.error}');
+    // print('Total events in provider: ${calendarProvider.events.length}');
+    
+    if (calendarProvider.isLoading) {
+      // print('Events are loading...');
+      return const Center(child: CircularProgressIndicator());
+    }
+    
+    if (calendarProvider.error != null) {
+      // print('Error loading events: ${calendarProvider.error}');
+      return Center(child: Text('Error: ${calendarProvider.error}'));
+    }
+    
+    if (events.isEmpty) {
+      // print('No events found for selected day');
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.event_outlined,
+              size: 48,
+              color: Theme.of(context).disabledColor,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No events for this day',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Tap + to add an event',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      );
+    }
 
-    return ListView.builder(
+    // print('Displaying ${events.length} events');
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
       itemCount: events.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final event = events[index];
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        return Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardTheme.color,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Theme.of(context).dividerColor.withOpacity(0.3),
+              width: 0.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
           child: ListTile(
-            title: Text(event.title),
-            subtitle: event.startTime != null ? Text('${event.startTime} - ${event.endTime ?? 'N/A'}') : null,
-            trailing: event.emoji != null ? Text(event.emoji!) : null,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            leading: event.emoji != null
+                ? Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.electricBlue.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        event.emoji!,
+                        style: const TextStyle(fontSize: 20),
+                      ),
+                    ),
+                  )
+                : Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.electricBlue.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Center(
+                      child: Icon(
+                        Icons.event,
+                        color: AppColors.electricBlue,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+            title: Text(
+              event.title,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            subtitle: event.startTime != null
+                ? Text(
+                    '${event.startTime}${event.endTime != null ? ' - ${event.endTime}' : ''}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  )
+                : null,
             onTap: () => _showEditEventModal(context, event),
           ),
         );
@@ -152,8 +292,8 @@ class _EventList extends StatelessWidget {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
       builder: (_) => _EditEventModal(
         event: event,
-        onEventUpdated: () => calendarProvider.loadEvents(event.createdBy, authProvider.habitHeartsUser?.linkedUsers ?? [], DateTime(event.date.year, event.date.month, 1), DateTime(event.date.year, event.date.month + 1, 0)),
-        onEventDeleted: () => calendarProvider.loadEvents(event.createdBy, authProvider.habitHeartsUser?.linkedUsers ?? [], DateTime(event.date.year, event.date.month, 1), DateTime(event.date.year, event.date.month + 1, 0)),
+        onEventUpdated: () => calendarProvider.loadEvents(DateTime(event.date.year, event.date.month, 1), DateTime(event.date.year, event.date.month + 1, 0)),
+        onEventDeleted: () => calendarProvider.loadEvents(DateTime(event.date.year, event.date.month, 1), DateTime(event.date.year, event.date.month + 1, 0)),
       ),
     );
   }

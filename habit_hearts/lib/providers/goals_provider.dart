@@ -22,28 +22,42 @@ class GoalsProvider with ChangeNotifier {
   Map<String, int> _currentStreaks = {}; // goalId -> streak count
   Map<String, int> _longestStreaks = {}; // goalId -> streak count
 
+  HabitHeartsAuthProvider? _authProvider;
+
   List<Goal> get goals => _goals;
   bool get isLoading => _isLoading;
   Map<String, Map<String, String>> get userGoalProgress => _userGoalProgress;
   Map<String, int> get currentStreaks => _currentStreaks;
   Map<String, int> get longestStreaks => _longestStreaks;
 
+  void update(HabitHeartsAuthProvider authProvider) {
+    _authProvider = authProvider;
+    if (_authProvider != null && _authProvider!.isAuthenticated) {
+      loadGoals();
+    } else {
+      _goals = [];
+      notifyListeners();
+    }
+  }
+
   // Load goals and progress from API
-  Future<void> loadGoals(String? userId, List<String> linkedUserIds) async {
+  Future<void> loadGoals() async {
+    if (_isLoading) return;
+    if (_authProvider == null || !_authProvider!.isAuthenticated) {
+      return;
+    }
+
     _isLoading = true;
-    notifyListeners();
+    Future.microtask(() => notifyListeners());
 
     try {
-      if (userId == null) {
-        _isLoading = false;
-        notifyListeners();
-        return;
-      }
-      
+      final userId = _authProvider!.user!.uid;
+      final linkedUserIds = _authProvider!.habitHeartsUser?.linkedUsers ?? [];
+
       // Load goals from API
       final goals = await ApiService.getGoals(userId);
       _goals = goals;
-      
+
       // Load goals for linked users
       for (String linkedUserId in linkedUserIds) {
         final linkedGoals = await ApiService.getGoals(linkedUserId);
@@ -56,7 +70,7 @@ class GoalsProvider with ChangeNotifier {
         _userGoalProgress.clear();
         _currentStreaks.clear();
         _longestStreaks.clear();
-        
+
         userData.goalProgress.forEach((goalId, progressSummary) {
           _userGoalProgress[goalId] = Map<String, String>.from(progressSummary.monthlyData);
           _currentStreaks[goalId] = progressSummary.currentStreak;
@@ -92,8 +106,7 @@ class GoalsProvider with ChangeNotifier {
 
       final newGoal = await ApiService.createGoal(goal);
       if (newGoal != null) {
-        final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
-        await loadGoals(authProvider.user?.uid, authProvider.habitHeartsUser?.linkedUsers ?? []);
+        await loadGoals();
       }
     } catch (e) {
       print('Error adding goal: $e');
@@ -106,8 +119,7 @@ class GoalsProvider with ChangeNotifier {
     try {
       final result = await ApiService.updateGoal(updatedGoal);
       if (result != null) {
-        final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
-        await loadGoals(authProvider.user?.uid, authProvider.habitHeartsUser?.linkedUsers ?? []);
+        await loadGoals();
       }
     } catch (e) {
       print('Error updating goal: $e');
@@ -118,8 +130,7 @@ class GoalsProvider with ChangeNotifier {
   // Delete a goal
   Future<void> deleteGoal(BuildContext context, String goalId) async {
     try {
-      final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
-      final userId = authProvider.user?.uid;
+      final userId = _authProvider?.user?.uid;
 
       if (userId == null) {
         throw Exception("User not logged in.");
@@ -135,12 +146,11 @@ class GoalsProvider with ChangeNotifier {
 
       if (!goalDeletionSuccess || !progressDeletionSuccess) {
         // If either fails, reload goals to revert UI
-        await loadGoals(userId, authProvider.habitHeartsUser?.linkedUsers ?? []);
+        await loadGoals();
       }
     } catch (e) {
       print('Error deleting goal: $e');
-      final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
-      await loadGoals(authProvider.user?.uid, authProvider.habitHeartsUser?.linkedUsers ?? []);
+      await loadGoals();
     }
   }
 
@@ -148,7 +158,7 @@ class GoalsProvider with ChangeNotifier {
   Future<bool> toggleGoalProgressForUser(String userId, String goalId, bool completed) async {
     try {
       final result = await ApiService.toggleGoalProgressForUser(userId, goalId, completed);
-      
+
       if (result != null) {
         // Update local state with new data
         if (result['currentStreak'] != null) {
@@ -157,7 +167,7 @@ class GoalsProvider with ChangeNotifier {
         if (result['longestStreak'] != null) {
           _longestStreaks[goalId] = result['longestStreak'];
         }
-        
+
         // Instead of reloading all goals, just update the specific goal's progress
         // This is much more efficient than reloading everything
         final userData = await ApiService.getUserGoalProgress(userId);
@@ -167,13 +177,13 @@ class GoalsProvider with ChangeNotifier {
             _userGoalProgress[goalId] = Map<String, String>.from(progressData.monthlyData);
           }
         }
-        
 
-        
+
+
         notifyListeners();
         return true;
       }
-      
+
       return false;
     } catch (e) {
       print('Error toggling goal progress for user: $e');
@@ -185,7 +195,7 @@ class GoalsProvider with ChangeNotifier {
   Future<void> markDayAsComplete(String userId, String goalId, bool completed) async {
     // Make a copy of the current progress data for optimistic update
     final originalProgress = Map<String, Map<String, String>>.from(_userGoalProgress);
-    
+
     try {
       final success = await toggleGoalProgressForUser(userId, goalId, completed);
       if (!success) {
@@ -207,35 +217,35 @@ class GoalsProvider with ChangeNotifier {
     final DateTime today = DateTime.now();
     final yearMonth = '${today.year}-${today.month.toString().padLeft(2, '0')}';
     final day = today.day;
-    
+
     // Create a copy of the progress data to modify
     final updatedProgress = Map<String, Map<String, String>>.from(_userGoalProgress);
-    
+
     // Initialize the goal entry if it doesn't exist
     if (!updatedProgress.containsKey(goalId)) {
       updatedProgress[goalId] = {};
     }
-    
+
     // Initialize the month entry if it doesn't exist
     if (!updatedProgress[goalId]!.containsKey(yearMonth)) {
       updatedProgress[goalId]![yearMonth] = '';
     }
-    
+
     // Get the current bit string for the month
     String bitString = updatedProgress[goalId]![yearMonth]!;
-    
+
     // Ensure the bit string is long enough for the current day
     if (bitString.length < day) {
       bitString = bitString.padRight(day, '0');
     }
-    
+
     // Update the bit for the current day
     final index = day - 1;
     final newBitString = bitString.replaceRange(index, index + 1, completed ? '1' : '0');
-    
+
     // Update the progress data
     updatedProgress[goalId]![yearMonth] = newBitString;
-    
+
     // Update the state and notify listeners
     _userGoalProgress = updatedProgress;
     notifyListeners();
@@ -249,17 +259,17 @@ class GoalsProvider with ChangeNotifier {
         final updatedGoal = goal.copyWith(completed: completed);
         final result = await ApiService.updateGoal(updatedGoal);
         if (result != null) {
-          await loadGoals(userId, []);
+          await loadGoals();
         }
       } else {
         final success = await toggleGoalProgressForUser(userId, goalId, completed);
         if (success) {
-          await loadGoals(userId, []);
+          await loadGoals();
         }
       }
     } catch (e) {
       print('Error toggling goal progress: $e');
-      await loadGoals(userId, []);
+      await loadGoals();
     }
   }
 
@@ -267,13 +277,13 @@ class GoalsProvider with ChangeNotifier {
   bool isGoalCompletedForDate(String goalId, DateTime date) {
     final yearMonth = '${date.year}-${date.month.toString().padLeft(2, '0')}';
     final day = date.day;
-    
+
     if (!_userGoalProgress.containsKey(goalId)) return false;
     if (!_userGoalProgress[goalId]!.containsKey(yearMonth)) return false;
-    
+
     final bitString = _userGoalProgress[goalId]![yearMonth]!;
     if (day < 1 || day > bitString.length) return false;
-    
+
     final index = day - 1;
     return index < bitString.length && bitString[index] == '1';
   }
@@ -298,11 +308,11 @@ class GoalsProvider with ChangeNotifier {
 
     final startDate = goal.startDate!;
     final endDate = goal.endDate!;
-    
+
     // Calculate total days in the goal period
     int totalDays = endDate.difference(startDate).inDays + 1;
     if (totalDays <= 0) return 0.0;
-    
+
     // Count completed days
     int completedDays = 0;
     for (int i = 0; i < totalDays; i++) {
@@ -311,7 +321,7 @@ class GoalsProvider with ChangeNotifier {
         completedDays++;
       }
     }
-    
+
     // Calculate percentage
     return (completedDays / totalDays) * 100;
   }
@@ -343,7 +353,7 @@ class GoalsProvider with ChangeNotifier {
     if (totalDays <= 0) {
       return {'completedPercentage': 0.0, 'missedPercentage': 0.0};
     }
-    
+
     int completedDays = 0;
     int missedDays = 0;
 
