@@ -3,26 +3,78 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppColors {
-  // Modern gradient color palette with soft, friendly tones
-  static const Color electricBlue = Color(0xFF9D84FF);     // Soft purple
-  static const Color hotPink = Color(0xFFFF6AD4);          // Bright pink
-  static const Color electricGreen = Color(0xFF48BB78);    // Green for success
-  static const Color vibrantOrange = Color(0xFFFF8A8A);    // Soft coral
-  static const Color brightPurple = Color(0xFFD4A8FF);     // Lavender
-  static const Color sunnyYellow = Color(0xFFFFE36A);      // Sunshine yellow
-  static const Color brightRed = Color(0xFFF56565);        // Red for errors
-  static const Color mint = Color(0xFF8AE4FF);             // Sky blue
-  
-  // Additional theme colors
-  static const Color deepTeal = Color(0xFF26A69A);         // Deep teal
-  static const Color coral = Color(0xFFFF7043);            // Vibrant coral
-  static const Color lavender = Color(0xFFB39DDB);         // Soft lavender
-  static const Color mintGreen = Color(0xFF80CBC4);        // Mint green
-  static const Color peach = Color(0xFFFFAB91);            // Soft peach
-  static const Color periwinkle = Color(0xFF7986CB);       // Periwinkle blue
-  static const Color rose = Color(0xFFF48FB1);             // Soft rose
-  static const Color turquoise = Color(0xFF4DB6AC);        // Turquoise
-  
+  // 20 vibrant, well-balanced solid colors for theme selection
+  // To change a color, just modify the value here - it will update everywhere
+  static const Color electricBlue = Color(0xFF4285F4);      // Google Blue
+  static const Color hotPink = Color(0xFFEA4335);           // Google Red
+  static const Color vibrantGreen = Color(0xFF34A853);      // Google Green
+  static const Color sunsetOrange = Color(0xFFFF6B35);      // Sunset Orange
+  static const Color royalPurple = Color(0xFF9B5DE5);       // Royal Purple
+  static const Color goldenYellow = Color(0xFFFFC300);      // Golden Yellow
+  static const Color coralRed = Color(0xFFFF7AA2);          // Coral Pink
+  static const Color turquoiseBlue = Color(0xFF00C2CB);     // Turquoise
+  static const Color forestGreen = Color(0xFF2A9D8F);       // Forest Green
+  static const Color deepTeal = Color(0xFF0077B6);          // Deep Teal
+  static const Color lavender = Color(0xFFB56576);          // Lavender
+  static const Color mintGreen = Color(0xFF90BE6D);         // Mint Green
+  static const Color peach = Color(0xFFF4A261);             // Peach
+  static const Color periwinkle = Color(0xFF4A90E2);        // Periwinkle
+  static const Color rose = Color(0xFFE76F51);              // Rose
+  static const Color emerald = Color(0xFF2D7F6A);           // Emerald
+  static const Color magenta = Color(0xFFE91E63);           // Magenta
+  static const Color cyan = Color(0xFF00BCD4);              // Cyan
+  static const Color amber = Color(0xFFFF9800);             // Amber
+  static const Color indigo = Color(0xFF3F51B5);            // Indigo
+
+  // Method to get all available theme colors
+  static List<Color> get allThemeColors => [
+        electricBlue,
+        hotPink,
+        vibrantGreen,
+        sunsetOrange,
+        royalPurple,
+        goldenYellow,
+        coralRed,
+        turquoiseBlue,
+        forestGreen,
+        deepTeal,
+        lavender,
+        mintGreen,
+        peach,
+        periwinkle,
+        rose,
+        emerald,
+        magenta,
+        cyan,
+        amber,
+        indigo,
+      ];
+
+  // Method to get color name
+  static String getColorName(Color color) {
+    if (color == electricBlue) return 'Electric Blue';
+    if (color == hotPink) return 'Hot Pink';
+    if (color == vibrantGreen) return 'Vibrant Green';
+    if (color == sunsetOrange) return 'Sunset Orange';
+    if (color == royalPurple) return 'Royal Purple';
+    if (color == goldenYellow) return 'Golden Yellow';
+    if (color == coralRed) return 'Coral Red';
+    if (color == turquoiseBlue) return 'Turquoise Blue';
+    if (color == forestGreen) return 'Forest Green';
+    if (color == deepTeal) return 'Deep Teal';
+    if (color == lavender) return 'Lavender';
+    if (color == mintGreen) return 'Mint Green';
+    if (color == peach) return 'Peach';
+    if (color == periwinkle) return 'Periwinkle';
+    if (color == rose) return 'Rose';
+    if (color == emerald) return 'Emerald';
+    if (color == magenta) return 'Magenta';
+    if (color == cyan) return 'Cyan';
+    if (color == amber) return 'Amber';
+    if (color == indigo) return 'Indigo';
+    return 'Custom Color';
+  }
+
   // Dark theme colors
   static const Color darkBackground = Color(0xFF121212);
   static const Color darkCardBackground = Color(0xFF1E1E1E);
@@ -34,18 +86,6 @@ class AppColors {
   static const Color lightBackground = Color(0xFFFFFFFF);      // Pure white background
   static const Color lightCardBackground = Color(0xFFF8F9FA);  // Very light gray for cards
   static const Color lightSecondaryBackground = Color(0xFFE6EEF5); // Light blue
-  
-  // Gradient combinations
-  static const List<Color> purpleToPinkGradient = [electricBlue, hotPink];
-  static const List<Color> tealToBlueGradient = [mint, electricBlue];
-  static const List<Color> greenToTealGradient = [electricGreen, mint];
-  static const List<Color> coralToPinkGradient = [vibrantOrange, hotPink];
-  
-  // Additional gradient combinations
-  static const List<Color> sunsetGradient = [vibrantOrange, hotPink];
-  static const List<Color> oceanGradient = [electricBlue, mint];
-  static const List<Color> forestGradient = [electricGreen, deepTeal];
-  static const List<Color> lavenderGradient = [brightPurple, lavender];
   
   // Background and text colors
   static const Color primaryBackground = Color(0xFFF8F9FA);     // Off-white background

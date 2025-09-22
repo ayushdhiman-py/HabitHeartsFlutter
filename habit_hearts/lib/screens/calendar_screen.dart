@@ -107,7 +107,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   shape: BoxShape.circle,
                 ),
                 markerDecoration: BoxDecoration(
-                  color: AppColors.electricGreen,
+                  color: AppColors.vibrantGreen,
                   shape: BoxShape.circle,
                 ),
                 markersMaxCount: 3,
@@ -442,15 +442,19 @@ class _AddEventModalState extends State<_AddEventModal> {
           const SizedBox(height: 10),
           _EmojiSelectorButton(selectedEmoji: _selectedEmoji, onSelectEmoji: _showEmojiSelector),
           const SizedBox(height: 20),
-          SizedBox(
+                    SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _addEvent,
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.electricBlue, padding: const EdgeInsets.all(16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Provider.of<ThemeProvider>(context).selectedColor,
+                padding: const EdgeInsets.all(16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))
+              ),
               child: const Text('Add Event', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 60),
         ],
       ),
     );
@@ -596,10 +600,14 @@ class _EditEventModalState extends State<_EditEventModal> {
           const SizedBox(height: 20),
           Row(
             children: [
-              Expanded(
+                            Expanded(
                 child: ElevatedButton(
                   onPressed: _updateEvent,
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.electricBlue, padding: const EdgeInsets.all(16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Provider.of<ThemeProvider>(context).selectedColor,
+                    padding: const EdgeInsets.all(16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))
+                  ),
                   child: const Text('Save', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
@@ -607,13 +615,13 @@ class _EditEventModalState extends State<_EditEventModal> {
               Expanded(
                 child: ElevatedButton(
                   onPressed: _deleteEvent,
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.brightRed, padding: const EdgeInsets.all(16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.coralRed, padding: const EdgeInsets.all(16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
                   child: const Text('Delete', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 60),
         ],
       ),
     );

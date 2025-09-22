@@ -980,7 +980,7 @@ class _EditTaskModalState extends State<_EditTaskModal> {
             child: ElevatedButton(
               onPressed: _updateTask,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.electricBlue,
+                backgroundColor: Provider.of<ThemeProvider>(context).selectedColor,
                 padding: const EdgeInsets.all(16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -996,7 +996,7 @@ class _EditTaskModalState extends State<_EditTaskModal> {
               ),
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 60),
         ],
       ),
     );
@@ -1233,7 +1233,7 @@ class _GoalsSection extends StatelessWidget {
                       onGoalProgressToggle(goal.id, !isTodayCompleted);
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.electricGreen,
+                      backgroundColor: AppColors.vibrantGreen,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       shape: RoundedRectangleBorder(
@@ -1423,14 +1423,14 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
                       height: 12.0,
                       decoration: BoxDecoration(
                         color: isCompleted 
-                            ? AppColors.electricGreen.withOpacity(0.8) 
+                            ? AppColors.vibrantGreen.withOpacity(0.8) 
                             : Theme.of(context).brightness == Brightness.dark
                                 ? AppColors.darkCardBackground
                                 : AppColors.lightCardBackground,
                         borderRadius: BorderRadius.circular(2),
                         border: Border.all(
                           color: isCompleted 
-                              ? AppColors.electricGreen.withOpacity(0.8)
+                              ? AppColors.vibrantGreen.withOpacity(0.8)
                               : Theme.of(context).brightness == Brightness.dark
                                   ? AppColors.darkBorderColor
                                   : AppColors.borderColor,
@@ -1908,7 +1908,7 @@ class _AddTaskModalState extends State<_AddTaskModal> {
             child: ElevatedButton(
               onPressed: _addTask,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.electricBlue,
+                backgroundColor: Provider.of<ThemeProvider>(context).selectedColor,
                 padding: const EdgeInsets.all(16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -1924,7 +1924,7 @@ class _AddTaskModalState extends State<_AddTaskModal> {
               ),
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 60),
         ],
       ),
     );

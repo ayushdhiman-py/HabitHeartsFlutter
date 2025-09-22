@@ -278,7 +278,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: ListView(
                           scrollDirection: Axis.horizontal,
                           children: [
-                            // Solid colors
+                            // Solid colors using the simpler approach
                             for (Color color in ThemeProvider.availableColors)
                               Padding(
                                 padding: const EdgeInsets.only(right: 8),
@@ -288,7 +288,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: Text(
-                                          'Theme updated to ${_getColorName(color)}',
+                                          'Theme updated to ${AppColors.getColorName(color)}',
                                         ),
                                         duration: const Duration(seconds: 1),
                                       ),
@@ -317,50 +317,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   ),
                                 ),
                               ),
-                            // Gradient options
-                            for (var gradientOption in ThemeProvider.gradientOptions)
-                              Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: GestureDetector(
-                                  onTap: () {
-                                    // For gradients, we'll use the first color as the primary color
-                                    themeProvider.updateTheme(gradientOption.colors[0]);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Theme updated to ${gradientOption.name}',
-                                        ),
-                                        duration: const Duration(seconds: 1),
-                                      ),
-                                    );
-                                  },
-                                  child: Container(
-                                    width: 40,
-                                    height: 40,
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: gradientOption.colors,
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                      ),
-                                      shape: BoxShape.circle,
-                                      border: gradientOption.colors[0] == themeProvider.selectedColor
-                                          ? Border.all(
-                                              color: Colors.white,
-                                              width: 2,
-                                            )
-                                          : null,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.1),
-                                          blurRadius: 3,
-                                          offset: const Offset(0, 1),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
                           ],
                         ),
                       ),
@@ -369,104 +325,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               const SizedBox(height: 15),
-              
-              // Partner Linking Section - Only show if no partner is linked
-              if (authProvider.habitHeartsUser?.linkedUsers.isEmpty == true) ...[
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Link with Partner',
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontSize: 18,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Enter your partner\'s unique code to link accounts',
-                          style: TextStyle(
-                            color: Colors.grey,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        TextField(
-                          controller: _partnerCodeController,
-                          decoration: InputDecoration(
-                            hintText: 'Enter partner code',
-                            border: const OutlineInputBorder(),
-                            errorText: _linkError,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 8,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: _isLinking ? null : _linkWithPartner,
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                            ),
-                            child: _isLinking
-                                ? const SizedBox(
-                                    height: 16,
-                                    width: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.white,
-                                      ),
-                                    ),
-                                  )
-                                : const Text('Link with Partner'),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Note: Linking allows you to share habits, goals, and events with your partner',
-                          style: TextStyle(
-                            color: Colors.grey,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 15),
-              ] else if (authProvider.habitHeartsUser?.linkedUsers.isNotEmpty == true) ...[
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Partner Linked',
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontSize: 18,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'You currently have a partner linked. To link with a different partner, please unlink first.',
-                          style: TextStyle(
-                            color: Colors.grey,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 15),
-              ],
               
               // Linked Partners Section
               if (authProvider.habitHeartsUser?.linkedUsers.isNotEmpty == true) ...[
@@ -490,7 +348,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             fontSize: 12,
                           ),
                         ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'To link with a different partner, please unlink first.',
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
                         const SizedBox(height: 8),
+              
+              const SizedBox(height: 8),
                         // Display linked partners with their details
                         if (_isLoadingPartnerDetails) ...[
                           const Center(
@@ -510,7 +378,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 'Error: $_partnerDetailsError',
                                 style: const TextStyle(
                                   fontSize: 14,
-                                  color: AppColors.brightRed,
+                                  color: AppColors.coralRed,
                                 ),
                               ),
                             ),
@@ -561,7 +429,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   icon: const Icon(
                                     Icons.link_off,
                                     size: 20,
-                                    color: AppColors.brightRed,
+                                    color: AppColors.coralRed,
                                   ),
                                   onPressed: () => _unlinkFromPartner(partnerId),
                                   padding: EdgeInsets.zero,
@@ -602,7 +470,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 },
                                 child: const Text(
                                   'Sign Out',
-                                  style: TextStyle(color: AppColors.brightRed),
+                                  style: TextStyle(color: AppColors.coralRed),
                                 ),
                               ),
                             ],
@@ -611,7 +479,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       );
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.brightRed,
+                      backgroundColor: AppColors.coralRed,
                       foregroundColor: Colors.white,
                       minimumSize: const Size(double.infinity, 45),
                       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -627,34 +495,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
   
-  String _getColorName(Color color) {
-    if (color == AppColors.electricBlue) return 'Electric Blue';
-    if (color == AppColors.hotPink) return 'Hot Pink';
-    if (color == AppColors.electricGreen) return 'Electric Green';
-    if (color == AppColors.vibrantOrange) return 'Vibrant Orange';
-    if (color == AppColors.brightPurple) return 'Bright Purple';
-    if (color == AppColors.sunnyYellow) return 'Sunny Yellow';
-    if (color == AppColors.brightRed) return 'Bright Red';
-    if (color == AppColors.mint) return 'Mint';
-    if (color == AppColors.deepTeal) return 'Deep Teal';
-    if (color == AppColors.coral) return 'Coral';
-    if (color == AppColors.lavender) return 'Lavender';
-    if (color == AppColors.mintGreen) return 'Mint Green';
-    if (color == AppColors.peach) return 'Peach';
-    if (color == AppColors.periwinkle) return 'Periwinkle';
-    if (color == AppColors.rose) return 'Rose';
-    if (color == AppColors.turquoise) return 'Turquoise';
-    return 'Custom Color';
-  }
-  
-  String _getGradientName(List<Color> colors) {
-    // Find matching gradient option
-    for (var gradientOption in ThemeProvider.gradientOptions) {
-      if (listEquals(gradientOption.colors, colors)) {
-        return gradientOption.name;
-      }
-    }
-    return 'Gradient Theme';
+    String _getColorName(Color color) {
+    return AppColors.getColorName(color);
   }
   
   Color _getDarkerShade(Color color) {
@@ -665,18 +507,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
   
   Gradient _getThemeGradient(Color baseColor) {
-    // Check if the base color matches any gradient's primary color
-    for (var gradientOption in ThemeProvider.gradientOptions) {
-      if (gradientOption.colors[0] == baseColor) {
-        return LinearGradient(
-          colors: gradientOption.colors,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        );
-      }
-    }
-    
-    // If no matching gradient, return a simple gradient with the base color and its darker shade
+    // Return a simple gradient with the base color and its lighter shade for a subtle effect
     return LinearGradient(
       colors: [baseColor.withOpacity(0.3), baseColor.withOpacity(0.1)],
       begin: Alignment.topLeft,

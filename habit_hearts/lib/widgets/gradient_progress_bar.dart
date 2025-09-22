@@ -14,8 +14,8 @@ class GradientProgressBar extends StatelessWidget {
     required this.completedPercentage,
     required this.missedPercentage,
     this.height = 10.0,
-    this.completedColor = AppColors.electricGreen,
-    this.missedColor = AppColors.brightRed,
+    this.completedColor = AppColors.vibrantGreen,
+    this.missedColor = AppColors.coralRed,
     this.backgroundColor = Colors.grey,
   });
 

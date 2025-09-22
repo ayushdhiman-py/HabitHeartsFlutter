@@ -8,6 +8,7 @@ import '../providers/habit_hearts_auth_provider.dart';
 import '../models/goal.dart';
 import '../theme/app_theme.dart';
 import '../widgets/modern_goal_item.dart'; // Changed from swipeable_goal_item.dart
+import '../widgets/emoji_selector.dart'; // Added for emoji selection in goal modals
 import 'dart:ui' as ui;
 
 class GoalsScreen extends StatefulWidget {
@@ -98,11 +99,11 @@ class _EmptyGoalsState extends StatelessWidget {
             const Text('No goals yet', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.grey)),
             const SizedBox(height: 10),
             const Text('Set your first goal to start tracking your progress', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: Colors.grey)),
-            const SizedBox(height: 30),
+            const SizedBox(height: 60),
             ElevatedButton(
               onPressed: onAddGoal,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.electricBlue,
+                backgroundColor: Provider.of<ThemeProvider>(context).selectedColor,
                 padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
@@ -250,6 +251,7 @@ class _AddGoalModal extends StatefulWidget {
 
 class _AddGoalModalState extends State<_AddGoalModal> {
   final _goalController = TextEditingController();
+  final _descriptionController = TextEditingController();
   String? _selectedEmoji;
   DateTime? _selectedStartDate = DateTime.now();
   DateTime? _selectedEndDate;
@@ -258,6 +260,7 @@ class _AddGoalModalState extends State<_AddGoalModal> {
   @override
   void dispose() {
     _goalController.dispose();
+    _descriptionController.dispose();
     super.dispose();
   }
 
@@ -277,7 +280,7 @@ class _AddGoalModalState extends State<_AddGoalModal> {
               Navigator.of(context).pop();
             },
             child: Container(
-              decoration: BoxDecoration(color: _selectedEmoji == emoji ? AppColors.electricBlue.withOpacity(0.2) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: _selectedEmoji == emoji ? Provider.of<ThemeProvider>(context).selectedColor.withOpacity(0.2) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
               child: Center(child: Text(emoji, style: const TextStyle(fontSize: 24))),
             ),
           );
@@ -318,6 +321,7 @@ class _AddGoalModalState extends State<_AddGoalModal> {
       });
     }
   }
+
   void _addGoal() async {
     if (_goalController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a goal')));
@@ -334,6 +338,7 @@ class _AddGoalModalState extends State<_AddGoalModal> {
 
     final goalData = {
       'text': _goalController.text.trim(),
+      'description': _descriptionController.text.trim(),
       'emoji': _selectedEmoji,
       'startDate': _isHabit ? null : _selectedStartDate,
       'endDate': _isHabit ? null : _selectedEndDate,
@@ -366,17 +371,64 @@ class _AddGoalModalState extends State<_AddGoalModal> {
             ],
           ),
           const SizedBox(height: 10),
-          TextField(controller: _goalController, decoration: const InputDecoration(labelText: 'Goal Title', border: OutlineInputBorder(), hintText: 'e.g., Drink 8 glasses of water daily'), maxLines: 2),
+          TextField(
+            controller: _goalController,
+            decoration: const InputDecoration(
+              labelText: 'Goal Title',
+              border: OutlineInputBorder(),
+              hintText: 'e.g., Drink 8 glasses of water daily'
+            ),
+            maxLines: 2,
+          ),
           const SizedBox(height: 10),
-          Row(children: [const Text('Emoji:', style: TextStyle(fontSize: 16)), const SizedBox(width: 10), InkWell(onTap: _showEmojiSelector, child: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(8)), child: Text(_selectedEmoji ?? 'Select', style: const TextStyle(fontSize: 20))))]),
+          TextField(
+            controller: _descriptionController,
+            decoration: const InputDecoration(
+              labelText: 'Description (Optional)',
+              border: OutlineInputBorder(),
+              hintText: 'Add details about your goal'
+            ),
+            maxLines: 3,
+          ),
           const SizedBox(height: 10),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Habit Mode', style: TextStyle(fontSize: 16)), Switch(value: _isHabit, onChanged: (value) => setState(() {
-            _isHabit = value;
-            if (value) {
-              _selectedStartDate = null;
-              _selectedEndDate = null;
-            }
-          }), activeColor: AppColors.electricBlue)]),
+          Row(
+            children: [
+              const Text('Emoji:', style: TextStyle(fontSize: 16)),
+              const SizedBox(width: 10),
+              InkWell(
+                onTap: _showEmojiSelector,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _selectedEmoji ?? 'Select',
+                    style: const TextStyle(fontSize: 20)
+                  )
+                )
+              )
+            ]
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Habit Mode', style: TextStyle(fontSize: 16)),
+              Switch(
+                value: _isHabit,
+                onChanged: (value) => setState(() {
+                  _isHabit = value;
+                  if (value) {
+                    _selectedStartDate = null;
+                    _selectedEndDate = null;
+                  }
+                }),
+                activeColor: Provider.of<ThemeProvider>(context).selectedColor
+              )
+            ]
+          ),
           if (!_isHabit) ...[
             const SizedBox(height: 10),
             _DatePicker(label: 'Start Date', selectedDate: _selectedStartDate, onSelectDate: () => _selectDate()),
@@ -384,8 +436,22 @@ class _AddGoalModalState extends State<_AddGoalModal> {
             _DatePicker(label: 'End Date', selectedDate: _selectedEndDate, onSelectDate: () => _selectDate(isStart: false)),
           ],
           const SizedBox(height: 20),
-          SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _addGoal, style: ElevatedButton.styleFrom(backgroundColor: AppColors.electricBlue, padding: const EdgeInsets.all(16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), child: const Text('Add Goal', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)))),
-          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _addGoal,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Provider.of<ThemeProvider>(context).selectedColor,
+                padding: const EdgeInsets.all(16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+              ),
+              child: const Text(
+                'Add Goal',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)
+              )
+            )
+          ),
+          const SizedBox(height: 60),
         ],
       ),
     );
@@ -403,6 +469,7 @@ class _EditGoalModal extends StatefulWidget {
 
 class _EditGoalModalState extends State<_EditGoalModal> {
   late TextEditingController _goalController;
+  late TextEditingController _descriptionController;
   String? _selectedEmoji;
   DateTime? _selectedStartDate;
   DateTime? _selectedEndDate;
@@ -412,6 +479,7 @@ class _EditGoalModalState extends State<_EditGoalModal> {
   void initState() {
     super.initState();
     _goalController = TextEditingController(text: widget.goal.text);
+    _descriptionController = TextEditingController(text: widget.goal.description ?? '');
     _selectedEmoji = widget.goal.emoji;
     _selectedStartDate = widget.goal.startDate;
     _selectedEndDate = widget.goal.endDate;
@@ -421,6 +489,7 @@ class _EditGoalModalState extends State<_EditGoalModal> {
   @override
   void dispose() {
     _goalController.dispose();
+    _descriptionController.dispose();
     super.dispose();
   }
 
@@ -440,7 +509,7 @@ class _EditGoalModalState extends State<_EditGoalModal> {
               Navigator.of(context).pop();
             },
             child: Container(
-              decoration: BoxDecoration(color: _selectedEmoji == emoji ? AppColors.electricBlue.withOpacity(0.2) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: _selectedEmoji == emoji ? Provider.of<ThemeProvider>(context).selectedColor.withOpacity(0.2) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
               child: Center(child: Text(emoji, style: const TextStyle(fontSize: 24))),
             ),
           );
@@ -495,6 +564,7 @@ class _EditGoalModalState extends State<_EditGoalModal> {
 
     final updatedGoal = widget.goal.copyWith(
       text: _goalController.text.trim(),
+      description: _descriptionController.text.trim(),
       emoji: _selectedEmoji,
       startDate: _isHabit ? null : _selectedStartDate,
       endDate: _isHabit ? null : _selectedEndDate,
@@ -526,17 +596,64 @@ class _EditGoalModalState extends State<_EditGoalModal> {
             ],
           ),
           const SizedBox(height: 10),
-          TextField(controller: _goalController, decoration: const InputDecoration(labelText: 'Goal Title', border: OutlineInputBorder(), hintText: 'e.g., Drink 8 glasses of water daily'), maxLines: 2),
+          TextField(
+            controller: _goalController,
+            decoration: const InputDecoration(
+              labelText: 'Goal Title',
+              border: OutlineInputBorder(),
+              hintText: 'e.g., Drink 8 glasses of water daily'
+            ),
+            maxLines: 2,
+          ),
           const SizedBox(height: 10),
-          Row(children: [const Text('Emoji:', style: TextStyle(fontSize: 16)), const SizedBox(width: 10), InkWell(onTap: _showEmojiSelector, child: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(8)), child: Text(_selectedEmoji ?? 'Select', style: const TextStyle(fontSize: 20))))]),
+          TextField(
+            controller: _descriptionController,
+            decoration: const InputDecoration(
+              labelText: 'Description (Optional)',
+              border: OutlineInputBorder(),
+              hintText: 'Add details about your goal'
+            ),
+            maxLines: 3,
+          ),
           const SizedBox(height: 10),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Habit Mode', style: TextStyle(fontSize: 16)), Switch(value: _isHabit, onChanged: (value) => setState(() {
-            _isHabit = value;
-            if (value) {
-              _selectedStartDate = null;
-              _selectedEndDate = null;
-            }
-          }), activeColor: AppColors.electricBlue)]),
+          Row(
+            children: [
+              const Text('Emoji:', style: TextStyle(fontSize: 16)),
+              const SizedBox(width: 10),
+              InkWell(
+                onTap: _showEmojiSelector,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _selectedEmoji ?? 'Select',
+                    style: const TextStyle(fontSize: 20)
+                  )
+                )
+              )
+            ]
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Habit Mode', style: TextStyle(fontSize: 16)),
+              Switch(
+                value: _isHabit,
+                onChanged: (value) => setState(() {
+                  _isHabit = value;
+                  if (value) {
+                    _selectedStartDate = null;
+                    _selectedEndDate = null;
+                  }
+                }),
+                activeColor: Provider.of<ThemeProvider>(context).selectedColor
+              )
+            ]
+          ),
           if (!_isHabit) ...[
             const SizedBox(height: 10),
             _DatePicker(label: 'Start Date', selectedDate: _selectedStartDate, onSelectDate: () => _selectDate()),
@@ -544,13 +661,28 @@ class _EditGoalModalState extends State<_EditGoalModal> {
             _DatePicker(label: 'End Date', selectedDate: _selectedEndDate, onSelectDate: () => _selectDate(isStart: false)),
           ],
           const SizedBox(height: 20),
-          SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _updateGoal, style: ElevatedButton.styleFrom(backgroundColor: AppColors.electricBlue, padding: const EdgeInsets.all(16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), child: const Text('Update Goal', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)))),
-          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _updateGoal,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Provider.of<ThemeProvider>(context).selectedColor,
+                padding: const EdgeInsets.all(16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+              ),
+              child: const Text(
+                'Update Goal',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)
+              )
+            )
+          ),
+          const SizedBox(height: 60),
         ],
       ),
     );
   }
 }
+
 
 class _DatePicker extends StatelessWidget {
   final String label;

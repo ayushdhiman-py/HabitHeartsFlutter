@@ -79,7 +79,7 @@ class _SwipeableGoalItemState extends State<SwipeableGoalItem> with SingleTicker
                   ),
                   SlidableAction(
                     onPressed: (_) => widget.onDelete(widget.goal),
-                    backgroundColor: AppColors.brightRed,
+                    backgroundColor: AppColors.coralRed,
                     foregroundColor: Colors.white,
                     icon: Icons.delete,
                     label: 'Delete',
@@ -96,7 +96,7 @@ class _SwipeableGoalItemState extends State<SwipeableGoalItem> with SingleTicker
                       contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                       leading: Icon(
                         widget.goal.completed ? Icons.check_box : Icons.check_box_outline_blank,
-                        color: widget.goal.completed ? AppColors.electricGreen : AppColors.secondaryTextColor,
+                        color: widget.goal.completed ? AppColors.vibrantGreen : AppColors.secondaryTextColor,
                         size: 24,
                       ),
                       title: Text(

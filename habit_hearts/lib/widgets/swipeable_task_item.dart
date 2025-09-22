@@ -117,7 +117,7 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
                 leading: Icon(
                   widget.task.completed ? Icons.check_box : Icons.check_box_outline_blank,
                   color: widget.task.completed 
-                      ? AppColors.electricGreen 
+                      ? AppColors.vibrantGreen 
                       : (Theme.of(context).brightness == Brightness.dark 
                           ? AppColors.darkSecondaryTextColor 
                           : AppColors.secondaryTextColor),
@@ -205,7 +205,7 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
                         icon: Icon(
                           Icons.delete_outlined,
                           size: 18, // Reduced from 20 to 18
-                          color: AppColors.brightRed,
+                          color: AppColors.coralRed,
                         ),
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),

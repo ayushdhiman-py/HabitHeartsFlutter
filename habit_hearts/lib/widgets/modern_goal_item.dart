@@ -100,7 +100,7 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                               // Checkbox
                               Icon(
                                 widget.goal.completed ? Icons.check_box : Icons.check_box_outline_blank,
-                                color: widget.goal.completed ? AppColors.electricGreen : AppColors.secondaryTextColor,
+                                color: widget.goal.completed ? AppColors.vibrantGreen : AppColors.secondaryTextColor,
                                 size: 24,
                               ),
                               const SizedBox(width: 12),
@@ -178,7 +178,7 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                       icon: Icon(
                                         Icons.delete_outlined,
                                         size: 20,
-                                        color: AppColors.brightRed,
+                                        color: AppColors.coralRed,
                                       ),
                                       padding: EdgeInsets.zero,
                                       constraints: const BoxConstraints(),
@@ -195,7 +195,7 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                               // Checkbox
                               Icon(
                                 widget.goal.completed ? Icons.check_box : Icons.check_box_outline_blank,
-                                color: widget.goal.completed ? AppColors.electricGreen : AppColors.secondaryTextColor,
+                                color: widget.goal.completed ? AppColors.vibrantGreen : AppColors.secondaryTextColor,
                                 size: 24,
                               ),
                               const SizedBox(width: 12),
@@ -272,7 +272,7 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                       icon: Icon(
                                         Icons.delete_outlined,
                                         size: 20,
-                                        color: AppColors.brightRed,
+                                        color: AppColors.coralRed,
                                       ),
                                       padding: EdgeInsets.zero,
                                       constraints: const BoxConstraints(),

@@ -1,6 +1,7 @@
 class Goal {
   final String id;
   final String text;
+  final String? description;
   final bool completed;
   final String createdBy;
   final String creatorName;
@@ -15,6 +16,7 @@ class Goal {
   Goal({
     required this.id,
     required this.text,
+    this.description,
     required this.completed,
     required this.createdBy,
     required this.creatorName,
@@ -31,6 +33,7 @@ class Goal {
     return {
       'id': id,
       'text': text,
+      'description': description,
       'completed': completed,
       'createdBy': createdBy,
       'creatorName': creatorName,
@@ -49,6 +52,7 @@ class Goal {
     return Goal(
       id: json['id'],
       text: json['text'],
+      description: json['description'],
       completed: json['completed'],
       createdBy: json['createdBy'],
       creatorName: json['creatorName'],
@@ -65,6 +69,7 @@ class Goal {
   Goal copyWith({
     String? id,
     String? text,
+    String? description,
     bool? completed,
     String? createdBy,
     String? creatorName,
@@ -79,6 +84,7 @@ class Goal {
     return Goal(
       id: id ?? this.id,
       text: text ?? this.text,
+      description: description ?? this.description,
       completed: completed ?? this.completed,
       createdBy: createdBy ?? this.createdBy,
       creatorName: creatorName ?? this.creatorName,
