@@ -51,14 +51,35 @@ class GoalsProvider with ChangeNotifier {
     Future.microtask(() => notifyListeners());
 
     try {
-      final userId = _authProvider!.user!.uid;
-      
-      // Load goals from API (now includes goals from linked users)
-      final goals = await ApiService.getGoals(userId);
-      _goals = goals;
+      final user = _authProvider!.user;
+      if (user == null) return;
+
+      final List<Goal> allGoals = [];
+
+      // Get the current user's goals (all of them)
+      try {
+        final myGoals = await ApiService.getGoals(user.uid);
+        allGoals.addAll(myGoals);
+      } catch (e) {
+        print('Error loading goals for user ${user.uid}: $e');
+      }
+
+      // Get linked users' shared goals
+      final habitHeartsUser = _authProvider?.habitHeartsUser;
+      if (habitHeartsUser != null) {
+        for (String linkedId in habitHeartsUser.linkedUsers) {
+          try {
+            final linkedUserGoals = await ApiService.getGoals(linkedId);
+            allGoals.addAll(linkedUserGoals.where((goal) => goal.isShared));
+          } catch (e) {
+            print('Error loading goals for user $linkedId: $e');
+          }
+        }
+      }
+      _goals = allGoals;
 
       // Load user's goal progress data
-      final userData = await ApiService.getUserGoalProgress(userId);
+      final userData = await ApiService.getUserGoalProgress(user.uid);
       if (userData != null && userData.goalProgress != null) {
         _userGoalProgress.clear();
         _currentStreaks.clear();

@@ -12,6 +12,7 @@ class Goal {
   final DateTime? startDate;
   final DateTime? endDate;
   final bool isHabit; // New field to distinguish habits from goals
+  final bool isShared; // New field for sharing
 
   Goal({
     required this.id,
@@ -27,6 +28,7 @@ class Goal {
     this.startDate,
     this.endDate,
     this.isHabit = false, // By default, it's a goal
+    this.isShared = false, // By default, it's not shared
   });
 
   Map<String, dynamic> toJson() {
@@ -44,6 +46,7 @@ class Goal {
       'startDate': startDate?.millisecondsSinceEpoch,
       'endDate': endDate?.millisecondsSinceEpoch,
       'isHabit': isHabit,
+      'isShared': isShared,
     };
   }
 
@@ -63,6 +66,7 @@ class Goal {
       startDate: json['startDate'] != null ? DateTime.fromMillisecondsSinceEpoch(json['startDate']) : null,
       endDate: json['endDate'] != null ? DateTime.fromMillisecondsSinceEpoch(json['endDate']) : null,
       isHabit: json['isHabit'] ?? false,
+      isShared: json['isShared'] ?? false,
     );
   }
 
@@ -80,6 +84,7 @@ class Goal {
     DateTime? startDate,
     DateTime? endDate,
     bool? isHabit,
+    bool? isShared,
   }) {
     return Goal(
       id: id ?? this.id,
@@ -95,6 +100,7 @@ class Goal {
       startDate: startDate ?? this.startDate,
       endDate: endDate ?? this.endDate,
       isHabit: isHabit ?? this.isHabit,
+      isShared: isShared ?? this.isShared,
     );
   }
 }

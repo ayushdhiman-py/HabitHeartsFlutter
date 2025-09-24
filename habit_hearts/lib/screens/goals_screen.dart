@@ -256,6 +256,7 @@ class _AddGoalModalState extends State<_AddGoalModal> {
   DateTime? _selectedStartDate = DateTime.now();
   DateTime? _selectedEndDate;
   bool _isHabit = false;
+  bool _isShared = false;
 
   @override
   void dispose() {
@@ -343,6 +344,7 @@ class _AddGoalModalState extends State<_AddGoalModal> {
       'startDate': _isHabit ? null : _selectedStartDate,
       'endDate': _isHabit ? null : _selectedEndDate,
       'isHabit': _isHabit,
+      'isShared': _isShared,
       'createdBy': authProvider.user?.uid ?? 'unknown',
       'creatorName': authProvider.user?.displayName ?? 'Unknown',
     };
@@ -359,100 +361,132 @@ class _AddGoalModalState extends State<_AddGoalModal> {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 16, right: 16, top: 16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Add New Goal', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-              IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).pop()),
-            ],
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _goalController,
-            decoration: const InputDecoration(
-              labelText: 'Goal Title',
-              border: OutlineInputBorder(),
-              hintText: 'e.g., Drink 8 glasses of water daily'
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Add New Goal', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).pop()),
+              ],
             ),
-            maxLines: 2,
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _descriptionController,
-            decoration: const InputDecoration(
-              labelText: 'Description (Optional)',
-              border: OutlineInputBorder(),
-              hintText: 'Add details about your goal'
-            ),
-            maxLines: 3,
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              const Text('Emoji:', style: TextStyle(fontSize: 16)),
-              const SizedBox(width: 10),
-              InkWell(
-                onTap: _showEmojiSelector,
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey),
-                    borderRadius: BorderRadius.circular(8),
+            const SizedBox(height: 10),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _goalController,
+                    decoration: const InputDecoration(
+                      labelText: 'Goal Title',
+                      border: OutlineInputBorder(),
+                      hintText: 'Enter your goal',
+                    ),
+                    maxLines: 2,
                   ),
-                  child: Text(
-                    _selectedEmoji ?? 'Select',
-                    style: const TextStyle(fontSize: 20)
-                  )
+                ),
+                const SizedBox(width: 10),
+                InkWell(
+                  onTap: _showEmojiSelector,
+                  child: Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Center(
+                      child: Text(
+                        _selectedEmoji ?? '😀',
+                        style: const TextStyle(fontSize: 24),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _descriptionController,
+              decoration: const InputDecoration(
+                labelText: 'Description',
+                border: OutlineInputBorder(),
+                hintText: 'Add details about your goal',
+              ),
+              maxLines: 2,
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  flex: 1,
+                  child: Row(
+                    children: [
+                      Switch(
+                        value: _isHabit,
+                        onChanged: (value) => setState(() {
+                          _isHabit = value;
+                          if (value) {
+                            _selectedStartDate = null;
+                            _selectedEndDate = null;
+                          }
+                        }),
+                        activeColor: Provider.of<ThemeProvider>(context).selectedColor
+                      ),
+                      const Text('Habit Mode', style: TextStyle(fontSize: 16)),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  flex: 1,
+                  child: Row(
+                    children: [
+                      Switch(
+                        value: _isShared,
+                        onChanged: (value) => setState(() => _isShared = value),
+                        activeColor: Provider.of<ThemeProvider>(context).selectedColor
+                      ),
+                      const Text('Share', style: TextStyle(fontSize: 16)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (!_isHabit) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _DatePicker(label: 'Start', selectedDate: _selectedStartDate, onSelectDate: () => _selectDate())),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _DatePicker(label: 'End', selectedDate: _selectedEndDate, onSelectDate: () => _selectDate(isStart: false)),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _addGoal,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Provider.of<ThemeProvider>(context).selectedColor,
+                  padding: const EdgeInsets.all(16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                ),
+                child: const Text(
+                  'Add Goal',
+                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)
                 )
               )
-            ]
-          ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Habit Mode', style: TextStyle(fontSize: 16)),
-              Switch(
-                value: _isHabit,
-                onChanged: (value) => setState(() {
-                  _isHabit = value;
-                  if (value) {
-                    _selectedStartDate = null;
-                    _selectedEndDate = null;
-                  }
-                }),
-                activeColor: Provider.of<ThemeProvider>(context).selectedColor
-              )
-            ]
-          ),
-          if (!_isHabit) ...[
-            const SizedBox(height: 10),
-            _DatePicker(label: 'Start Date', selectedDate: _selectedStartDate, onSelectDate: () => _selectDate()),
-            const SizedBox(height: 10),
-            _DatePicker(label: 'End Date', selectedDate: _selectedEndDate, onSelectDate: () => _selectDate(isStart: false)),
+            ),
+            const SizedBox(height: 60),
           ],
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _addGoal,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Provider.of<ThemeProvider>(context).selectedColor,
-                padding: const EdgeInsets.all(16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
-              ),
-              child: const Text(
-                'Add Goal',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)
-              )
-            )
-          ),
-          const SizedBox(height: 60),
-        ],
+        ),
       ),
     );
   }
@@ -468,12 +502,13 @@ class _EditGoalModal extends StatefulWidget {
 }
 
 class _EditGoalModalState extends State<_EditGoalModal> {
-  late TextEditingController _goalController;
-  late TextEditingController _descriptionController;
+  late final TextEditingController _goalController;
+  late final TextEditingController _descriptionController;
   String? _selectedEmoji;
-  DateTime? _selectedStartDate;
+  DateTime? _selectedStartDate = DateTime.now();
   DateTime? _selectedEndDate;
   bool _isHabit = false;
+  bool _isShared = false;
 
   @override
   void initState() {
@@ -484,6 +519,7 @@ class _EditGoalModalState extends State<_EditGoalModal> {
     _selectedStartDate = widget.goal.startDate;
     _selectedEndDate = widget.goal.endDate;
     _isHabit = widget.goal.isHabit;
+    _isShared = widget.goal.isShared;
   }
 
   @override
@@ -569,6 +605,7 @@ class _EditGoalModalState extends State<_EditGoalModal> {
       startDate: _isHabit ? null : _selectedStartDate,
       endDate: _isHabit ? null : _selectedEndDate,
       isHabit: _isHabit,
+      isShared: _isShared,
       updatedAt: DateTime.now(),
     );
 
@@ -584,100 +621,131 @@ class _EditGoalModalState extends State<_EditGoalModal> {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 16, right: 16, top: 16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Edit Goal', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-              IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).pop()),
-            ],
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _goalController,
-            decoration: const InputDecoration(
-              labelText: 'Goal Title',
-              border: OutlineInputBorder(),
-              hintText: 'e.g., Drink 8 glasses of water daily'
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Edit Goal', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).pop()),
+              ],
             ),
-            maxLines: 2,
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _descriptionController,
-            decoration: const InputDecoration(
-              labelText: 'Description (Optional)',
-              border: OutlineInputBorder(),
-              hintText: 'Add details about your goal'
-            ),
-            maxLines: 3,
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              const Text('Emoji:', style: TextStyle(fontSize: 16)),
-              const SizedBox(width: 10),
-              InkWell(
-                onTap: _showEmojiSelector,
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey),
-                    borderRadius: BorderRadius.circular(8),
+            const SizedBox(height: 10),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _goalController,
+                    decoration: const InputDecoration(
+                      labelText: 'Goal Title',
+                      border: OutlineInputBorder(),
+                      hintText: 'Enter your goal',
+                    ),
+                    maxLines: 2,
                   ),
-                  child: Text(
-                    _selectedEmoji ?? 'Select',
-                    style: const TextStyle(fontSize: 20)
-                  )
+                ),
+                const SizedBox(width: 10),
+                InkWell(
+                  onTap: _showEmojiSelector,
+                  child: Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Center(
+                      child: Text(
+                        _selectedEmoji ?? '😀',
+                        style: const TextStyle(fontSize: 24),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _descriptionController,
+              decoration: const InputDecoration(
+                labelText: 'Description',
+                border: OutlineInputBorder(),
+                hintText: 'Add details about your goal',
+              ),
+              maxLines: 2,
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  flex: 1,
+                  child: Row(
+                    children: [
+                      Switch(
+                        value: _isHabit,
+                        onChanged: (value) => setState(() {
+                          _isHabit = value;
+                          if (value) {
+                            _selectedStartDate = null;
+                            _selectedEndDate = null;
+                          }
+                        }),
+                        activeColor: Provider.of<ThemeProvider>(context).selectedColor
+                      ),
+                      const Text('Habit Mode', style: TextStyle(fontSize: 16)),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  flex: 1,
+                  child: Row(
+                    children: [
+                      Switch(
+                        value: _isShared,
+                        onChanged: (value) => setState(() => _isShared = value),
+                        activeColor: Provider.of<ThemeProvider>(context).selectedColor
+                      ),
+                      const Text('Share', style: TextStyle(fontSize: 16)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (!_isHabit) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _DatePicker(label: 'Start', selectedDate: _selectedStartDate, onSelectDate: () => _selectDate())),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _DatePicker(label: 'End', selectedDate: _selectedEndDate, onSelectDate: () => _selectDate(isStart: false))),
+                ],
+              ),
+            ],
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _updateGoal,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Provider.of<ThemeProvider>(context).selectedColor,
+                  padding: const EdgeInsets.all(16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                ),
+                child: const Text(
+                  'Update Goal',
+                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)
                 )
               )
-            ]
-          ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Habit Mode', style: TextStyle(fontSize: 16)),
-              Switch(
-                value: _isHabit,
-                onChanged: (value) => setState(() {
-                  _isHabit = value;
-                  if (value) {
-                    _selectedStartDate = null;
-                    _selectedEndDate = null;
-                  }
-                }),
-                activeColor: Provider.of<ThemeProvider>(context).selectedColor
-              )
-            ]
-          ),
-          if (!_isHabit) ...[
-            const SizedBox(height: 10),
-            _DatePicker(label: 'Start Date', selectedDate: _selectedStartDate, onSelectDate: () => _selectDate()),
-            const SizedBox(height: 10),
-            _DatePicker(label: 'End Date', selectedDate: _selectedEndDate, onSelectDate: () => _selectDate(isStart: false)),
+            ),
+            const SizedBox(height: 60),
           ],
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _updateGoal,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Provider.of<ThemeProvider>(context).selectedColor,
-                padding: const EdgeInsets.all(16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
-              ),
-              child: const Text(
-                'Update Goal',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)
-              )
-            )
-          ),
-          const SizedBox(height: 60),
-        ],
+        ),
       ),
     );
   }

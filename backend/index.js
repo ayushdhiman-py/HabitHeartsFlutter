@@ -737,7 +737,7 @@ app.post('/api/goals', async (req, res) => {
 
 app.put('/api/goals/:id', async (req, res) => {
   try {
-    const { text, status, emoji, startDate, endDate, isHabit, completed } = req.body;
+    const { text, status, emoji, startDate, endDate, isHabit, completed, isShared } = req.body;
     const updateData = { updatedAt: admin.firestore.Timestamp.fromMillis(Date.now()) }; // Always update updatedAt
 
     if (text !== undefined) updateData.text = text;
@@ -747,6 +747,7 @@ app.put('/api/goals/:id', async (req, res) => {
     if (endDate !== undefined) updateData.endDate = admin.firestore.Timestamp.fromMillis(endDate);
     if (isHabit !== undefined) updateData.isHabit = isHabit;
     if (completed !== undefined) updateData.completed = completed;
+    if (isShared !== undefined) updateData.isShared = isShared;
 
     await db.collection('goals').doc(req.params.id).update(updateData);
 

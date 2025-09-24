@@ -117,17 +117,39 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      widget.goal.text,
-                                      style: TextStyle(
-                                        decoration: widget.goal.completed ? TextDecoration.lineThrough : null,
-                                        color: widget.goal.completed 
-                                            ? (Theme.of(context).brightness == Brightness.dark ? AppColors.darkSecondaryTextColor : AppColors.secondaryTextColor) 
-                                            : (Theme.of(context).brightness == Brightness.dark ? AppColors.darkTextColor : AppColors.textColor),
-                                        fontWeight: widget.goal.completed ? FontWeight.normal : FontWeight.w600,
-                                        fontSize: 16,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
+                                    Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            widget.goal.text,
+                                            style: TextStyle(
+                                              decoration: widget.goal.completed ? TextDecoration.lineThrough : null,
+                                              color: widget.goal.completed
+                                                  ? (Theme.of(context).brightness == Brightness.dark ? AppColors.darkSecondaryTextColor : AppColors.secondaryTextColor)
+                                                  : (Theme.of(context).brightness == Brightness.dark ? AppColors.darkTextColor : AppColors.textColor),
+                                              fontWeight: widget.goal.completed ? FontWeight.normal : FontWeight.w600,
+                                              fontSize: 16,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        if (widget.goal.isShared) ...[
+                                          const SizedBox(width: 8),
+                                          Container(
+                                            width: 24,
+                                            height: 24,
+                                            decoration: BoxDecoration(
+                                              color: Theme.of(context).primaryColor.withOpacity(0.2),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: Icon(
+                                              Icons.group,
+                                              size: 14,
+                                              color: Theme.of(context).primaryColor,
+                                            ),
+                                          )
+                                        ],
+                                      ],
                                     ),
                                     Visibility(
                                       visible: widget.goal.creatorName.isNotEmpty && widget.goal.creatorName != 'You',
@@ -211,17 +233,39 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      widget.goal.text,
-                                      style: TextStyle(
-                                        decoration: widget.goal.completed ? TextDecoration.lineThrough : null,
-                                        color: widget.goal.completed 
-                                            ? (Theme.of(context).brightness == Brightness.dark ? AppColors.darkSecondaryTextColor : AppColors.secondaryTextColor) 
-                                            : (Theme.of(context).brightness == Brightness.dark ? AppColors.darkTextColor : AppColors.textColor),
-                                        fontWeight: widget.goal.completed ? FontWeight.normal : FontWeight.w600,
-                                        fontSize: 16,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
+                                    Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            widget.goal.text,
+                                            style: TextStyle(
+                                              decoration: widget.goal.completed ? TextDecoration.lineThrough : null,
+                                              color: widget.goal.completed
+                                                  ? (Theme.of(context).brightness == Brightness.dark ? AppColors.darkSecondaryTextColor : AppColors.secondaryTextColor)
+                                                  : (Theme.of(context).brightness == Brightness.dark ? AppColors.darkTextColor : AppColors.textColor),
+                                              fontWeight: widget.goal.completed ? FontWeight.normal : FontWeight.w600,
+                                              fontSize: 16,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        if (widget.goal.isShared) ...[
+                                          const SizedBox(width: 8),
+                                          Container(
+                                            width: 24,
+                                            height: 24,
+                                            decoration: BoxDecoration(
+                                              color: Theme.of(context).primaryColor.withOpacity(0.2),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: Icon(
+                                              Icons.group,
+                                              size: 14,
+                                              color: Theme.of(context).primaryColor,
+                                            ),
+                                          )
+                                        ],
+                                      ],
                                     ),
                                     Visibility(
                                       visible: widget.goal.creatorName.isNotEmpty && widget.goal.creatorName != 'You',
