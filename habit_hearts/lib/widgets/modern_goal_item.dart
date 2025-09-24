@@ -7,7 +7,6 @@ import 'gradient_progress_bar.dart';
 
 class ModernGoalItem extends StatefulWidget {
   final Goal goal;
-  final double progress;
   final Function(Goal) onEdit;
   final Function(Goal) onDelete;
   final Function(String) onToggle;
@@ -15,7 +14,6 @@ class ModernGoalItem extends StatefulWidget {
   const ModernGoalItem({
     super.key,
     required this.goal,
-    required this.progress,
     required this.onEdit,
     required this.onDelete,
     required this.onToggle,
@@ -329,37 +327,165 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                           ),
                   ),
                 ),
-                // Progress section for non-habit goals
+                // Progress section for goals with date range
                 if (!widget.goal.isHabit && widget.goal.startDate != null && widget.goal.endDate != null) ...[
                   Consumer<GoalsProvider>(
                     builder: (context, goalsProvider, child) {
-                      final progressDetails = goalsProvider.calculateProgressAndMissedPercentage(widget.goal);
-                      final completedPercentage = progressDetails['completedPercentage']!;
-                      final missedPercentage = progressDetails['missedPercentage']!;
+                      final progressMap = goalsProvider.calculateProgressAndMissedPercentage(widget.goal);
+                      final double completedPercentage = progressMap['completedPercentage'] ?? 0.0;
+                      final double missedPercentage = progressMap['missedPercentage'] ?? 0.0;
 
                       return Container(
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Progress bar
                             GradientProgressBar(
-                              completedPercentage: completedPercentage / 100,
-                              missedPercentage: missedPercentage / 100,
+                              completedPercentage: completedPercentage / 100.0,
+                              missedPercentage: missedPercentage / 100.0,
                               height: 8,
                             ),
                             const SizedBox(height: 8),
-                            Text(
-                              '${completedPercentage.toStringAsFixed(0)}% completed, ${missedPercentage.toStringAsFixed(0)}% missed',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.secondaryTextColor,
-                                fontWeight: FontWeight.w500,
-                              ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Progress: ${completedPercentage.toStringAsFixed(1)}%',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.secondaryTextColor,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                Text(
+                                  'Missed: ${missedPercentage.toStringAsFixed(1)}%',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.secondaryTextColor,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
                       );
+                    },
+                  ),
+                ],
+                // Streak display for habits
+                if (widget.goal.isHabit) ...[
+                  Consumer<GoalsProvider>(
+                    builder: (context, goalsProvider, child) {
+                      if (widget.goal.isHabit) {
+                        // For habits, show streak-based progress
+                        final currentStreak = goalsProvider.getCurrentStreak(widget.goal.id);
+                        // Represent the streak as a percentage with a reasonable max (e.g., 100 days)
+                        final double maxStreak = 100.0; // Adjustable max for visualization
+                        final double streakPercentage = (currentStreak / maxStreak).clamp(0.0, 1.0);
+
+                        return Container(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              GradientProgressBar(
+                                completedPercentage: streakPercentage,
+                                missedPercentage: 0.0, // Missed percentage is not directly applicable to current streak visualization
+                                height: 8,
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Current Streak: $currentStreak days',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.secondaryTextColor,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Longest Streak: ${goalsProvider.getLongestStreak(widget.goal.id)} days',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.secondaryTextColor,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      } else {
+                        // For goals, show completion-based progress
+                        final double goalProgress = goalsProvider.calculateGoalProgress(widget.goal.id);
+                        
+                        // Calculate missed percentage based on days that have passed without completion
+                        final DateTime today = DateTime.now();
+                        final DateTime startDate = widget.goal.startDate!;
+                        final DateTime endDate = widget.goal.endDate!;
+                        final int totalDays = endDate.difference(startDate).inDays + 1;
+                        
+                        // Calculate days that have passed (up to end date or today)
+                        final int daysPassed = today.isBefore(startDate) 
+                            ? 0 
+                            : (today.isAfter(endDate) 
+                                ? totalDays 
+                                : today.difference(startDate).inDays + 1).clamp(0, totalDays);
+                        
+                        // Count actual completed days in the period that has passed
+                        int actualCompletedDays = 0;
+                        for (int i = 0; i < daysPassed; i++) {
+                          final currentDate = startDate.add(Duration(days: i));
+                          if (goalsProvider.isGoalCompletedForDate(widget.goal.id, currentDate)) {
+                            actualCompletedDays++;
+                          }
+                        }
+                        
+                        // Calculate missed days (days that passed without completion)
+                        final int missedDays = daysPassed - actualCompletedDays;
+                        final double missedPercentage = totalDays > 0 ? (missedDays / totalDays).clamp(0.0, 1.0) : 0.0;
+                        final double completedPercentage = (goalProgress / 100).clamp(0.0, 1.0);
+
+                        return Container(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              GradientProgressBar(
+                                completedPercentage: completedPercentage,
+                                missedPercentage: missedPercentage,
+                                height: 8,
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Progress: ${goalProgress.toStringAsFixed(1)}%',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.secondaryTextColor,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Due: ${widget.goal.endDate!.day}/${widget.goal.endDate!.month}',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.secondaryTextColor,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      }
                     },
                   ),
                 ],

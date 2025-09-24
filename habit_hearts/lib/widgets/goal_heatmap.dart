@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:habit_hearts/models/goal.dart';
 import 'package:intl/intl.dart';
 
-class GoalHeatmap extends StatelessWidget {
+class GoalHeatmap extends StatefulWidget {
   final Goal goal;
   final Map<String, Map<String, String>> userGoalProgress;
   final Function(String, bool) onDayToggle;
@@ -18,14 +18,27 @@ class GoalHeatmap extends StatelessWidget {
     required this.baseColor,
   });
 
+  @override
+  State<GoalHeatmap> createState() => _GoalHeatmapState();
+}
+
+class _GoalHeatmapState extends State<GoalHeatmap> {
+  late DateTime _currentMonth;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentMonth = DateTime.now();
+  }
+
   bool _isDayCompleted(DateTime day) {
     final yearMonth = '${day.year}-${day.month.toString().padLeft(2, '0')}';
     final dayOfMonth = day.day;
 
-    if (!userGoalProgress.containsKey(goal.id)) return false;
-    if (!userGoalProgress[goal.id]!.containsKey(yearMonth)) return false;
+    if (!widget.userGoalProgress.containsKey(widget.goal.id)) return false;
+    if (!widget.userGoalProgress[widget.goal.id]!.containsKey(yearMonth)) return false;
 
-    final bitString = userGoalProgress[goal.id]![yearMonth]!;
+    final bitString = widget.userGoalProgress[widget.goal.id]![yearMonth]!;
     if (dayOfMonth < 1 || dayOfMonth > bitString.length) return false;
 
     final index = dayOfMonth - 1;
@@ -55,7 +68,15 @@ class GoalHeatmap extends StatelessWidget {
   }
 
   Widget _buildCalendarGrid() {
-    final days = _getCalendarDays(DateTime.now());
+    // Get the days within the goal's date range if available
+    List<DateTime> days;
+    if (goal.startDate != null && goal.endDate != null) {
+      days = _getGoalRangeDays(goal.startDate!, goal.endDate!);
+    } else {
+      // Fallback to default calendar view if no date range is set
+      days = _getCalendarDays(DateTime.now());
+    }
+    
     final darkerShade = HSLColor.fromColor(baseColor).withLightness(0.7).toColor();
     final darkestShade = HSLColor.fromColor(baseColor).withLightness(0.4).toColor();
 
@@ -71,12 +92,18 @@ class GoalHeatmap extends StatelessWidget {
       itemBuilder: (context, index) {
         final day = days[index];
         final isCompleted = _isDayCompleted(day);
-        final isCurrentMonth = day.month == DateTime.now().month;
+        
+        // Check if the day falls within the goal's date range
+        bool isWithinGoalRange = true;
+        if (goal.startDate != null && goal.endDate != null) {
+          isWithinGoalRange = day.isAfter(goal.startDate!.subtract(const Duration(days: 1))) && 
+                              day.isBefore(goal.endDate!.add(const Duration(days: 1)));
+        }
 
         Color cellColor;
         if (isCompleted) {
           cellColor = darkestShade;
-        } else if (isCurrentMonth) {
+        } else if (isWithinGoalRange) {
           cellColor = darkerShade;
         } else {
           cellColor = Colors.grey[300]!;
@@ -102,6 +129,38 @@ class GoalHeatmap extends StatelessWidget {
         );
       },
     );
+  }
+
+  List<DateTime> _getGoalRangeDays(DateTime startDate, DateTime endDate) {
+    List<DateTime> days = [];
+    
+    // We'll create a grid that fits the date range, but with a 7-day width
+    // Calculate the total number of days in the range
+    int totalDays = endDate.difference(startDate).inDays + 1;
+    
+    // Create a list of all the dates in the range
+    for (int i = 0; i < totalDays; i++) {
+      days.add(startDate.add(Duration(days: i)));
+    }
+    
+    // If needed, we can add padding days to make it look like a calendar grid
+    // We'll calculate leading days (before the start date) to align to weekday
+    int startDayOfWeek = startDate.weekday % 7; // Sunday = 0, Monday = 1, etc.
+    if (startDayOfWeek == 0) startDayOfWeek = 7; // Sunday should be 7 in our calculation
+    
+    // Add leading empty days for alignment
+    List<DateTime> paddedDays = [];
+    for (int i = 0; i < startDayOfWeek - 1; i++) { // -1 because Monday is weekday 1
+      paddedDays.add(DateTime(1900, 1, 1)); // Use a placeholder date for empty cells
+    }
+    paddedDays.addAll(days);
+    
+    // Pad to make it a multiple of 7 for grid display, if needed
+    while (paddedDays.length % 7 != 0) {
+      paddedDays.add(DateTime(1900, 1, 1)); // Use a placeholder date for empty cells
+    }
+    
+    return paddedDays;
   }
 
   List<DateTime> _getCalendarDays(DateTime month) {

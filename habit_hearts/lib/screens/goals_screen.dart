@@ -43,8 +43,6 @@ class _GoalsScreenState extends State<GoalsScreen> {
               final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
               final userId = authProvider.user?.uid ?? 'unknown';
               final goal = goalsProvider.goals.firstWhere((g) => g.id == goalId);
-              // Immediately update the UI for instant feedback
-              goalsProvider.immediatelyToggleGoalProgress(goalId, !goal.completed);
               // Then update the backend
               goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, !goal.completed, updateGoalStatus: true);
             },
@@ -152,7 +150,6 @@ class _GoalsList extends StatelessWidget {
           ModernGoalItem(
             key: ValueKey(goal.id),
             goal: goal,
-            progress: goalsProvider.calculateGoalProgress(goal.id),
             onEdit: (g) => _showEditGoalModal(context, g),
             onDelete: (g) => _showDeleteConfirmationDialog(context, g),
             onToggle: onToggleCompletion,
@@ -187,14 +184,14 @@ class _GoalsList extends StatelessWidget {
       for (int i = 0; i < nonHabits.length; i++) {
         final goal = nonHabits[i];
         items.add(
-          ModernGoalItem(
-            key: ValueKey(goal.id),
-            goal: goal,
-            progress: goalsProvider.calculateGoalProgress(goal.id),
-            onEdit: (g) => _showEditGoalModal(context, g),
-            onDelete: (g) => _showDeleteConfirmationDialog(context, g),
-            onToggle: onToggleCompletion,
-          ),
+            ModernGoalItem(
+              key: ValueKey(goal.id),
+              goal: goal,
+              onEdit: (g) => _showEditGoalModal(context, g),
+              onDelete: (g) => _showDeleteConfirmationDialog(context, g),
+              onToggle: onToggleCompletion,
+            ),
+
         );
         
         // Add separator except after the last goal
@@ -323,6 +320,62 @@ class _AddGoalModalState extends State<_AddGoalModal> {
     }
   }
 
+  // Show toast above modal using Overlay
+  void _showToast(String message) {
+    if (context.mounted) {
+      OverlayState? overlayState = Overlay.of(context);
+      OverlayEntry? overlayEntry;
+
+      overlayEntry = OverlayEntry(
+        builder: (context) => Positioned(
+          top: 100.0,
+          left: 50.0,
+          right: 50.0,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.all(16.0),
+              decoration: BoxDecoration(
+                color: Colors.orange,
+                borderRadius: BorderRadius.circular(8.0),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 4.0,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      message,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      overlayState?.insert(overlayEntry);
+
+      // Remove the toast after 3 seconds
+      Future.delayed(Duration(seconds: 3), () {
+        if (overlayEntry.mounted) {
+          overlayEntry.remove();
+        }
+      });
+    }
+  }
+
   void _addGoal() async {
     if (_goalController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a goal')));
@@ -331,6 +384,12 @@ class _AddGoalModalState extends State<_AddGoalModal> {
 
     if (!_isHabit && _selectedEndDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select an end date.')));
+      return;
+    }
+
+    // Check if it's a goal (not habit) and no start or end date is provided
+    if (!_isHabit && (_selectedStartDate == null || _selectedEndDate == null)) {
+      _showToast('Goals require start and end dates');
       return;
     }
 
@@ -523,6 +582,20 @@ class _EditGoalModalState extends State<_EditGoalModal> {
     _isShared = widget.goal.isShared;
   }
 
+  // Helper method to find the parent scaffold context
+  BuildContext? _findScaffoldContext(BuildContext context) {
+    BuildContext? scaffoldContext;
+    // Navigate up the widget tree to find a Scaffold
+    context.visitAncestorElements((element) {
+      if (element.widget is Scaffold) {
+        scaffoldContext = element;
+        return false; // Stop visiting ancestors
+      }
+      return true;
+    });
+    return scaffoldContext;
+  }
+
   @override
   void dispose() {
     _goalController.dispose();
@@ -596,6 +669,12 @@ class _EditGoalModalState extends State<_EditGoalModal> {
 
     if (!_isHabit && _selectedEndDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select an end date.')));
+      return;
+    }
+
+    // Check if it's a goal (not habit) and no start or end date is provided
+    if (!_isHabit && (_selectedStartDate == null || _selectedEndDate == null)) {
+      _showToast('Goals require start and end dates');
       return;
     }
 

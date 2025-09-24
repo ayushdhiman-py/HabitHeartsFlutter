@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import '../models/user.dart' as habit_hearts_user;
 import '../models/task.dart';
@@ -6,12 +7,36 @@ import '../models/goal.dart';
 import '../models/calendar_event.dart';
 
 class ApiService {
-    static const String baseUrl = 'http://10.103.28.41:3000';
+  static const String baseUrl = 'http://10.103.28.41:3000';
   static const String usersEndpoint = '/api/users';
   static const String tasksEndpoint = '/api/tasks';
   static const String goalsEndpoint = '/api/goals';
   static const String calendarEventsEndpoint = '/api/calendarEvents';
   static const String goalProgressEndpoint = '/api/goalProgress';
+
+  // Helper method to get the current Firebase token
+  static Future<String?> _getIdToken() async {
+    try {
+      User? user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        return await user.getIdToken();
+      }
+      return null;
+    } catch (e) {
+      print('Error getting ID token: $e');
+      return null;
+    }
+  }
+
+  // Helper method to create headers with authorization
+  static Future<Map<String, String>> _getHeaders() async {
+    String? token = await _getIdToken();
+    Map<String, String> headers = {'Content-Type': 'application/json'};
+    if (token != null) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+    return headers;
+  }
 
   // Simple in-memory cache
   static final Map<String, dynamic> _cache = {};
@@ -63,51 +88,69 @@ class ApiService {
     }
 
     try {
-      final response = await http.get(Uri.parse('$baseUrl$usersEndpoint/$uid'));
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl$usersEndpoint/$uid'),
+        headers: headers,
+      );
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
         final user = habit_hearts_user.User.fromJson(jsonData);
         _setCachedData(cacheKey, user);
         return user;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Unauthorized - token might be invalid/expired
+        print('Authentication error: ${response.statusCode} - ${response.body}');
       }
       return null;
     } catch (e) {
+      print('Error getting user: $e');
       return null;
     }
   }
 
   static Future<bool> createUser(habit_hearts_user.User user) async {
     try {
+      final headers = await _getHeaders();
       final response = await http.post(
         Uri.parse('$baseUrl$usersEndpoint'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: json.encode(user.toJson()),
       );
       if (response.statusCode == 201) {
         // Clear cache when creating new user
         _clearCache('user_${user.uid}');
         return true;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Unauthorized - token might be invalid/expired
+        print('Authentication error: ${response.statusCode} - ${response.body}');
       }
       return false;
     } catch (e) {
+      print('Error creating user: $e');
       return false;
     }
   }
 
   static Future<bool> updateUser(habit_hearts_user.User user) async {
     try {
+      final headers = await _getHeaders();
       final response = await http.put(
         Uri.parse('$baseUrl$usersEndpoint/${user.uid}'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: json.encode(user.toJson()),
       );
       if (response.statusCode == 200) {
         // Clear cache when updating user
         _clearCache('user_${user.uid}');
         return true;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Unauthorized - token might be invalid/expired
+        print('Authentication error: ${response.statusCode} - ${response.body}');
       }
       return false;
     } catch (e) {
+      print('Error updating user: $e');
       return false;
     }
   }
@@ -122,25 +165,34 @@ class ApiService {
     }
 
     try {
-      final response = await http.get(Uri.parse('$baseUrl$tasksEndpoint/$userId/$dateString'));
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl$tasksEndpoint/$userId/$dateString'),
+        headers: headers,
+      );
       
       if (response.statusCode == 200) {
         final List<dynamic> jsonData = json.decode(response.body);
         final tasks = jsonData.map((item) => Task.fromJson(item)).toList();
         _setCachedData(cacheKey, tasks);
         return tasks;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Unauthorized - token might be invalid/expired
+        print('Authentication error: ${response.statusCode} - ${response.body}');
       }
       return [];
     } catch (e) {
+      print('Error getting tasks: $e');
       return [];
     }
   }
 
   static Future<Task?> createTask(Task task) async {
     try {
+      final headers = await _getHeaders();
       final response = await http.post(
         Uri.parse('$baseUrl$tasksEndpoint'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: json.encode(task.toJson()),
       );
       
@@ -156,19 +208,24 @@ class ApiService {
         }
         
         return createdTask;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Unauthorized - token might be invalid/expired
+        print('Authentication error: ${response.statusCode} - ${response.body}');
       }
       return null;
     } catch (e) {
+      print('Error creating task: $e');
       return null;
     }
   }
 
   static Future<Task?> updateTask(Task task) async {
     try {
+      final headers = await _getHeaders();
       final requestBody = json.encode(task.toJson());
       final response = await http.put(
         Uri.parse('$baseUrl$tasksEndpoint/${task.id}'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: requestBody,
       );
       
@@ -183,25 +240,37 @@ class ApiService {
         }
         
         return updatedTask;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Unauthorized - token might be invalid/expired
+        print('Authentication error: ${response.statusCode} - ${response.body}');
       }
       return null;
     } catch (e) {
+      print('Error updating task: $e');
       return null;
     }
   }
 
   static Future<bool> deleteTask(String taskId) async {
     try {
-      final response = await http.delete(Uri.parse('$baseUrl$tasksEndpoint/$taskId'));
+      final headers = await _getHeaders();
+      final response = await http.delete(
+        Uri.parse('$baseUrl$tasksEndpoint/$taskId'),
+        headers: headers,
+      );
       
       if (response.statusCode == 200) {
         // Clear all task caches (since we don't know which date this task was on)
         _cache.removeWhere((key, value) => key.startsWith('tasks_'));
         _cacheTimestamps.removeWhere((key, value) => key.startsWith('tasks_'));
         return true;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Unauthorized - token might be invalid/expired
+        print('Authentication error: ${response.statusCode} - ${response.body}');
       }
       return false;
     } catch (e) {
+      print('Error deleting task: $e');
       return false;
     }
   }
@@ -215,26 +284,35 @@ class ApiService {
     }
 
     try {
-      final response = await http.get(Uri.parse('$baseUrl$goalsEndpoint/$userId'));
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl$goalsEndpoint/$userId'),
+        headers: headers,
+      );
       
       if (response.statusCode == 200) {
         final List<dynamic> jsonData = json.decode(response.body);
         final goals = jsonData.map((item) => Goal.fromJson(item)).toList();
         _setCachedData(cacheKey, goals);
         return goals;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Unauthorized - token might be invalid/expired
+        print('Authentication error: ${response.statusCode} - ${response.body}');
       }
       return [];
     } catch (e) {
+      print('Error getting goals: $e');
       return [];
     }
   }
 
   static Future<Goal?> createGoal(Goal goal) async {
     try {
+      final headers = await _getHeaders();
       final requestBody = json.encode(goal.toJson());
       final response = await http.post(
         Uri.parse('$baseUrl$goalsEndpoint'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: requestBody,
       );
       if (response.statusCode == 201) {
@@ -244,19 +322,24 @@ class ApiService {
         _clearCache('goals_${goal.createdBy}');
         
         return createdGoal;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Unauthorized - token might be invalid/expired
+        print('Authentication error: ${response.statusCode} - ${response.body}');
       }
       return null;
     } catch (e) {
+      print('Error creating goal: $e');
       return null;
     }
   }
 
   static Future<Goal?> updateGoal(Goal goal) async {
     try {
+      final headers = await _getHeaders();
       final requestBody = json.encode(goal.toJson());
       final response = await http.put(
         Uri.parse('$baseUrl$goalsEndpoint/${goal.id}'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: requestBody,
       );
       if (response.statusCode == 200) {
@@ -266,24 +349,36 @@ class ApiService {
         _clearCache('goals_${goal.createdBy}');
         
         return updatedGoal;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Unauthorized - token might be invalid/expired
+        print('Authentication error: ${response.statusCode} - ${response.body}');
       }
       return null;
     } catch (e) {
+      print('Error updating goal: $e');
       return null;
     }
   }
 
   static Future<bool> deleteGoal(String goalId) async {
     try {
-      final response = await http.delete(Uri.parse('$baseUrl$goalsEndpoint/$goalId'));
+      final headers = await _getHeaders();
+      final response = await http.delete(
+        Uri.parse('$baseUrl$goalsEndpoint/$goalId'),
+        headers: headers,
+      );
       if (response.statusCode == 200) {
         // Clear goals cache
         _cache.removeWhere((key, value) => key.startsWith('goals_'));
         _cacheTimestamps.removeWhere((key, value) => key.startsWith('goals_'));
         return true;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Unauthorized - token might be invalid/expired
+        print('Authentication error: ${response.statusCode} - ${response.body}');
       }
       return false;
     } catch (e) {
+      print('Error deleting goal: $e');
       return false;
     }
   }
@@ -322,8 +417,10 @@ class ApiService {
     }
     
     try {
+      final headers = await _getHeaders();
       final response = await http.get(
-        Uri.parse('$baseUrl$calendarEventsEndpoint/$userId?startDate=$startString&endDate=$endString')
+        Uri.parse('$baseUrl$calendarEventsEndpoint/$userId?startDate=$startString&endDate=$endString'),
+        headers: headers,
       );
       
       if (response.statusCode == 200) {
@@ -331,18 +428,23 @@ class ApiService {
         final events = jsonData.map((item) => CalendarEvent.fromJson(item)).toList();
         _setCachedData(cacheKey, events);
         return events;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Unauthorized - token might be invalid/expired
+        print('Authentication error: ${response.statusCode} - ${response.body}');
       }
       return [];
     } catch (e) {
+      print('Error getting calendar events: $e');
       return [];
     }
   }
 
   static Future<CalendarEvent?> createCalendarEvent(CalendarEvent event) async {
     try {
+      final headers = await _getHeaders();
       final response = await http.post(
         Uri.parse('$baseUrl$calendarEventsEndpoint'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: json.encode(event.toJson()),
       );
       if (response.statusCode == 201) {
@@ -353,18 +455,23 @@ class ApiService {
         _cacheTimestamps.removeWhere((key, value) => key.startsWith('calendar_${event.createdBy}'));
         
         return createdEvent;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Unauthorized - token might be invalid/expired
+        print('Authentication error: ${response.statusCode} - ${response.body}');
       }
       return null;
     } catch (e) {
+      print('Error creating calendar event: $e');
       return null;
     }
   }
 
   static Future<bool> updateCalendarEvent(CalendarEvent event) async {
     try {
+      final headers = await _getHeaders();
       final response = await http.put(
         Uri.parse('$baseUrl$calendarEventsEndpoint/${event.id}'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: json.encode(event.toJson()),
       );
       if (response.statusCode == 200) {
@@ -372,24 +479,36 @@ class ApiService {
         _cache.removeWhere((key, value) => key.startsWith('calendar_${event.createdBy}'));
         _cacheTimestamps.removeWhere((key, value) => key.startsWith('calendar_${event.createdBy}'));
         return true;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Unauthorized - token might be invalid/expired
+        print('Authentication error: ${response.statusCode} - ${response.body}');
       }
       return false;
     } catch (e) {
+      print('Error updating calendar event: $e');
       return false;
     }
   }
 
   static Future<bool> deleteCalendarEvent(String eventId) async {
     try {
-      final response = await http.delete(Uri.parse('$baseUrl$calendarEventsEndpoint/$eventId'));
+      final headers = await _getHeaders();
+      final response = await http.delete(
+        Uri.parse('$baseUrl$calendarEventsEndpoint/$eventId'),
+        headers: headers,
+      );
       if (response.statusCode == 200) {
         // Clear calendar cache
         _cache.removeWhere((key, value) => key.startsWith('calendar_'));
         _cacheTimestamps.removeWhere((key, value) => key.startsWith('calendar_'));
         return true;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Unauthorized - token might be invalid/expired
+        print('Authentication error: ${response.statusCode} - ${response.body}');
       }
       return false;
     } catch (e) {
+      print('Error deleting calendar event: $e');
       return false;
     }
   }
@@ -397,14 +516,20 @@ class ApiService {
   // Removed old goalProgress endpoints - now using bit-based approach in user documents
   
   // New endpoint for toggling goal progress using bit-based approach
-  static Future<Map<String, dynamic>?> toggleGoalProgressForUser(String userId, String goalId, bool completed) async {
+  static Future<Map<String, dynamic>?> toggleGoalProgressForUser(String userId, String goalId, bool completed, {DateTime? date}) async {
     try {
+      final headers = await _getHeaders();
+      final Map<String, dynamic> requestBody = {
+        'completed': completed,
+      };
+      if (date != null) {
+        requestBody['date'] = date.toIso8601String();
+      }
+
       final response = await http.post(
         Uri.parse('$baseUrl/api/user/$userId/goal/$goalId/toggle'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'completed': completed,
-        }),
+        headers: headers,
+        body: json.encode(requestBody),
       );
       
       if (response.statusCode == 200) {
@@ -416,9 +541,13 @@ class ApiService {
         _clearCache('goals_$userId');
         
         return result;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Unauthorized - token might be invalid/expired
+        print('Authentication error: ${response.statusCode} - ${response.body}');
       }
       return null;
     } catch (e) {
+      print('Error toggling goal progress: $e');
       return null;
     }
   }
@@ -431,9 +560,10 @@ class ApiService {
   // Get multiple users by their IDs
   static Future<Map<String, habit_hearts_user.User>> getBatchUsers(List<String> userIds) async {
     try {
+      final headers = await _getHeaders();
       final response = await http.post(
         Uri.parse('$baseUrl$usersEndpoint/batch'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: json.encode({'userIds': userIds}),
       );
       
@@ -446,9 +576,13 @@ class ApiService {
         });
         
         return users;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Unauthorized - token might be invalid/expired
+        print('Authentication error: ${response.statusCode} - ${response.body}');
       }
       return {};
     } catch (e) {
+      print('Error getting batch users: $e');
       return {};
     }
   }
@@ -456,9 +590,10 @@ class ApiService {
   // Link users
   static Future<bool> linkUsers(String userId, String partnerCode) async {
     try {
+      final headers = await _getHeaders();
       final response = await http.post(
         Uri.parse('$baseUrl/api/users/link'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: json.encode({
           'userId': userId,
           'partnerCode': partnerCode,
@@ -467,9 +602,13 @@ class ApiService {
       if (response.statusCode == 200) {
         _clearCache('user_$userId');
         return true;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Unauthorized - token might be invalid/expired
+        print('Authentication error: ${response.statusCode} - ${response.body}');
       }
       return false;
     } catch (e) {
+      print('Error linking users: $e');
       return false;
     }
   }
@@ -477,9 +616,10 @@ class ApiService {
   // Unlink users
   static Future<bool> unlinkUsers(String userId, String partnerId) async {
     try {
+      final headers = await _getHeaders();
       final response = await http.post(
         Uri.parse('$baseUrl/api/users/unlink'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: json.encode({
           'userId': userId,
           'partnerId': partnerId,
@@ -489,9 +629,13 @@ class ApiService {
         _clearCache('user_$userId');
         _clearCache('user_$partnerId');
         return true;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Unauthorized - token might be invalid/expired
+        print('Authentication error: ${response.statusCode} - ${response.body}');
       }
       return false;
     } catch (e) {
+      print('Error unlinking users: $e');
       return false;
     }
   }

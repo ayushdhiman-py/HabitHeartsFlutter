@@ -144,8 +144,43 @@ class _SwipeableGoalItemState extends State<SwipeableGoalItem> with SingleTicker
                         ),
                       ),
                     ),
-                    // Progress bar - only show for non-habit goals
-                    if (!widget.goal.isHabit)
+                    // Progress display for goals vs streak display for habits
+                    if (widget.goal.isHabit || widget.goal.startDate == null || widget.goal.endDate == null)
+                      // For habits or goals without date range, progress parameter represents streak count
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Simple streak visualization
+                            Container(
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: AppColors.lightCardBackground,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Container(
+                                width: widget.progress > 0 ? (widget.progress / 30.0) * 100 : 0,
+                                decoration: BoxDecoration(
+                                  color: AppColors.vibrantGreen,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Streak: ${widget.progress.toStringAsFixed(0)} days',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: AppColors.secondaryTextColor,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      // For goals with date range, progress parameter represents percentage
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                         child: Column(

@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import 'package:provider/provider.dart';
 import '../providers/habit_hearts_auth_provider.dart';
 import '../models/user.dart' as habit_hearts_user;
+import '../models/goal_progress_summary.dart';
 
 // Extension to add firstWhereOrNull method to List
 extension FirstWhereOrNull<E> on List<E> {
@@ -118,6 +119,7 @@ class GoalsProvider with ChangeNotifier {
         isHabit: goalData['isHabit'],
       );
 
+      // This will trigger validation in the createGoal method
       final newGoal = await ApiService.createGoal(goal);
       if (newGoal != null) {
         _goals.add(newGoal);
@@ -125,7 +127,7 @@ class GoalsProvider with ChangeNotifier {
       }
     } catch (e) {
       print('Error adding goal: $e');
-      // Optionally show an error message to the user
+      rethrow; // Rethrow to let the UI handle it
     }
   }
 
@@ -142,7 +144,6 @@ class GoalsProvider with ChangeNotifier {
       }
     } catch (e) {
       print('Error updating goal: $e');
-      // Optionally show an error message to the user
     }
   }
 
@@ -186,18 +187,9 @@ class GoalsProvider with ChangeNotifier {
         if (result['longestStreak'] != null) {
           _longestStreaks[goalId] = result['longestStreak'];
         }
-
-        // Instead of reloading all goals, just update the specific goal's progress
-        // This is much more efficient than reloading everything
-        final userData = await ApiService.getUserGoalProgress(userId);
-        if (userData != null && userData.goalProgress != null) {
-          final progressData = userData.goalProgress[goalId];
-          if (progressData != null) {
-            _userGoalProgress[goalId] = Map<String, String>.from(progressData.monthlyData);
-          }
+        if (result['monthlyData'] != null) {
+          _userGoalProgress[goalId] = Map<String, String>.from(result['monthlyData']);
         }
-
-
 
         notifyListeners();
         return true;
@@ -210,32 +202,87 @@ class GoalsProvider with ChangeNotifier {
     }
   }
 
-  // Optimistically toggle goal progress for a specific day (used by "Done Today" button)
-  Future<void> markDayAsComplete(String userId, String goalId, bool completed) async {
-    // Make a copy of the current progress data for optimistic update
+  // Calculate current streak locally based on the provided progress data
+  int _calculateCurrentStreakLocal(String goalId, Map<String, Map<String, String>> progressData) {
+    final goal = _goals.firstWhereOrNull((g) => g.id == goalId);
+    if (goal == null || !goal.isHabit) return 0; // Only habits have streaks
+
+    int streak = 0;
+    DateTime currentDate = DateTime.now();
+
+    // Iterate backwards from today to find consecutive completed days
+    while (true) {
+      final yearMonth = '${currentDate.year}-${currentDate.month.toString().padLeft(2, '0')}';
+      final day = currentDate.day;
+
+      if (progressData.containsKey(goalId) &&
+          progressData[goalId]!.containsKey(yearMonth)) {
+        final bitString = progressData[goalId]![yearMonth]!;
+        if (day >= 1 && day <= bitString.length) {
+          final index = day - 1;
+          if (bitString[index] == '1') {
+            streak++;
+            currentDate = currentDate.subtract(const Duration(days: 1));
+          } else {
+            break; // Streak broken
+          }
+        } else {
+          break; // Day out of bounds for bit string
+        }
+      } else {
+        break; // No progress data for this month
+      }
+    }
+    return streak;
+  }
+
+  // Optimistically toggle goal progress for a specific day (used by UI components)
+  Future<void> toggleHeatmapDayCompletion(String goalId, DateTime date, bool completed) async {
+    final userId = _authProvider?.user?.uid;
+    if (userId == null) return;
+
+    // Store original progress for rollback
     final originalProgress = Map<String, Map<String, String>>.from(_userGoalProgress);
 
+    // Optimistically update local state and UI
+    _optimisticallyUpdateHeatmapLocal(userId, goalId, date, completed);
+
     try {
-      final success = await toggleGoalProgressForUser(userId, goalId, completed);
-      if (!success) {
-        // Revert on failure
+      // Call API to update progress for the specific day
+      final result = await ApiService.toggleGoalProgressForUser(userId, goalId, completed, date: date);
+
+      if (result == null) {
+        // If API call fails, revert local state
         _userGoalProgress = originalProgress;
         notifyListeners();
+        print('Failed to update heatmap day, reverted UI.');
+      } else {
+        // Update streaks from API response
+        if (result['currentStreak'] != null) {
+          _currentStreaks[goalId] = result['currentStreak'];
+        }
+        if (result['longestStreak'] != null) {
+          _longestStreaks[goalId] = result['longestStreak'];
+        }
+        // The monthlyData should already be updated by _optimisticallyUpdateHeatmapLocal
+        // but we can re-sync if the API returns a more accurate monthlyData
+        if (result['monthlyData'] != null) {
+          _userGoalProgress[goalId] = Map<String, String>.from(result['monthlyData']);
+        }
+        notifyListeners();
       }
-      // If successful, the backend will have updated our progress data
-      // and we'll get the updated data through the normal data loading mechanism
     } catch (e) {
-      // Revert on error
+      // If API call throws an error, revert local state
       _userGoalProgress = originalProgress;
       notifyListeners();
+      print('Error updating heatmap day, reverted UI: $e');
     }
   }
 
-  // Immediately update the UI for a specific day (used by "Done Today" button for instant feedback)
-  void immediatelyToggleGoalProgress(String goalId, bool completed) {
-    final DateTime today = DateTime.now();
-    final yearMonth = '${today.year}-${today.month.toString().padLeft(2, '0')}';
-    final day = today.day;
+  // Optimistically update the UI for a specific day (used by heatmap for instant feedback)
+  void _optimisticallyUpdateHeatmapLocal(String userId, String goalId, DateTime date, bool completed) {
+    final yearMonth = '${date.year}-${date.month.toString().padLeft(2, '0')}';
+    final day = date.day;
 
     // Create a copy of the progress data to modify
     final updatedProgress = Map<String, Map<String, String>>.from(_userGoalProgress);
@@ -295,6 +342,9 @@ class GoalsProvider with ChangeNotifier {
             }
             notifyListeners();
             print('Failed to update goal status, reverted UI.');
+          } else {
+            // If goal status update is successful, also update goal progress for heatmap
+            await toggleGoalProgressForUser(userId, goalId, completed);
           }
         } catch (e) {
           // If API call throws an error, revert the UI
@@ -334,12 +384,36 @@ class GoalsProvider with ChangeNotifier {
 
   // Get current streak for a goal
   int getCurrentStreak(String goalId) {
-    return _currentStreaks[goalId] ?? 0;
+    if (!_userGoalProgress.containsKey(goalId)) {
+      return _currentStreaks[goalId] ?? 0;
+    }
+    
+    // Use the new method from the model which calculates in real-time
+    final progressSummary = GoalProgressSummary(
+      monthlyData: _userGoalProgress[goalId] ?? {},
+      currentStreak: _currentStreaks[goalId] ?? 0,
+      longestStreak: _longestStreaks[goalId] ?? 0,
+      lastUpdated: DateTime.now(),
+    );
+    
+    return progressSummary.getCurrentStreak();
   }
 
   // Get longest streak for a goal
   int getLongestStreak(String goalId) {
-    return _longestStreaks[goalId] ?? 0;
+    if (!_userGoalProgress.containsKey(goalId)) {
+      return _longestStreaks[goalId] ?? 0;
+    }
+    
+    // Use the new method from the model which calculates in real-time
+    final progressSummary = GoalProgressSummary(
+      monthlyData: _userGoalProgress[goalId] ?? {},
+      currentStreak: _currentStreaks[goalId] ?? 0,
+      longestStreak: _longestStreaks[goalId] ?? 0,
+      lastUpdated: DateTime.now(),
+    );
+    
+    return progressSummary.getLongestStreak();
   }
 
   // Calculate progress percentage for a goal based on actual completion data
@@ -352,22 +426,32 @@ class GoalsProvider with ChangeNotifier {
 
     final startDate = goal.startDate!;
     final endDate = goal.endDate!;
+    final today = DateTime.now();
 
     // Calculate total days in the goal period
     int totalDays = endDate.difference(startDate).inDays + 1;
     if (totalDays <= 0) return 0.0;
 
-    // Count completed days
+    // Calculate days that have passed in the goal period (up to today)
+    DateTime periodEnd = today.isBefore(endDate) ? today : endDate;
+    if (periodEnd.isBefore(startDate)) {
+      return 0.0;
+    }
+    
+    int daysInPeriod = periodEnd.difference(startDate).inDays + 1;
+
+    // Count completed days in the period that has passed
     int completedDays = 0;
-    for (int i = 0; i < totalDays; i++) {
+    for (int i = 0; i < daysInPeriod; i++) {
       final currentDate = startDate.add(Duration(days: i));
       if (isGoalCompletedForDate(goalId, currentDate)) {
         completedDays++;
       }
     }
 
-    // Calculate percentage
-    return (completedDays / totalDays) * 100;
+    // Calculate percentage based on days completed vs days that have passed
+    // This makes more sense as it shows actual progress vs planned progress
+    return (completedDays / daysInPeriod) * 100;
   }
 
   // Calculate current streak for a goal

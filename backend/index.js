@@ -1,9 +1,34 @@
 const express = require('express');
 const { OAuth2Client } = require('google-auth-library');
 const admin = require('firebase-admin');
+const rateLimit = require('express-rate-limit');
+const { DateTime } = require('luxon'); // For timezone handling
 require('dotenv').config();
 
+// Enhanced logging function
+function logger(level, message, metadata = {}) {
+  const timestamp = new Date().toISOString();
+  const logEntry = {
+    timestamp,
+    level,
+    message,
+    ...metadata
+  };
+  console.log(JSON.stringify(logEntry));
+}
+
 const app = express();
+
+// Rate limiting middleware
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.'
+});
+
+// Apply rate limiting to all requests
+app.use(limiter);
+
 app.use(express.json());
 
 // Initialize Firebase Admin SDK
@@ -19,6 +44,42 @@ const db = admin.firestore();
 
 // OAuth2 client for Google authentication
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+// Authentication middleware
+async function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+  if (!token) {
+    return res.status(401).json({ message: 'Access token required' });
+  }
+
+  try {
+    // Verify the token using Firebase Admin SDK
+    const decodedToken = await admin.auth().verifyIdToken(token);
+    req.user = decodedToken;
+    next();
+  } catch (error) {
+    console.error('Token verification error:', error);
+    return res.status(403).json({ message: 'Invalid or expired token' });
+  }
+}
+
+// Authorization middleware to check if user can access resource
+function authorizeUser(req, res, next) {
+  const requestedUserId = req.params.uid || req.body.userId || req.params.userId;
+  const currentUserId = req.user.uid;
+
+  if (requestedUserId && requestedUserId !== currentUserId) {
+    // Check if user is trying to access their linked users' data
+    if (req.path.includes('/api/tasks/') || req.path.includes('/api/goals/') || req.path.includes('/api/calendarEvents/')) {
+      // These endpoints fetch data for linked users, so we'll handle authorization separately
+      return next();
+    }
+    return res.status(403).json({ message: 'Unauthorized access to resource' });
+  }
+  next();
+}
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -39,14 +100,30 @@ app.post('/auth/google', async (req, res) => {
     console.log('User authenticated:', { name, email });
     res.status(200).json({ user: { name, email, picture } });
   } catch (error) {
-    console.error('Google auth error', error);
+    logger('ERROR', 'Google auth error', { error: error.message, stack: error.stack });
     res.status(401).json({ message: 'Invalid Google token' });
   }
 });
 
 // User endpoints
-app.get('/api/users/:uid', async (req, res) => {
+app.get('/api/users/:uid', authenticateToken, async (req, res) => {
   try {
+    // Check if the requested user is the same as the authenticated user or linked
+    if (req.params.uid !== req.user.uid) {
+      // Check if user is linked
+      const currentUserDoc = await db.collection('users').doc(req.user.uid).get();
+      if (!currentUserDoc.exists) {
+        return res.status(404).json({ message: 'Current user not found' });
+      }
+      
+      const currentUserData = currentUserDoc.data();
+      const linkedUsers = currentUserData.linkedUsers || [];
+      
+      if (!linkedUsers.includes(req.params.uid)) {
+        return res.status(403).json({ message: 'Unauthorized to access user data' });
+      }
+    }
+    
     const userDoc = await db.collection('users').doc(req.params.uid).get();
     if (!userDoc.exists) {
       return res.status(404).json({ message: 'User not found' });
@@ -97,7 +174,7 @@ app.get('/api/users/:uid', async (req, res) => {
 });
 
 // Get multiple users by their IDs
-app.post('/api/users/batch', async (req, res) => {
+app.post('/api/users/batch', authenticateToken, async (req, res) => {
   try {
     const { userIds } = req.body;
     
@@ -105,19 +182,36 @@ app.post('/api/users/batch', async (req, res) => {
       return res.status(400).json({ message: 'userIds must be a non-empty array' });
     }
     
-    // Limit to 10 users at a time to prevent abuse
-    if (userIds.length > 10) {
-      return res.status(400).json({ message: 'Cannot fetch more than 10 users at a time' });
+    // Limit to 30 users at a time to improve scalability
+    if (userIds.length > 30) {
+      return res.status(400).json({ message: 'Cannot fetch more than 30 users at a time' });
+    }
+    
+    // Check if user has access to these user IDs by validating they're linked
+    const currentUserDoc = await db.collection('users').doc(req.user.uid).get();
+    if (!currentUserDoc.exists) {
+      return res.status(404).json({ message: 'Current user not found' });
+    }
+    
+    const currentUserData = currentUserDoc.data();
+    const linkedUsers = currentUserData.linkedUsers || [];
+    
+    // Filter userIds to only include linked users or self
+    const allowedUserIds = userIds.filter(uid => uid === req.user.uid || linkedUsers.includes(uid));
+    
+    if (allowedUserIds.length !== userIds.length) {
+      // Return only allowed users or just the current user if no links exist
+      console.warn(`User ${req.user.uid} attempted to access users not linked to them`);
     }
     
     // Fetch all users in parallel
-    const userPromises = userIds.map(uid => db.collection('users').doc(uid).get());
+    const userPromises = allowedUserIds.map(uid => db.collection('users').doc(uid).get());
     const userDocs = await Promise.all(userPromises);
     
     // Process the results
     const users = {};
     userDocs.forEach((doc, index) => {
-      const uid = userIds[index];
+      const uid = allowedUserIds[index];
       if (doc.exists) {
         const data = doc.data();
         // Convert Firestore Timestamps to milliseconds
@@ -162,18 +256,33 @@ app.post('/api/users/batch', async (req, res) => {
   }
 });
 
-app.post('/api/users', async (req, res) => {
+app.post('/api/users', authenticateToken, async (req, res) => {
   try {
     const userData = req.body;
-    // Convert milliseconds to Firestore Timestamps
-    if (userData.createdAt) {
-      userData.createdAt = admin.firestore.Timestamp.fromMillis(userData.createdAt);
-    }
-    if (userData.updatedAt) {
-      userData.updatedAt = admin.firestore.Timestamp.fromMillis(userData.updatedAt);
+    
+    // Validate input
+    if (!userData.uid || userData.uid !== req.user.uid) {
+      return res.status(400).json({ message: 'User ID must match authenticated user' });
     }
     
-    await db.collection('users').doc(userData.uid).set(userData);
+    // Sanitize input
+    const allowedFields = ['uid', 'displayName', 'email', 'photoURL', 'uniqueCode', 'linkedUsers', 'createdAt', 'updatedAt', 'goalProgress'];
+    const sanitizedUserData = {};
+    for (const field of allowedFields) {
+      if (userData[field] !== undefined) {
+        sanitizedUserData[field] = userData[field];
+      }
+    }
+    
+    // Convert milliseconds to Firestore Timestamps
+    if (sanitizedUserData.createdAt) {
+      sanitizedUserData.createdAt = admin.firestore.Timestamp.fromMillis(sanitizedUserData.createdAt);
+    }
+    if (sanitizedUserData.updatedAt) {
+      sanitizedUserData.updatedAt = admin.firestore.Timestamp.fromMillis(sanitizedUserData.updatedAt);
+    }
+    
+    await db.collection('users').doc(sanitizedUserData.uid).set(sanitizedUserData);
     res.status(201).json({ message: 'User created successfully' });
   } catch (error) {
     console.error('Error creating user:', error);
@@ -181,18 +290,33 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
-app.put('/api/users/:uid', async (req, res) => {
+app.put('/api/users/:uid', authenticateToken, async (req, res) => {
   try {
-    const userData = req.body;
-    // Convert milliseconds to Firestore Timestamps
-    if (userData.createdAt) {
-      userData.createdAt = admin.firestore.Timestamp.fromMillis(userData.createdAt);
-    }
-    if (userData.updatedAt) {
-      userData.updatedAt = admin.firestore.Timestamp.fromMillis(userData.updatedAt);
+    // Only allow user to update their own data
+    if (req.params.uid !== req.user.uid) {
+      return res.status(403).json({ message: 'Unauthorized to update this user' });
     }
     
-    await db.collection('users').doc(req.params.uid).update(userData);
+    const userData = req.body;
+    
+    // Sanitize input - don't allow updating uid
+    const allowedFields = ['displayName', 'email', 'photoURL', 'uniqueCode', 'linkedUsers', 'createdAt', 'updatedAt'];
+    const sanitizedUserData = {};
+    for (const field of allowedFields) {
+      if (userData[field] !== undefined) {
+        sanitizedUserData[field] = userData[field];
+      }
+    }
+    
+    // Convert milliseconds to Firestore Timestamps
+    if (sanitizedUserData.createdAt) {
+      sanitizedUserData.createdAt = admin.firestore.Timestamp.fromMillis(sanitizedUserData.createdAt);
+    }
+    if (sanitizedUserData.updatedAt) {
+      sanitizedUserData.updatedAt = admin.firestore.Timestamp.fromMillis(sanitizedUserData.updatedAt);
+    }
+    
+    await db.collection('users').doc(req.params.uid).update(sanitizedUserData);
     res.status(200).json({ message: 'User updated successfully' });
   } catch (error) {
     console.error('Error updating user:', error);
@@ -200,10 +324,82 @@ app.put('/api/users/:uid', async (req, res) => {
   }
 });
 
+// DELETE endpoint for removing a user account
+app.delete('/api/users/:uid', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.params.uid;
+    
+    // Check if the requested user is the same as the authenticated user
+    if (userId !== req.user.uid) {
+      return res.status(403).json({ message: 'Unauthorized to delete this user account' });
+    }
+    
+    // Check if the user exists
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (!userDoc.exists) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Perform cascade deletion:
+    // 1. Find and delete all tasks created by this user
+    const tasksSnapshot = await db.collection('tasks').where('createdBy', '==', userId).get();
+    const taskDeletePromises = [];
+    tasksSnapshot.forEach(doc => {
+      taskDeletePromises.push(db.collection('tasks').doc(doc.id).delete());
+    });
+    
+    // 2. Find and delete all goals created by this user
+    const goalsSnapshot = await db.collection('goals').where('createdBy', '==', userId).get();
+    const goalDeletePromises = [];
+    goalsSnapshot.forEach(doc => {
+      goalDeletePromises.push(db.collection('goals').doc(doc.id).delete());
+    });
+    
+    // 3. Find and delete all calendar events created by this user
+    const eventsSnapshot = await db.collection('calendarEvents').where('createdBy', '==', userId).get();
+    const eventDeletePromises = [];
+    eventsSnapshot.forEach(doc => {
+      eventDeletePromises.push(db.collection('calendarEvents').doc(doc.id).delete());
+    });
+    
+    // 4. Update other users to remove this user from their linkedUsers list
+    const usersSnapshot = await db.collection('users').where('linkedUsers', 'array-contains', userId).get();
+    const unlinkPromises = [];
+    usersSnapshot.forEach(doc => {
+      const otherUserRef = db.collection('users').doc(doc.id);
+      unlinkPromises.push(otherUserRef.update({
+        linkedUsers: admin.firestore.FieldValue.arrayRemove(userId),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      }));
+    });
+    
+    // Execute all deletion promises in parallel
+    await Promise.all([
+      ...taskDeletePromises,
+      ...goalDeletePromises,
+      ...eventDeletePromises,
+      ...unlinkPromises
+    ]);
+    
+    // Finally, delete the user document itself
+    await db.collection('users').doc(userId).delete();
+    
+    res.status(200).json({ message: 'User and all related data deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ message: 'Error deleting user', error: error.message });
+  }
+});
+
 // User linking endpoints
-app.post('/api/users/link', async (req, res) => {
+app.post('/api/users/link', authenticateToken, async (req, res) => {
   try {
     const { userId, partnerCode } = req.body;
+    
+    // Ensure the userId matches the authenticated user
+    if (userId !== req.user.uid) {
+      return res.status(403).json({ message: 'Unauthorized to link with this user ID' });
+    }
     
     // Find the partner user by their unique code
     const partnerSnapshot = await db.collection('users')
@@ -258,9 +454,14 @@ app.post('/api/users/link', async (req, res) => {
   }
 });
 
-app.post('/api/users/unlink', async (req, res) => {
+app.post('/api/users/unlink', authenticateToken, async (req, res) => {
   try {
     const { userId, partnerId } = req.body;
+    
+    // Ensure the userId matches the authenticated user
+    if (userId !== req.user.uid) {
+      return res.status(403).json({ message: 'Unauthorized to unlink with this user ID' });
+    }
     
     // Update both users to unlink them
     await db.collection('users').doc(userId).update({
@@ -281,13 +482,30 @@ app.post('/api/users/unlink', async (req, res) => {
 });
 
 // Task endpoints
-app.get('/api/tasks/:userId/:date', async (req, res) => {
+app.get('/api/tasks/:userId/:date', authenticateToken, async (req, res) => {
   try {
     const { userId, date } = req.params;
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    
+    // Check if the requested user is the same as the authenticated user or linked
+    if (userId !== req.user.uid) {
+      // Check if user is linked
+      const currentUserDoc = await db.collection('users').doc(req.user.uid).get();
+      if (!currentUserDoc.exists) {
+        return res.status(404).json({ message: 'Current user not found' });
+      }
+      
+      const currentUserData = currentUserDoc.data();
+      const linkedUsers = currentUserData.linkedUsers || [];
+      
+      if (!linkedUsers.includes(userId)) {
+        return res.status(403).json({ message: 'Unauthorized to access this user\'s tasks' });
+      }
+    }
+    
+    // Use timezone-aware date handling
+    const taskDate = DateTime.fromISO(date, { zone: 'UTC' });
+    const startOfDay = taskDate.startOf('day').toJSDate();
+    const endOfDay = taskDate.endOf('day').toJSDate();
     
     // First, get the user to check their linked users
     const userDoc = await db.collection('users').doc(userId).get();
@@ -301,10 +519,19 @@ app.get('/api/tasks/:userId/:date', async (req, res) => {
     // Include the current user in the list of users to fetch tasks for
     const allUserIds = [userId, ...linkedUsers];
     
-    // Use a simpler query that doesn't require a composite index
-    const snapshot = await db.collection('tasks')
-      .where('createdBy', 'in', allUserIds)
-      .get();
+    // Use a more scalable approach by fetching documents in batches
+    // instead of using 'in' operator which has a limit of 10 values
+    let tasks = [];
+    const batchSize = 10; // Firestore 'in' operator limit is 10
+    
+    for (let i = 0; i < allUserIds.length; i += batchSize) {
+      const batchUserIds = allUserIds.slice(i, i + batchSize);
+      const snapshot = await db.collection('tasks')
+        .where('createdBy', 'in', batchUserIds)
+        .get();
+      
+      tasks = tasks.concat(snapshot.docs);
+    }
     
     // Fetch user data for all users to get their display names
     const userDocs = await Promise.all(
@@ -321,140 +548,155 @@ app.get('/api/tasks/:userId/:date', async (req, res) => {
     });
     
     // Filter by date on the client side
-      const tasks = snapshot.docs
-        .map(doc => {
-          const data = doc.data();
-          // Convert Firestore Timestamps to milliseconds
-          let createdAt = Date.now();
-          if (data.createdAt) {
-            if (typeof data.createdAt.toMillis === 'function') {
-              createdAt = data.createdAt.toMillis();
-            } else if (typeof data.createdAt === 'number') {
-              createdAt = data.createdAt;
-            } else if (data.createdAt instanceof Date) {
-              createdAt = data.createdAt.getTime();
-            }
+    const filteredTasks = tasks
+      .map(doc => {
+        const data = doc.data();
+        // Convert Firestore Timestamps to milliseconds
+        let createdAt = Date.now();
+        if (data.createdAt) {
+          if (typeof data.createdAt.toMillis === 'function') {
+            createdAt = data.createdAt.toMillis();
+          } else if (typeof data.createdAt === 'number') {
+            createdAt = data.createdAt;
+          } else if (data.createdAt instanceof Date) {
+            createdAt = data.createdAt.getTime();
           }
-          
-          let updatedAt = Date.now();
-          if (data.updatedAt) {
-            if (typeof data.updatedAt.toMillis === 'function') {
-              updatedAt = data.updatedAt.toMillis();
-            } else if (typeof data.updatedAt === 'number') {
-              updatedAt = data.updatedAt;
-            } else if (data.updatedAt instanceof Date) {
-              updatedAt = data.updatedAt.getTime();
-            }
+        }
+        
+        let updatedAt = Date.now();
+        if (data.updatedAt) {
+          if (typeof data.updatedAt.toMillis === 'function') {
+            updatedAt = data.updatedAt.toMillis();
+          } else if (typeof data.updatedAt === 'number') {
+            updatedAt = data.updatedAt;
+          } else if (data.updatedAt instanceof Date) {
+            updatedAt = data.updatedAt.getTime();
           }
-          
-          let dueDate = null;
-          if (data.dueDate) {
-            if (typeof data.dueDate.toMillis === 'function') {
-              dueDate = data.dueDate.toMillis();
-            } else if (typeof data.dueDate === 'number') {
-              dueDate = data.dueDate;
-            } else if (data.dueDate instanceof Date) {
-              dueDate = data.dueDate.getTime();
-            }
+        }
+        
+        let dueDate = null;
+        if (data.dueDate) {
+          if (typeof data.dueDate.toMillis === 'function') {
+            dueDate = data.dueDate.toMillis();
+          } else if (typeof data.dueDate === 'number') {
+            dueDate = data.dueDate;
+          } else if (data.dueDate instanceof Date) {
+            dueDate = data.dueDate.getTime();
           }
-          
-          // Remove the original 'id' field from the data to avoid conflict with the document ID
-          const { id, ...dataWithoutId } = data;
-          
-          // Determine creator name - 'You' for current user, actual name for others
-          const creatorName = data.createdBy === userId 
-            ? 'You' 
-            : (userNames[data.createdBy] || 'Unknown');
-          
-          return {
-            id: doc.id,
-            ...dataWithoutId,
-            creatorName, // Add the creator name
-            createdAt,
-            updatedAt,
-            dueDate
-          };
-        })
-      .filter(task => {
-        if (!task.dueDate) return false;
-        const taskDate = new Date(task.dueDate);
-        return taskDate >= startOfDay && taskDate <= endOfDay;
-      });
+        }
+        
+        // Remove the original 'id' field from the data to avoid conflict with the document ID
+        const { id, ...dataWithoutId } = data;
+        
+        // Determine creator name - 'You' for current user, actual name for others
+        const creatorName = data.createdBy === userId 
+          ? 'You' 
+          : (userNames[data.createdBy] || 'Unknown');
+        
+        return {
+          id: doc.id,
+          ...dataWithoutId,
+          creatorName, // Add the creator name
+          createdAt,
+          updatedAt,
+          dueDate
+        };
+      })
+    .filter(task => {
+      if (!task.dueDate) return false;
+      const taskDate = new Date(task.dueDate);
+      return taskDate >= startOfDay && taskDate <= endOfDay;
+    });
     
-    res.status(200).json(tasks);
+    res.status(200).json(filteredTasks);
   } catch (error) {
     console.error('Error getting tasks:', error);
     res.status(500).json({ message: 'Error getting tasks' });
   }
 });
 
-app.post('/api/tasks', async (req, res) => {
+app.post('/api/tasks', authenticateToken, async (req, res) => {
   try {
     const taskData = req.body;
-    console.log('Creating task with data:', taskData);
+    
+    // Validate input
+    if (!taskData.createdBy || taskData.createdBy !== req.user.uid) {
+      return res.status(400).json({ message: 'Task must be created by authenticated user' });
+    }
+    
+    // Sanitize input
+    const allowedFields = ['text', 'description', 'dueDate', 'completed', 'createdBy', 'creatorName', 'status', 'emoji', 'startTime', 'endTime', 'createdAt', 'updatedAt'];
+    const sanitizedTaskData = {};
+    for (const field of allowedFields) {
+      if (taskData[field] !== undefined) {
+        sanitizedTaskData[field] = taskData[field];
+      }
+    }
+    
+    console.log('Creating task with data:', sanitizedTaskData);
     
     // Convert milliseconds to Firestore Timestamps
-    if (taskData.createdAt) {
-      taskData.createdAt = admin.firestore.Timestamp.fromMillis(taskData.createdAt);
+    if (sanitizedTaskData.createdAt) {
+      sanitizedTaskData.createdAt = admin.firestore.Timestamp.fromMillis(sanitizedTaskData.createdAt);
     }
-    if (taskData.updatedAt) {
-      taskData.updatedAt = admin.firestore.Timestamp.fromMillis(taskData.updatedAt);
+    if (sanitizedTaskData.updatedAt) {
+      sanitizedTaskData.updatedAt = admin.firestore.Timestamp.fromMillis(sanitizedTaskData.updatedAt);
     }
-    if (taskData.dueDate) {
-      taskData.dueDate = admin.firestore.Timestamp.fromMillis(taskData.dueDate);
+    if (sanitizedTaskData.dueDate) {
+      sanitizedTaskData.dueDate = admin.firestore.Timestamp.fromMillis(sanitizedTaskData.dueDate);
     }
     
-    const docRef = await db.collection('tasks').add(taskData);
+    const docRef = await db.collection('tasks').add(sanitizedTaskData);
     console.log('Task created with ID:', docRef.id);
     
     // Safely convert Firestore Timestamps to milliseconds for the response
     let dueDate = null;
-    if (taskData.dueDate) {
-      if (typeof taskData.dueDate.toMillis === 'function') {
-        dueDate = taskData.dueDate.toMillis();
-      } else if (typeof taskData.dueDate === 'number') {
-        dueDate = taskData.dueDate;
-      } else if (taskData.dueDate instanceof Date) {
-        dueDate = taskData.dueDate.getTime();
+    if (sanitizedTaskData.dueDate) {
+      if (typeof sanitizedTaskData.dueDate.toMillis === 'function') {
+        dueDate = sanitizedTaskData.dueDate.toMillis();
+      } else if (typeof sanitizedTaskData.dueDate === 'number') {
+        dueDate = sanitizedTaskData.dueDate;
+      } else if (typeof sanitizedTaskData.dueDate instanceof Date) {
+        dueDate = sanitizedTaskData.dueDate.getTime();
       }
     }
     
     let taskCreatedAt = Date.now();
-    if (taskData.createdAt) {
-      if (typeof taskData.createdAt.toMillis === 'function') {
-        taskCreatedAt = taskData.createdAt.toMillis();
-      } else if (typeof taskData.createdAt === 'number') {
-        taskCreatedAt = taskData.createdAt;
-      } else if (taskData.createdAt instanceof Date) {
-        taskCreatedAt = taskData.createdAt.getTime();
+    if (sanitizedTaskData.createdAt) {
+      if (typeof sanitizedTaskData.createdAt.toMillis === 'function') {
+        taskCreatedAt = sanitizedTaskData.createdAt.toMillis();
+      } else if (typeof sanitizedTaskData.createdAt === 'number') {
+        taskCreatedAt = sanitizedTaskData.createdAt;
+      } else if (sanitizedTaskData.createdAt instanceof Date) {
+        taskCreatedAt = sanitizedTaskData.createdAt.getTime();
       }
     }
     
     let taskUpdatedAt = Date.now();
-    if (taskData.updatedAt) {
-      if (typeof taskData.updatedAt.toMillis === 'function') {
-        taskUpdatedAt = taskData.updatedAt.toMillis();
-      } else if (typeof taskData.updatedAt === 'number') {
-        taskUpdatedAt = taskData.updatedAt;
-      } else if (taskData.updatedAt instanceof Date) {
-        taskUpdatedAt = taskData.updatedAt.getTime();
+    if (sanitizedTaskData.updatedAt) {
+      if (typeof sanitizedTaskData.updatedAt.toMillis === 'function') {
+        taskUpdatedAt = sanitizedTaskData.updatedAt.toMillis();
+      } else if (typeof sanitizedTaskData.updatedAt === 'number') {
+        taskUpdatedAt = sanitizedTaskData.updatedAt;
+      } else if (sanitizedTaskData.updatedAt instanceof Date) {
+        taskUpdatedAt = sanitizedTaskData.updatedAt.getTime();
       }
     }
 
     res.status(201).json({ 
       id: docRef.id, 
-      text: taskData.text,
-      description: taskData.description,
+      text: sanitizedTaskData.text,
+      description: sanitizedTaskData.description,
       dueDate: dueDate,
-      completed: taskData.completed,
-      createdBy: taskData.createdBy,
-      creatorName: taskData.creatorName,
+      completed: sanitizedTaskData.completed,
+      createdBy: sanitizedTaskData.createdBy,
+      creatorName: sanitizedTaskData.creatorName,
       createdAt: taskCreatedAt,
       updatedAt: taskUpdatedAt,
-      status: taskData.status,
-      emoji: taskData.emoji,
-      startTime: taskData.startTime,
-      endTime: taskData.endTime
+      status: sanitizedTaskData.status,
+      emoji: sanitizedTaskData.emoji,
+      startTime: sanitizedTaskData.startTime,
+      endTime: sanitizedTaskData.endTime
     });
   } catch (error) {
     console.error('Error creating task:', error);
@@ -462,31 +704,43 @@ app.post('/api/tasks', async (req, res) => {
   }
 });
 
-app.put('/api/tasks/:id', async (req, res) => {
+app.put('/api/tasks/:id', authenticateToken, async (req, res) => {
   try {
     const taskData = req.body;
     const taskId = req.params.id;
     console.log('Updating task with ID:', taskId, 'data:', taskData);
-    
-    // Create a copy of taskData for Firestore update to avoid modifying the original
-    const firestoreTaskData = { ...taskData };
-    
-    // Convert milliseconds to Firestore Timestamps
-    if (firestoreTaskData.createdAt) {
-      firestoreTaskData.createdAt = admin.firestore.Timestamp.fromMillis(firestoreTaskData.createdAt);
-    }
-    if (firestoreTaskData.updatedAt) {
-      firestoreTaskData.updatedAt = admin.firestore.Timestamp.fromMillis(firestoreTaskData.updatedAt);
-    }
-    if (firestoreTaskData.dueDate) {
-      firestoreTaskData.dueDate = admin.firestore.Timestamp.fromMillis(firestoreTaskData.dueDate);
-    }
     
     // Check if the document exists before updating
     const taskDoc = await db.collection('tasks').doc(taskId).get();
     if (!taskDoc.exists) {
       console.log('Task document not found:', taskId);
       return res.status(404).json({ message: 'Task not found' });
+    }
+    
+    // Check if the task belongs to the authenticated user
+    const task = taskDoc.data();
+    if (task.createdBy !== req.user.uid) {
+      return res.status(403).json({ message: 'Unauthorized to update this task' });
+    }
+    
+    // Sanitize input
+    const allowedFields = ['text', 'description', 'dueDate', 'completed', 'creatorName', 'status', 'emoji', 'startTime', 'endTime', 'updatedAt'];
+    const sanitizedTaskData = {};
+    for (const field of allowedFields) {
+      if (taskData[field] !== undefined) {
+        sanitizedTaskData[field] = taskData[field];
+      }
+    }
+    
+    // Create a copy of taskData for Firestore update to avoid modifying the original
+    const firestoreTaskData = { ...sanitizedTaskData };
+    
+    // Convert milliseconds to Firestore Timestamps
+    if (firestoreTaskData.updatedAt) {
+      firestoreTaskData.updatedAt = admin.firestore.Timestamp.fromMillis(firestoreTaskData.updatedAt);
+    }
+    if (firestoreTaskData.dueDate) {
+      firestoreTaskData.dueDate = admin.firestore.Timestamp.fromMillis(firestoreTaskData.dueDate);
     }
     
     await db.collection('tasks').doc(taskId).update(firestoreTaskData);
@@ -517,7 +771,7 @@ app.put('/api/tasks/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/tasks/:id', async (req, res) => {
+app.delete('/api/tasks/:id', authenticateToken, async (req, res) => {
   try {
     const taskId = req.params.id;
     console.log('Deleting task with ID:', taskId);
@@ -527,6 +781,12 @@ app.delete('/api/tasks/:id', async (req, res) => {
     if (!taskDoc.exists) {
       console.log('Task document not found:', taskId);
       return res.status(404).json({ message: 'Task not found' });
+    }
+    
+    // Check if the task belongs to the authenticated user
+    const task = taskDoc.data();
+    if (task.createdBy !== req.user.uid) {
+      return res.status(403).json({ message: 'Unauthorized to delete this task' });
     }
     
     await db.collection('tasks').doc(taskId).delete();
@@ -539,9 +799,25 @@ app.delete('/api/tasks/:id', async (req, res) => {
 });
 
 // Goal endpoints
-app.get('/api/goals/:userId', async (req, res) => {
+app.get('/api/goals/:userId', authenticateToken, async (req, res) => {
   try {
     const { userId } = req.params;
+    
+    // Check if the requested user is the same as the authenticated user or linked
+    if (userId !== req.user.uid) {
+      // Check if user is linked
+      const currentUserDoc = await db.collection('users').doc(req.user.uid).get();
+      if (!currentUserDoc.exists) {
+        return res.status(404).json({ message: 'Current user not found' });
+      }
+      
+      const currentUserData = currentUserDoc.data();
+      const linkedUsers = currentUserData.linkedUsers || [];
+      
+      if (!linkedUsers.includes(userId)) {
+        return res.status(403).json({ message: 'Unauthorized to access this user\'s goals' });
+      }
+    }
     
     // First, get the user to check their linked users
     const userDoc = await db.collection('users').doc(userId).get();
@@ -555,9 +831,19 @@ app.get('/api/goals/:userId', async (req, res) => {
     // Include the current user in the list of users to fetch goals for
     const allUserIds = [userId, ...linkedUsers];
     
-    const snapshot = await db.collection('goals')
-      .where('createdBy', 'in', allUserIds)
-      .get();
+    // Use a more scalable approach by fetching documents in batches
+    // instead of using 'in' operator which has a limit of 10 values
+    let goals = [];
+    const batchSize = 10; // Firestore 'in' operator limit is 10
+    
+    for (let i = 0; i < allUserIds.length; i += batchSize) {
+      const batchUserIds = allUserIds.slice(i, i + batchSize);
+      const snapshot = await db.collection('goals')
+        .where('createdBy', 'in', batchUserIds)
+        .get();
+      
+      goals = goals.concat(snapshot.docs);
+    }
     
     // Fetch user data for all users to get their display names
     const userDocs = await Promise.all(
@@ -573,7 +859,7 @@ app.get('/api/goals/:userId', async (req, res) => {
       }
     });
     
-    const goals = snapshot.docs.map(doc => {
+    const filteredGoals = goals.map(doc => {
       const data = doc.data();
       // Convert Firestore Timestamps to milliseconds
       let createdAt = Date.now();
@@ -640,89 +926,104 @@ app.get('/api/goals/:userId', async (req, res) => {
       };
     });
     
-    res.status(200).json(goals);
+    res.status(200).json(filteredGoals);
   } catch (error) {
     console.error('Error getting goals:', error);
     res.status(500).json({ message: 'Error getting goals' });
   }
 });
 
-app.post('/api/goals', async (req, res) => {
+app.post('/api/goals', authenticateToken, async (req, res) => {
   try {
     const goalData = req.body;
-    // Convert milliseconds to Firestore Timestamps
-    if (goalData.createdAt) {
-      goalData.createdAt = admin.firestore.Timestamp.fromMillis(goalData.createdAt);
-    }
-    if (goalData.updatedAt) {
-      goalData.updatedAt = admin.firestore.Timestamp.fromMillis(goalData.updatedAt);
-    }
-    if (goalData.startDate) {
-      goalData.startDate = admin.firestore.Timestamp.fromMillis(goalData.startDate);
-    } else {
-      goalData.startDate = null; // Explicitly set to null if not provided
-    }
-    if (goalData.endDate) {
-      goalData.endDate = admin.firestore.Timestamp.fromMillis(goalData.endDate);
-    } else {
-      goalData.endDate = null; // Explicitly set to null if not provided
+    
+    // Validate input
+    if (!goalData.createdBy || goalData.createdBy !== req.user.uid) {
+      return res.status(400).json({ message: 'Goal must be created by authenticated user' });
     }
     
-    const docRef = await db.collection('goals').add(goalData);
+    // Sanitize input
+    const allowedFields = ['text', 'completed', 'createdBy', 'creatorName', 'emoji', 'status', 'isHabit', 'startDate', 'endDate', 'isShared', 'createdAt', 'updatedAt'];
+    const sanitizedGoalData = {};
+    for (const field of allowedFields) {
+      if (goalData[field] !== undefined) {
+        sanitizedGoalData[field] = goalData[field];
+      }
+    }
+    
+    // Convert milliseconds to Firestore Timestamps
+    if (sanitizedGoalData.createdAt) {
+      sanitizedGoalData.createdAt = admin.firestore.Timestamp.fromMillis(sanitizedGoalData.createdAt);
+    }
+    if (sanitizedGoalData.updatedAt) {
+      sanitizedGoalData.updatedAt = admin.firestore.Timestamp.fromMillis(sanitizedGoalData.updatedAt);
+    }
+    if (sanitizedGoalData.startDate) {
+      sanitizedGoalData.startDate = admin.firestore.Timestamp.fromMillis(sanitizedGoalData.startDate);
+    } else {
+      sanitizedGoalData.startDate = null; // Explicitly set to null if not provided
+    }
+    if (sanitizedGoalData.endDate) {
+      sanitizedGoalData.endDate = admin.firestore.Timestamp.fromMillis(sanitizedGoalData.endDate);
+    } else {
+      sanitizedGoalData.endDate = null; // Explicitly set to null if not provided
+    }
+    
+    const docRef = await db.collection('goals').add(sanitizedGoalData);
     // Safely convert Firestore Timestamps to milliseconds for the response
     let goalStartDate = null;
-    if (goalData.startDate) {
-      if (typeof goalData.startDate.toMillis === 'function') {
-        goalStartDate = goalData.startDate.toMillis();
-      } else if (typeof goalData.startDate === 'number') {
-        goalStartDate = goalData.startDate;
-      } else if (goalData.startDate instanceof Date) {
-        goalStartDate = goalData.startDate.getTime();
+    if (sanitizedGoalData.startDate) {
+      if (typeof sanitizedGoalData.startDate.toMillis === 'function') {
+        goalStartDate = sanitizedGoalData.startDate.toMillis();
+      } else if (typeof sanitizedGoalData.startDate === 'number') {
+        goalStartDate = sanitizedGoalData.startDate;
+      } else if (typeof sanitizedGoalData.startDate instanceof Date) {
+        goalStartDate = sanitizedGoalData.startDate.getTime();
       }
     }
     
     let goalEndDate = null;
-    if (goalData.endDate) {
-      if (typeof goalData.endDate.toMillis === 'function') {
-        goalEndDate = goalData.endDate.toMillis();
-      } else if (typeof goalData.endDate === 'number') {
-        goalEndDate = goalData.endDate;
-      } else if (goalData.endDate instanceof Date) {
-        goalEndDate = goalData.endDate.getTime();
+    if (sanitizedGoalData.endDate) {
+      if (typeof sanitizedGoalData.endDate.toMillis === 'function') {
+        goalEndDate = sanitizedGoalData.endDate.toMillis();
+      } else if (typeof sanitizedGoalData.endDate === 'number') {
+        goalEndDate = sanitizedGoalData.endDate;
+      } else if (typeof sanitizedGoalData.endDate instanceof Date) {
+        goalEndDate = sanitizedGoalData.endDate.getTime();
       }
     }
     
     let goalCreatedAt = Date.now();
-    if (goalData.createdAt) {
-      if (typeof goalData.createdAt.toMillis === 'function') {
-        goalCreatedAt = goalData.createdAt.toMillis();
-      } else if (typeof goalData.createdAt === 'number') {
-        goalCreatedAt = goalData.createdAt;
-      } else if (goalData.createdAt instanceof Date) {
-        goalCreatedAt = goalData.createdAt.getTime();
+    if (sanitizedGoalData.createdAt) {
+      if (typeof sanitizedGoalData.createdAt.toMillis === 'function') {
+        goalCreatedAt = sanitizedGoalData.createdAt.toMillis();
+      } else if (typeof sanitizedGoalData.createdAt === 'number') {
+        goalCreatedAt = sanitizedGoalData.createdAt;
+      } else if (typeof sanitizedGoalData.createdAt instanceof Date) {
+        goalCreatedAt = sanitizedGoalData.createdAt.getTime();
       }
     }
     
     let goalUpdatedAt = Date.now();
-    if (goalData.updatedAt) {
-      if (typeof goalData.updatedAt.toMillis === 'function') {
-        goalUpdatedAt = goalData.updatedAt.toMillis();
-      } else if (typeof goalData.updatedAt === 'number') {
-        goalUpdatedAt = goalData.updatedAt;
-      } else if (goalData.updatedAt instanceof Date) {
-        goalUpdatedAt = goalData.updatedAt.getTime();
+    if (sanitizedGoalData.updatedAt) {
+      if (typeof sanitizedGoalData.updatedAt.toMillis === 'function') {
+        goalUpdatedAt = sanitizedGoalData.updatedAt.toMillis();
+      } else if (typeof sanitizedGoalData.updatedAt === 'number') {
+        goalUpdatedAt = sanitizedGoalData.updatedAt;
+      } else if (typeof sanitizedGoalData.updatedAt instanceof Date) {
+        goalUpdatedAt = sanitizedGoalData.updatedAt.getTime();
       }
     }
     
     res.status(201).json({ 
       id: docRef.id, 
-      text: goalData.text,
-      completed: goalData.completed,
-      createdBy: goalData.createdBy,
-      creatorName: goalData.creatorName,
-      emoji: goalData.emoji,
-      status: goalData.status,
-      isHabit: goalData.isHabit || false,
+      text: sanitizedGoalData.text,
+      completed: sanitizedGoalData.completed,
+      createdBy: sanitizedGoalData.createdBy,
+      creatorName: sanitizedGoalData.creatorName,
+      emoji: sanitizedGoalData.emoji,
+      status: sanitizedGoalData.status,
+      isHabit: sanitizedGoalData.isHabit || false,
       startDate: goalStartDate,
       endDate: goalEndDate,
       // Convert back to milliseconds for the response
@@ -735,8 +1036,22 @@ app.post('/api/goals', async (req, res) => {
   }
 });
 
-app.put('/api/goals/:id', async (req, res) => {
+app.put('/api/goals/:id', authenticateToken, async (req, res) => {
   try {
+    const goalId = req.params.id;
+    
+    // Check if the document exists before updating
+    const goalDoc = await db.collection('goals').doc(goalId).get();
+    if (!goalDoc.exists) {
+      return res.status(404).json({ message: 'Goal not found' });
+    }
+    
+    // Check if the goal belongs to the authenticated user
+    const goal = goalDoc.data();
+    if (goal.createdBy !== req.user.uid) {
+      return res.status(403).json({ message: 'Unauthorized to update this goal' });
+    }
+    
     const { text, status, emoji, startDate, endDate, isHabit, completed, isShared } = req.body;
     const updateData = { updatedAt: admin.firestore.Timestamp.fromMillis(Date.now()) }; // Always update updatedAt
 
@@ -749,10 +1064,10 @@ app.put('/api/goals/:id', async (req, res) => {
     if (completed !== undefined) updateData.completed = completed;
     if (isShared !== undefined) updateData.isShared = isShared;
 
-    await db.collection('goals').doc(req.params.id).update(updateData);
+    await db.collection('goals').doc(goalId).update(updateData);
 
     // Fetch the updated document to return it in the response
-    const updatedDoc = await db.collection('goals').doc(req.params.id).get();
+    const updatedDoc = await db.collection('goals').doc(goalId).get();
     const updatedData = updatedDoc.data();
 
     res.status(200).json({ 
@@ -779,9 +1094,47 @@ app.put('/api/goals/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/goals/:id', async (req, res) => {
+app.delete('/api/goals/:id', authenticateToken, async (req, res) => {
   try {
-    await db.collection('goals').doc(req.params.id).delete();
+    const goalId = req.params.id;
+    
+    // Check if the document exists before deleting
+    const goalDoc = await db.collection('goals').doc(goalId).get();
+    if (!goalDoc.exists) {
+      return res.status(404).json({ message: 'Goal not found' });
+    }
+    
+    // Check if the goal belongs to the authenticated user
+    const goal = goalDoc.data();
+    if (goal.createdBy !== req.user.uid) {
+      return res.status(403).json({ message: 'Unauthorized to delete this goal' });
+    }
+    
+    // Perform cascade deletion: remove progress data for this goal
+    const userId = goal.createdBy;
+    try {
+      // Delete the goal from the user's goalProgress if it exists
+      const userDoc = await db.collection('users').doc(userId).get();
+      if (userDoc.exists) {
+        const userData = userDoc.data();
+        const goalProgress = userData.goalProgress || {};
+        
+        // Remove the goal from goalProgress
+        if (goalProgress[goalId]) {
+          delete goalProgress[goalId];
+          
+          // Update the user document
+          await db.collection('users').doc(userId).update({
+            goalProgress
+          });
+        }
+      }
+    } catch (progressError) {
+      // If deleting progress fails, log but continue with goal deletion
+      console.error('Error deleting goal progress:', progressError);
+    }
+    
+    await db.collection('goals').doc(goalId).delete();
     res.status(200).json({ message: 'Goal deleted successfully' });
   } catch (error) {
     console.error('Error deleting goal:', error);
@@ -819,9 +1172,26 @@ app.delete('/api/users/:userId/goal-progress/:goalId', async (req, res) => {
 });
 
 // Calendar event endpoints
-app.get('/api/calendarEvents/:userId', async (req, res) => {
+app.get('/api/calendarEvents/:userId', authenticateToken, async (req, res) => {
   try {
     const { userId } = req.params;
+    
+    // Check if the requested user is the same as the authenticated user or linked
+    if (userId !== req.user.uid) {
+      // Check if user is linked
+      const currentUserDoc = await db.collection('users').doc(req.user.uid).get();
+      if (!currentUserDoc.exists) {
+        return res.status(404).json({ message: 'Current user not found' });
+      }
+      
+      const currentUserData = currentUserDoc.data();
+      const linkedUsers = currentUserData.linkedUsers || [];
+      
+      if (!linkedUsers.includes(userId)) {
+        return res.status(403).json({ message: 'Unauthorized to access this user\'s calendar events' });
+      }
+    }
+    
     const { startDate, endDate } = req.query;
     
     // First, get the user to check their linked users
@@ -836,19 +1206,28 @@ app.get('/api/calendarEvents/:userId', async (req, res) => {
     // Include the current user in the list of users to fetch events for
     const allUserIds = [userId, ...linkedUsers];
     
-    let query = db.collection('calendarEvents').where('createdBy', 'in', allUserIds);
+    // Use a more scalable approach by fetching documents in batches
+    // instead of using 'in' operator which has a limit of 10 values
+    let events = [];
+    const batchSize = 10; // Firestore 'in' operator limit is 10
     
-    if (startDate) {
-      query = query.where('date', '>=', new Date(startDate));
+    for (let i = 0; i < allUserIds.length; i += batchSize) {
+      const batchUserIds = allUserIds.slice(i, i + batchSize);
+      
+      let query = db.collection('calendarEvents').where('createdBy', 'in', batchUserIds);
+      
+      if (startDate) {
+        query = query.where('date', '>=', DateTime.fromISO(startDate, { zone: 'UTC' }).toJSDate());
+      }
+      
+      if (endDate) {
+        const end = DateTime.fromISO(endDate, { zone: 'UTC' }).endOf('day').toJSDate();
+        query = query.where('date', '<=', end);
+      }
+      
+      const snapshot = await query.get();
+      events = events.concat(snapshot.docs);
     }
-    
-    if (endDate) {
-      const end = new Date(endDate);
-      end.setUTCHours(23, 59, 59, 999); // Set to the end of the day
-      query = query.where('date', '<=', end);
-    }
-    
-    const snapshot = await query.get();
     
     // Fetch user data for all users to get their display names
     const userDocs = await Promise.all(
@@ -864,7 +1243,7 @@ app.get('/api/calendarEvents/:userId', async (req, res) => {
       }
     });
     
-    const events = snapshot.docs.map(doc => {
+    const filteredEvents = events.map(doc => {
       const data = doc.data();
       // Convert Firestore Timestamps to milliseconds
       let createdAt = Date.now();
@@ -930,7 +1309,7 @@ app.get('/api/calendarEvents/:userId', async (req, res) => {
       };
     });
     
-    res.status(200).json(events);
+    res.status(200).json(filteredEvents);
   } catch (error) {
     console.error('Error getting calendar events:', error);
     res.status(500).json({ message: 'Error getting calendar events' });
@@ -1057,8 +1436,6 @@ app.delete('/api/calendarEvents/:id', async (req, res) => {
   }
 });
 
-// Removed old goalProgress endpoints - now using bit-based approach in user documents
-
 // Toggle goal progress endpoint (NEW: Bit-based approach)
 app.post('/api/user/:userId/goal/:goalId/toggle', async (req, res) => {
   try {
@@ -1111,7 +1488,7 @@ app.post('/api/user/:userId/goal/:goalId/toggle', async (req, res) => {
     goalProgress[goalId].lastUpdated = admin.firestore.FieldValue.serverTimestamp();
 
     // Recalculate streaks
-    const streaks = calculateStreaks(goalProgress[goalId], today);
+    const streaks = calculateStreaks(goalProgress[goalId]);
     goalProgress[goalId].currentStreak = streaks.currentStreak;
     goalProgress[goalId].longestStreak = streaks.longestStreak;
 
@@ -1133,39 +1510,86 @@ app.post('/api/user/:userId/goal/:goalId/toggle', async (req, res) => {
   }
 });
 
-// Helper function to calculate streaks
-function calculateStreaks(progressData, today) {
-  const yearMonth = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}`;
-  const day = today.getDate();
-  
-  // Calculate current streak (counting backwards from today)
+// Helper function to calculate streaks accurately across all months
+function calculateStreaks(progressData) {
+  // Calculate current streak (counting backwards from today)  
   let currentStreak = 0;
+  const today = new Date();
   let currentDate = new Date(today);
+  let continueCounting = true;
   
-  while (true) {
+  while (continueCounting) {
     const currentYearMonth = `${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}`;
     const currentDay = currentDate.getDate();
     
     // Check if we have data for this month
-    if (!progressData.monthlyData[currentYearMonth]) break;
+    if (!progressData.monthlyData[currentYearMonth]) {
+      // If no data for this month, break the streak counting
+      break;
+    }
     
     const bitString = progressData.monthlyData[currentYearMonth];
     const index = currentDay - 1;
     
-    // Check if index is valid and day is completed
-    if (index >= 0 && index < bitString.length && bitString[index] === '1') {
-      currentStreak++;
-      // Move to previous day
-      currentDate.setDate(currentDate.getDate() - 1);
-      // If we moved to previous month, continue
+    // Check if index is valid and day exists in bitString
+    if (index >= 0 && index < bitString.length) {
+      if (bitString[index] === '1') {
+        // Day is completed, increment streak
+        currentStreak++;
+        // Move to previous day
+        currentDate.setDate(currentDate.getDate() - 1);
+      } else {
+        // Day is not completed, stop the streak counting
+        continueCounting = false;
+      }
     } else {
+      // Day doesn't exist in this month, go to previous day
+      currentDate.setDate(currentDate.getDate() - 1);
+    }
+    
+    // Check if we've gone beyond a reasonable date range (e.g., more than 2 years back)
+    if (currentDate < new Date(today.getFullYear() - 2, today.getMonth(), today.getDate())) {
       break;
     }
   }
   
-  // For longest streak, we would need to check all months
-  // This is a simplified version - in practice you might want to store this separately
-  const longestStreak = Math.max(currentStreak, progressData.longestStreak || 0);
+  // Calculate longest streak by checking all possible streaks
+  let longestStreak = 0;
+  let currentPotentialStreak = 0;
+  let inStreak = false;
+  
+  // Get all months in chronological order
+  const months = Object.keys(progressData.monthlyData).sort();
+  
+  // Process each month to calculate longest streak
+  for (const month of months) {
+    const bitString = progressData.monthlyData[month];
+    if (!bitString) continue;
+    
+    // For each day in this month
+    for (let i = 0; i < bitString.length; i++) {
+      if (bitString[i] === '1') {
+        // Day is completed, increment streak
+        currentPotentialStreak++;
+        inStreak = true;
+      } else {
+        // Day is not completed, reset streak counter
+        if (inStreak) {
+          longestStreak = Math.max(longestStreak, currentPotentialStreak);
+          currentPotentialStreak = 0;
+          inStreak = false;
+        }
+      }
+    }
+  }
+  
+  // Don't forget to check the final potential streak if it was ongoing
+  if (inStreak) {
+    longestStreak = Math.max(longestStreak, currentPotentialStreak);
+  }
+  
+  // Also consider the stored longest streak value
+  longestStreak = Math.max(longestStreak, progressData.longestStreak || 0);
   
   return { currentStreak, longestStreak };
 }

@@ -322,13 +322,11 @@ class _HomeScreenState extends State<HomeScreen> {
                             return _GoalsSection(
                               goals: goalsProvider.goals,
                               userGoalProgress: goalsProvider.userGoalProgress,
-                              onGoalProgressToggle: (goalId, completed) {
+                              onGoalProgressToggle: (goalId, date, completed) {
                                 final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
                                 final userId = authProvider.user?.uid ?? 'unknown';
-                                // Immediately update the UI for instant feedback
-                                goalsProvider.immediatelyToggleGoalProgress(goalId, completed);
-                                // Then update the backend
-                                goalsProvider.markDayAsComplete(userId, goalId, completed);
+                                // Only allow toggling for today's date through the Done Today button
+                                goalsProvider.toggleHeatmapDayCompletion(goalId, DateTime.now(), completed);
                               },
                             );
                           },
@@ -1077,7 +1075,7 @@ class _TaskItemSkeleton extends StatelessWidget {
 class _GoalsSection extends StatelessWidget {
   final List<Goal> goals;
   final Map<String, Map<String, String>> userGoalProgress;
-  final Function(String, bool) onGoalProgressToggle;
+  final Function(String, DateTime, bool) onGoalProgressToggle;
 
   const _GoalsSection({
     required this.goals,
@@ -1102,10 +1100,15 @@ class _GoalsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Filter goals to show only uncompleted ones, limit to 3
-    final uncompletedGoals = goals.where((goal) => !goal.completed).take(3).toList();
+    // Filter to show uncompleted goals AND all habits (habits are ongoing, don't have completion status in the same way)
+    final displayedGoals = goals.where((goal) {
+      // Show habits regardless of completed status (since they are ongoing)
+      if (goal.isHabit) return true;
+      // For non-habits (regular goals), only show if not completed
+      return !goal.completed;
+    }).toList(); // Remove the take(3) limit to show all goals and habits
     
-    if (uncompletedGoals.isEmpty) {
+    if (displayedGoals.isEmpty) {
       return SizedBox(
         width: double.infinity,
         child: Container(
@@ -1132,7 +1135,7 @@ class _GoalsSection extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                'No active goals',
+                'No active goals or habits',
                 style: TextStyle(
                   fontSize: 14, // Reduced from 18 to 14
                   fontWeight: FontWeight.w600,
@@ -1141,7 +1144,7 @@ class _GoalsSection extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Go to the Goals screen to set your first goal.',
+                'Go to the Goals screen to set your first goal or habit.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 12, // Reduced from 14 to 12
@@ -1158,9 +1161,9 @@ class _GoalsSection extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       padding: const EdgeInsets.only(top: 0), // Remove default padding
-      itemCount: uncompletedGoals.length,
+      itemCount: displayedGoals.length,
       itemBuilder: (context, index) {
-        final goal = uncompletedGoals[index];
+        final goal = displayedGoals[index];
         final goalsProvider = Provider.of<GoalsProvider>(context);
         final progressDetails = goalsProvider.calculateProgressAndMissedPercentage(goal);
         final completedPercentage = progressDetails['completedPercentage']!;
@@ -1244,10 +1247,10 @@ class _GoalsSection extends StatelessWidget {
                         }
                       }
                       
-                      // Immediately update the UI by calling the toggle function
+                      // Immediately update the UI by calling the toggle function for today
                       print('DEBUG: Setting goal ${goal.id} completion for today to: ${!isTodayCompleted}');
-                      // Use the onGoalProgressToggle callback which has access to GoalsProvider
-                      onGoalProgressToggle(goal.id, !isTodayCompleted);
+                      // Use the onGoalProgressToggle callback with today's date specifically for Done Today button
+                      onGoalProgressToggle(goal.id, DateTime.now(), !isTodayCompleted);
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.vibrantGreen,
@@ -1290,11 +1293,11 @@ class _GoalsSection extends StatelessWidget {
   }
 }
 
-// Monthly Goal Heatmap (40-day scrolling view)
+// Monthly Goal Heatmap (goal date range view)
 class _MonthlyGoalHeatmap extends StatefulWidget {
   final Goal goal;
   final Map<String, Map<String, String>> userGoalProgress;
-  final Function(String, bool) onDayToggle;
+  final Function(String, DateTime, bool) onDayToggle;
 
   const _MonthlyGoalHeatmap({
     required this.goal,
@@ -1307,21 +1310,42 @@ class _MonthlyGoalHeatmap extends StatefulWidget {
 }
 
 class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
-  int _startIndex = 0; // Starting index for the 40-day window
-  late DateTime _startDate; // Start date for the heatmap (goal creation date)
+  int _startIndex = 0; // Starting index for the view window
+  late List<DateTime> _allGoalDays; // All days within the goal's date range
 
   @override
   void initState() {
     super.initState();
-    // Set the start date to the goal creation date
-    _startDate = widget.goal.createdAt;
+    // Generate days based on the goal's start and end date if it's not a habit
+    if (!widget.goal.isHabit && widget.goal.startDate != null && widget.goal.endDate != null) {
+      _allGoalDays = _getGoalRangeDays(widget.goal.startDate!, widget.goal.endDate!);
+    } else {
+      // For habits or goals without date range, use creation date as start
+      DateTime startDate = widget.goal.createdAt;
+      DateTime endDate = DateTime.now().add(const Duration(days: 365)); // Show a year of data for habits
+      _allGoalDays = _getGoalRangeDays(startDate, endDate);
+    }
   }
 
-  List<DateTime> _get40Days() {
+  List<DateTime> _getGoalRangeDays(DateTime startDate, DateTime endDate) {
+    List<DateTime> days = [];
+    int totalDays = endDate.difference(startDate).inDays + 1;
+    
+    // Create a list of all the dates in the range
+    for (int i = 0; i < totalDays; i++) {
+      days.add(startDate.add(Duration(days: i)));
+    }
+    
+    return days;
+  }
+
+  List<DateTime> _getWindowDays() {
     final List<DateTime> days = [];
-    // Generate 40 consecutive days starting from _startIndex
-    for (int i = _startIndex; i < _startIndex + 40; i++) {
-      days.add(_startDate.add(Duration(days: i)));
+    final int windowSize = 40; // Keep the same window size
+    int endIndex = math.min(_startIndex + windowSize, _allGoalDays.length);
+    
+    for (int i = _startIndex; i < endIndex; i++) {
+      days.add(_allGoalDays[i]);
     }
     return days;
   }
@@ -1340,23 +1364,36 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
     return index < bitString.length && bitString[index] == '1';
   }
 
-  void _previous40Days() {
+  void _previousWindow() {
+    final windowSize = 40;
     setState(() {
-      _startIndex = math.max(0, _startIndex - 40);
+      _startIndex = math.max(0, _startIndex - windowSize);
     });
   }
 
-  void _next40Days() {
+  void _nextWindow() {
+    final windowSize = 40;
     setState(() {
-      _startIndex += 40;
+      _startIndex = math.min(_allGoalDays.length - windowSize, _startIndex + windowSize);
+      if (_startIndex < 0) _startIndex = 0; // If total days < windowSize
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final List<DateTime> daysToShow = _get40Days();
+    final List<DateTime> daysToShow = _getWindowDays();
     final bool canGoBack = _startIndex > 0;
-    final bool canGoForward = true; // Always allow going forward
+    final bool canGoForward = _startIndex + 40 < _allGoalDays.length;
+    
+    // Determine the actual start and end date for display based on goal dates
+    DateTime displayStartDate = widget.goal.startDate ?? widget.goal.createdAt;
+    DateTime displayEndDate;
+    if (widget.goal.isHabit) {
+      // For habits, we're showing a year of data
+      displayEndDate = DateTime.now().add(const Duration(days: 365));
+    } else {
+      displayEndDate = widget.goal.endDate ?? displayStartDate.add(const Duration(days: 30)); // Default to 30 days if no end date
+    }
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1369,7 +1406,7 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
             children: [
               // Previous button
               IconButton(
-                onPressed: canGoBack ? _previous40Days : null,
+                onPressed: canGoBack ? _previousWindow : null,
                 icon: const Icon(Icons.arrow_back_ios, size: 16),
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
@@ -1389,7 +1426,7 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
               ),
               // Next button
               IconButton(
-                onPressed: _next40Days,
+                onPressed: canGoForward ? _nextWindow : null,
                 icon: const Icon(Icons.arrow_forward_ios, size: 16),
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
@@ -1418,69 +1455,87 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
                   crossAxisSpacing: spacing,
                   mainAxisSpacing: spacing,
                 ),
-                itemCount: 40,
+                itemCount: 40, // Keep fixed count to maintain grid structure
                 itemBuilder: (context, index) {
-                  final DateTime day = daysToShow[index];
-                  final bool isCompleted = _isDayCompleted(day);
-                  
-                  bool showTargetEmoji = false;
-                  if (!widget.goal.isHabit && 
-                      widget.goal.endDate != null && 
-                      day.isAtSameMomentAs(widget.goal.endDate!)) {
-                    showTargetEmoji = true;
-                  }
-                  
-                  return GestureDetector(
-                    onTap: () {
-                      widget.onDayToggle(widget.goal.id, !isCompleted);
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150), // Add quick animation
+                  // Only show day if it's within the current window and the goal date range
+                  if (index < daysToShow.length) {
+                    final DateTime day = daysToShow[index];
+                    final bool isCompleted = _isDayCompleted(day);
+                    
+                    bool showTargetEmoji = false;
+                    if (!widget.goal.isHabit && 
+                        widget.goal.endDate != null && 
+                        day.isAtSameMomentAs(widget.goal.endDate!)) {
+                      showTargetEmoji = true;
+                    }
+                    
+                    // Check if the day is within the goal range to show it
+                    bool isWithinGoalRange = false;
+                    if (widget.goal.isHabit) {
+                      isWithinGoalRange = true; // For habits, all days are valid
+                    } else if (widget.goal.startDate != null && widget.goal.endDate != null) {
+                      isWithinGoalRange = day.isAfter(widget.goal.startDate!.subtract(const Duration(days: 1))) && 
+                                          day.isBefore(widget.goal.endDate!.add(const Duration(days: 1)));
+                    } else {
+                      isWithinGoalRange = true; // If no date range defined, show all
+                    }
+                    
+                    // Make the heatmap read-only - no tapping allowed
+                    return Container(
                       width: 12.0,
                       height: 12.0,
                       decoration: BoxDecoration(
                         color: isCompleted 
                             ? AppColors.vibrantGreen.withOpacity(0.8) 
-                            : Theme.of(context).brightness == Brightness.dark
-                                ? AppColors.darkCardBackground
-                                : AppColors.lightCardBackground,
+                            : isWithinGoalRange // Only show background color if within goal range
+                                ? (Theme.of(context).brightness == Brightness.dark
+                                    ? AppColors.darkCardBackground
+                                    : AppColors.lightCardBackground)
+                                : Colors.grey[400]!.withOpacity(0.5), // Gray out days outside goal range
                         borderRadius: BorderRadius.circular(2),
                         border: Border.all(
                           color: isCompleted 
                               ? AppColors.vibrantGreen.withOpacity(0.8)
                               : Theme.of(context).brightness == Brightness.dark
-                                  ? AppColors.darkBorderColor
-                                  : AppColors.borderColor,
-                          width: 1,
+                                  ? (isWithinGoalRange ? AppColors.darkBorderColor : Colors.grey[400]!)
+                                  : (isWithinGoalRange ? AppColors.borderColor : Colors.grey[400]!),
+                          width: isWithinGoalRange ? 1 : 0.5, // Thinner borders for disabled days
                         ),
                       ),
                       child: Center(
-                        child: showTargetEmoji
-                          ? Text(
-                              '${day.day}🎯',
-                              style: TextStyle(
-                                fontSize: 8, // Increased from 5 to 8
-                                color: Theme.of(context).brightness == Brightness.dark
-                                    ? AppColors.darkTextColor
-                                    : AppColors.textColor,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            )
-                          : Text(
-                              '${day.day}',
-                              style: TextStyle(
-                                fontSize: 8, // Increased from 5 to 8
-                                color: isCompleted 
-                                    ? Colors.white 
-                                    : Theme.of(context).brightness == Brightness.dark
-                                        ? AppColors.darkTextColor
-                                        : AppColors.textColor,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                        child: Text(
+                          '${day.day}',
+                          style: TextStyle(
+                            fontSize: 8,
+                            color: isCompleted 
+                                ? Colors.white 
+                                : Theme.of(context).brightness == Brightness.dark
+                                    ? (isWithinGoalRange ? AppColors.darkTextColor : Colors.grey[400])
+                                    : (isWithinGoalRange ? AppColors.textColor : Colors.grey[400]),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                    ),
-                  );
+                    );
+                  } else {
+                    // For indices beyond our data, show empty space
+                    return Container(
+                      width: 12.0,
+                      height: 12.0,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? AppColors.darkCardBackground.withOpacity(0.5)
+                            : AppColors.lightCardBackground.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(2),
+                        border: Border.all(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? AppColors.darkBorderColor.withOpacity(0.5)
+                              : AppColors.borderColor.withOpacity(0.5),
+                          width: 0.5,
+                        ),
+                      ),
+                    );
+                  }
                 },
               ),
             );

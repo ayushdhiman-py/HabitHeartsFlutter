@@ -167,7 +167,3 @@ class GoalProgressSummary {
     
     // Also consider the stored longest streak value
     longestStreak = math.max(longestStreak, this.longestStreak);
-    
-    return longestStreak;
-  }
-}
