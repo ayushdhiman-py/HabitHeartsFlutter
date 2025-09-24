@@ -342,9 +342,28 @@ class _AddEventModal extends StatefulWidget {
 class _AddEventModalState extends State<_AddEventModal> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
+  DateTime? _selectedDate;
   String? _selectedEmoji;
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
+  void initState() {
+    super.initState();
+    _selectedDate = widget.selectedDate;
+  }
+
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+    );
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -387,7 +406,7 @@ class _AddEventModalState extends State<_AddEventModal> {
       id: '',
       title: _titleController.text.trim(),
       description: _descriptionController.text.trim(),
-      date: widget.selectedDate,
+      date: _selectedDate!,
       createdBy: authProvider.user!.uid,
       creatorName: authProvider.user!.displayName ?? 'Unknown',
       createdAt: DateTime.now(),
@@ -428,21 +447,124 @@ class _AddEventModalState extends State<_AddEventModal> {
             ],
           ),
           const SizedBox(height: 10),
-          TextField(controller: _titleController, decoration: const InputDecoration(labelText: 'Event Title', border: OutlineInputBorder())),
-          const SizedBox(height: 10),
-          TextField(controller: _descriptionController, decoration: const InputDecoration(labelText: 'Description (Optional)', border: OutlineInputBorder()), maxLines: 2),
-          const SizedBox(height: 10),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: _TimePickerButton(isStartTime: true, time: _startTime, onSelectTime: () => _selectTime(context))),
+              Expanded(
+                child: TextField(
+                  controller: _titleController,
+                  decoration: const InputDecoration(
+                    labelText: 'Event Title',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 1,
+                ),
+              ),
               const SizedBox(width: 10),
-              Expanded(child: _TimePickerButton(isStartTime: false, time: _endTime, onSelectTime: () => _selectTime(context, isStartTime: false))),
+              GestureDetector(
+                onTap: _showEmojiSelector,
+                child: Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Center(
+                    child: Text(
+                      _selectedEmoji ?? '😀',
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 10),
-          _EmojiSelectorButton(selectedEmoji: _selectedEmoji, onSelectEmoji: _showEmojiSelector),
+          TextField(controller: _descriptionController, decoration: const InputDecoration(labelText: 'Description (Optional)', border: OutlineInputBorder()), maxLines: 1),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => _selectDate(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.calendar_today, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          DateFormat('MMM dd, yyyy').format(_selectedDate!),
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => _selectTime(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.access_time, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          _startTime != null
+                              ? '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}'
+                              : 'Start Time',
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => _selectTime(context, isStartTime: false),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.access_time, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          _endTime != null
+                              ? '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}'
+                              : 'End Time',
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 20),
-                    SizedBox(
+          SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _addEvent,
@@ -584,19 +706,96 @@ class _EditEventModalState extends State<_EditEventModal> {
             ],
           ),
           const SizedBox(height: 10),
-          TextField(controller: _titleController, decoration: const InputDecoration(labelText: 'Event Title', border: OutlineInputBorder())),
-          const SizedBox(height: 10),
-          TextField(controller: _descriptionController, decoration: const InputDecoration(labelText: 'Description (Optional)', border: OutlineInputBorder()), maxLines: 2),
-          const SizedBox(height: 10),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: _TimePickerButton(isStartTime: true, time: _startTime, onSelectTime: () => _selectTime(context))),
+              Expanded(
+                child: TextField(
+                  controller: _titleController,
+                  decoration: const InputDecoration(
+                    labelText: 'Event Title',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 1,
+                ),
+              ),
               const SizedBox(width: 10),
-              Expanded(child: _TimePickerButton(isStartTime: false, time: _endTime, onSelectTime: () => _selectTime(context, isStartTime: false))),
+              GestureDetector(
+                onTap: _showEmojiSelector,
+                child: Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Center(
+                    child: Text(
+                      _selectedEmoji ?? '😀',
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 10),
-          _EmojiSelectorButton(selectedEmoji: _selectedEmoji, onSelectEmoji: _showEmojiSelector),
+          TextField(controller: _descriptionController, decoration: const InputDecoration(labelText: 'Description (Optional)', border: OutlineInputBorder()), maxLines: 1),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => _selectTime(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.access_time, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          _startTime != null
+                              ? '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}'
+                              : 'Start Time',
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => _selectTime(context, isStartTime: false),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.access_time, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          _endTime != null
+                              ? '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}'
+                              : 'End Time',
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
           const SizedBox(height: 20),
           Row(
             children: [
@@ -628,48 +827,7 @@ class _EditEventModalState extends State<_EditEventModal> {
   }
 }
 
-class _TimePickerButton extends StatelessWidget {
-  final bool isStartTime;
-  final TimeOfDay? time;
-  final VoidCallback onSelectTime;
 
-  const _TimePickerButton({required this.isStartTime, this.time, required this.onSelectTime});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onSelectTime,
-      child: InputDecorator(
-        decoration: InputDecoration(border: const OutlineInputBorder(), labelText: isStartTime ? 'Start Time' : 'End Time'),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [Text(time?.format(context) ?? 'Select'), const Icon(Icons.access_time, size: 18)],
-        ),
-      ),
-    );
-  }
-}
-
-class _EmojiSelectorButton extends StatelessWidget {
-  final String? selectedEmoji;
-  final VoidCallback onSelectEmoji;
-
-  const _EmojiSelectorButton({this.selectedEmoji, required this.onSelectEmoji});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onSelectEmoji,
-      child: InputDecorator(
-        decoration: const InputDecoration(border: const OutlineInputBorder(), labelText: 'Emoji'),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [const Icon(Icons.emoji_emotions_outlined, size: 18), const SizedBox(width: 8), Text(selectedEmoji ?? 'Select')],
-        ),
-      ),
-    );
-  }
-}
 
 class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;

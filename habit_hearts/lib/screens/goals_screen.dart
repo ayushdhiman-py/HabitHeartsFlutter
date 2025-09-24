@@ -385,7 +385,7 @@ class _AddGoalModalState extends State<_AddGoalModal> {
                       border: OutlineInputBorder(),
                       hintText: 'Enter your goal',
                     ),
-                    maxLines: 2,
+                    maxLines: 1,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -416,7 +416,8 @@ class _AddGoalModalState extends State<_AddGoalModal> {
                 border: OutlineInputBorder(),
                 hintText: 'Add details about your goal',
               ),
-              maxLines: 2,
+              maxLines: 1,
+            maxLines: 1,
             ),
             const SizedBox(height: 10),
             Row(
@@ -460,15 +461,16 @@ class _AddGoalModalState extends State<_AddGoalModal> {
               Row(
                 children: [
                   Expanded(
-                    child: _DatePicker(label: 'Start', selectedDate: _selectedStartDate, onSelectDate: () => _selectDate())),
+                    child: _DatePicker(label: 'Start Date', selectedDate: _selectedStartDate, onSelectDate: () => _selectDate()),
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: _DatePicker(label: 'End', selectedDate: _selectedEndDate, onSelectDate: () => _selectDate(isStart: false)),
+                    child: _DatePicker(label: 'End Date', selectedDate: _selectedEndDate, onSelectDate: () => _selectDate(isStart: false)),
                   ),
                 ],
               ),
             ],
-            const SizedBox(height: 20),
+            const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -645,7 +647,7 @@ class _EditGoalModalState extends State<_EditGoalModal> {
                       border: OutlineInputBorder(),
                       hintText: 'Enter your goal',
                     ),
-                    maxLines: 2,
+                    maxLines: 1,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -669,14 +671,9 @@ class _EditGoalModalState extends State<_EditGoalModal> {
               ],
             ),
             const SizedBox(height: 10),
-            TextField(
-              controller: _descriptionController,
-              decoration: const InputDecoration(
-                labelText: 'Description',
-                border: OutlineInputBorder(),
-                hintText: 'Add details about your goal',
+            hintText: 'Description (optional)',
               ),
-              maxLines: 2,
+              maxLines: 1,
             ),
             const SizedBox(height: 10),
             Row(
@@ -720,14 +717,16 @@ class _EditGoalModalState extends State<_EditGoalModal> {
               Row(
                 children: [
                   Expanded(
-                    child: _DatePicker(label: 'Start', selectedDate: _selectedStartDate, onSelectDate: () => _selectDate())),
+                    child: _DatePicker(label: 'Start Date', selectedDate: _selectedStartDate, onSelectDate: () => _selectDate()),
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: _DatePicker(label: 'End', selectedDate: _selectedEndDate, onSelectDate: () => _selectDate(isStart: false))),
+                    child: _DatePicker(label: 'End Date', selectedDate: _selectedEndDate, onSelectDate: () => _selectDate(isStart: false)),
+                  ),
                 ],
               ),
             ],
-            const SizedBox(height: 20),
+            const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(

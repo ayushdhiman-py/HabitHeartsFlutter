@@ -883,12 +883,37 @@ class _EditTaskModalState extends State<_EditTaskModal> {
             ],
           ),
           const SizedBox(height: 10),
-          TextField(
-            controller: _taskController,
-            decoration: const InputDecoration(
-              labelText: 'Task Title',
-              border: OutlineInputBorder(),
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _taskController,
+                  decoration: const InputDecoration(
+                    labelText: 'Task Title',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              GestureDetector(
+                onTap: _showEmojiSelector,
+                child: Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Center(
+                    child: Text(
+                      _selectedEmoji ?? '😀',
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 10),
           TextField(
@@ -897,7 +922,7 @@ class _EditTaskModalState extends State<_EditTaskModal> {
               labelText: 'Description (Optional)',
               border: OutlineInputBorder(),
             ),
-            maxLines: 2,
+            maxLines: 1,
           ),
           const SizedBox(height: 10),
           Row(
@@ -914,11 +939,7 @@ class _EditTaskModalState extends State<_EditTaskModal> {
                   style: const TextStyle(fontSize: 16),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
+              const SizedBox(width: 20),
               const Text(
                 'Start Time:',
                 style: TextStyle(fontSize: 16),
@@ -946,30 +967,6 @@ class _EditTaskModalState extends State<_EditTaskModal> {
                       ? '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}'
                       : 'Select',
                   style: const TextStyle(fontSize: 16),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              const Text(
-                'Emoji:',
-                style: TextStyle(fontSize: 16),
-              ),
-              const SizedBox(width: 10),
-              GestureDetector(
-                onTap: _showEmojiSelector,
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    _selectedEmoji ?? 'Select',
-                    style: const TextStyle(fontSize: 20),
-                  ),
                 ),
               ),
             ],
@@ -1802,12 +1799,37 @@ class _AddTaskModalState extends State<_AddTaskModal> {
             ],
           ),
           const SizedBox(height: 10),
-          TextField(
-            controller: _taskController,
-            decoration: const InputDecoration(
-              labelText: 'Task Title',
-              border: OutlineInputBorder(),
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _taskController,
+                  decoration: const InputDecoration(
+                    labelText: 'Task Title',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              GestureDetector(
+                onTap: () => _showEmojiSelector(),
+                child: Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Center(
+                    child: Text(
+                      _selectedEmoji ?? '😀',
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 10),
           TextField(
@@ -1816,7 +1838,7 @@ class _AddTaskModalState extends State<_AddTaskModal> {
               labelText: 'Description (Optional)',
               border: OutlineInputBorder(),
             ),
-            maxLines: 2,
+            maxLines: 1,
           ),
           const SizedBox(height: 10),
           Row(
@@ -1836,29 +1858,6 @@ class _AddTaskModalState extends State<_AddTaskModal> {
                         const SizedBox(width: 8),
                         Text(
                           DateFormat('MMM dd, yyyy').format(_selectedDate),
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => _showEmojiSelector(),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.emoji_emotions, size: 18),
-                        const SizedBox(width: 8),
-                        Text(
-                          _selectedEmoji ?? 'Emoji',
                           style: const TextStyle(fontSize: 16),
                         ),
                       ],
