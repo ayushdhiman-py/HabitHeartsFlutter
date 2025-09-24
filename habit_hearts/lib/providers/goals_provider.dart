@@ -120,7 +120,8 @@ class GoalsProvider with ChangeNotifier {
 
       final newGoal = await ApiService.createGoal(goal);
       if (newGoal != null) {
-        await loadGoals();
+        _goals.add(newGoal);
+        notifyListeners();
       }
     } catch (e) {
       print('Error adding goal: $e');
@@ -133,7 +134,11 @@ class GoalsProvider with ChangeNotifier {
     try {
       final result = await ApiService.updateGoal(updatedGoal);
       if (result != null) {
-        await loadGoals();
+        final index = _goals.indexWhere((g) => g.id == updatedGoal.id);
+        if (index != -1) {
+          _goals[index] = updatedGoal;
+        }
+        notifyListeners();
       }
     } catch (e) {
       print('Error updating goal: $e');
@@ -270,10 +275,35 @@ class GoalsProvider with ChangeNotifier {
     try {
       if (updateGoalStatus) {
         final goal = _goals.firstWhere((g) => g.id == goalId);
+        final originalCompletedStatus = goal.completed; // Store original status for rollback
         final updatedGoal = goal.copyWith(completed: completed);
-        final result = await ApiService.updateGoal(updatedGoal);
-        if (result != null) {
-          await loadGoals();
+
+        // Optimistically update the UI
+        final index = _goals.indexWhere((g) => g.id == goalId);
+        if (index != -1) {
+          _goals[index] = updatedGoal;
+        }
+        notifyListeners();
+
+        try {
+          final result = await ApiService.updateGoal(updatedGoal);
+          if (result == null) {
+            // If API call fails, revert the UI
+            final revertGoal = goal.copyWith(completed: originalCompletedStatus);
+            if (index != -1) {
+              _goals[index] = revertGoal;
+            }
+            notifyListeners();
+            print('Failed to update goal status, reverted UI.');
+          }
+        } catch (e) {
+          // If API call throws an error, revert the UI
+          final revertGoal = goal.copyWith(completed: originalCompletedStatus);
+          if (index != -1) {
+            _goals[index] = revertGoal;
+          }
+          notifyListeners();
+          print('Error updating goal status, reverted UI: $e');
         }
       } else {
         final success = await toggleGoalProgressForUser(userId, goalId, completed);

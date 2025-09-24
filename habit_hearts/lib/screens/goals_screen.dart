@@ -414,10 +414,9 @@ class _AddGoalModalState extends State<_AddGoalModal> {
               decoration: const InputDecoration(
                 labelText: 'Description',
                 border: OutlineInputBorder(),
-                hintText: 'Add details about your goal',
+                hintText: 'Description (optional)',
               ),
               maxLines: 1,
-            maxLines: 1,
             ),
             const SizedBox(height: 10),
             Row(
@@ -671,7 +670,12 @@ class _EditGoalModalState extends State<_EditGoalModal> {
               ],
             ),
             const SizedBox(height: 10),
-            hintText: 'Description (optional)',
+            TextField(
+              controller: _descriptionController,
+              decoration: const InputDecoration(
+                labelText: 'Description',
+                border: OutlineInputBorder(),
+                hintText: 'Description (optional)',
               ),
               maxLines: 1,
             ),
@@ -773,8 +777,14 @@ class _DatePicker extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(selectedDate != null ? '${selectedDate!.day}/${selectedDate!.month}/${selectedDate!.year}' : 'Select Date', style: const TextStyle(fontSize: 16)),
-                  const Icon(Icons.calendar_today),
+                  Expanded(
+                    child: Text(
+                      selectedDate != null ? '${selectedDate!.day}/${selectedDate!.month}/${selectedDate!.year}' : 'Select Date',
+                      style: const TextStyle(fontSize: 14),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const Icon(Icons.calendar_today, size: 16),
                 ],
               ),
             ),
