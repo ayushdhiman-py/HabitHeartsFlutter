@@ -284,8 +284,12 @@ class GoalsProvider with ChangeNotifier {
     final yearMonth = '${date.year}-${date.month.toString().padLeft(2, '0')}';
     final day = date.day;
 
-    // Create a copy of the progress data to modify
-    final updatedProgress = Map<String, Map<String, String>>.from(_userGoalProgress);
+    // Create a deep copy of the progress data to modify
+    final updatedProgress = Map<String, Map<String, String>>.from(
+      _userGoalProgress.map(
+        (key, value) => MapEntry(key, Map<String, String>.from(value)),
+      ),
+    );
 
     // Initialize the goal entry if it doesn't exist
     if (!updatedProgress.containsKey(goalId)) {

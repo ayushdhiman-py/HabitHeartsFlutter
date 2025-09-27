@@ -1100,13 +1100,8 @@ class _GoalsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Filter to show uncompleted goals AND all habits (habits are ongoing, don't have completion status in the same way)
-    final displayedGoals = goals.where((goal) {
-      // Show habits regardless of completed status (since they are ongoing)
-      if (goal.isHabit) return true;
-      // For non-habits (regular goals), only show if not completed
-      return !goal.completed;
-    }).toList(); // Remove the take(3) limit to show all goals and habits
+    // Filter to show only uncompleted goals and habits
+    final displayedGoals = goals.where((goal) => !goal.completed).toList();
     
     if (displayedGoals.isEmpty) {
       return SizedBox(
@@ -1169,6 +1164,7 @@ class _GoalsSection extends StatelessWidget {
         final completedPercentage = progressDetails['completedPercentage']!;
         final missedPercentage = progressDetails['missedPercentage']!;
         return Container(
+          key: ValueKey(goal.id),
           margin: const EdgeInsets.only(bottom: 4), // Reduced from 8 to 4
           padding: const EdgeInsets.all(12), // Reduced from 17 to 12
           decoration: BoxDecoration(
@@ -1310,44 +1306,20 @@ class _MonthlyGoalHeatmap extends StatefulWidget {
 }
 
 class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
-  int _startIndex = 0; // Starting index for the view window
-  late List<DateTime> _allGoalDays; // All days within the goal's date range
+  DateTime? _currentDate;
 
-  @override
-  void initState() {
-    super.initState();
-    // Generate days based on the goal's start and end date if it's not a habit
-    if (!widget.goal.isHabit && widget.goal.startDate != null && widget.goal.endDate != null) {
-      _allGoalDays = _getGoalRangeDays(widget.goal.startDate!, widget.goal.endDate!);
-    } else {
-      // For habits or goals without date range, use creation date as start
-      DateTime startDate = widget.goal.createdAt;
-      DateTime endDate = DateTime.now().add(const Duration(days: 365)); // Show a year of data for habits
-      _allGoalDays = _getGoalRangeDays(startDate, endDate);
-    }
+  void _previousMonth() {
+    if (_currentDate == null) return;
+    setState(() {
+      _currentDate = DateTime(_currentDate!.year, _currentDate!.month - 1, _currentDate!.day);
+    });
   }
 
-  List<DateTime> _getGoalRangeDays(DateTime startDate, DateTime endDate) {
-    List<DateTime> days = [];
-    int totalDays = endDate.difference(startDate).inDays + 1;
-    
-    // Create a list of all the dates in the range
-    for (int i = 0; i < totalDays; i++) {
-      days.add(startDate.add(Duration(days: i)));
-    }
-    
-    return days;
-  }
-
-  List<DateTime> _getWindowDays() {
-    final List<DateTime> days = [];
-    final int windowSize = 40; // Keep the same window size
-    int endIndex = math.min(_startIndex + windowSize, _allGoalDays.length);
-    
-    for (int i = _startIndex; i < endIndex; i++) {
-      days.add(_allGoalDays[i]);
-    }
-    return days;
+  void _nextMonth() {
+    if (_currentDate == null) return;
+    setState(() {
+      _currentDate = DateTime(_currentDate!.year, _currentDate!.month + 1, _currentDate!.day);
+    });
   }
 
   bool _isDayCompleted(DateTime day) {
@@ -1364,36 +1336,18 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
     return index < bitString.length && bitString[index] == '1';
   }
 
-  void _previousWindow() {
-    final windowSize = 40;
-    setState(() {
-      _startIndex = math.max(0, _startIndex - windowSize);
-    });
-  }
-
-  void _nextWindow() {
-    final windowSize = 40;
-    setState(() {
-      _startIndex = math.min(_allGoalDays.length - windowSize, _startIndex + windowSize);
-      if (_startIndex < 0) _startIndex = 0; // If total days < windowSize
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    final List<DateTime> daysToShow = _getWindowDays();
-    final bool canGoBack = _startIndex > 0;
-    final bool canGoForward = _startIndex + 40 < _allGoalDays.length;
-    
-    // Determine the actual start and end date for display based on goal dates
-    DateTime displayStartDate = widget.goal.startDate ?? widget.goal.createdAt;
-    DateTime displayEndDate;
-    if (widget.goal.isHabit) {
-      // For habits, we're showing a year of data
-      displayEndDate = DateTime.now().add(const Duration(days: 365));
-    } else {
-      displayEndDate = widget.goal.endDate ?? displayStartDate.add(const Duration(days: 30)); // Default to 30 days if no end date
+    _currentDate ??= widget.goal.startDate ?? DateTime.now();
+
+    final List<DateTime> daysToShow = [];
+    for (int i = 0; i < 40; i++) {
+      daysToShow.add(_currentDate!.add(Duration(days: i)));
     }
+
+    final goalStartDate = widget.goal.startDate ?? widget.goal.createdAt;
+    final canGoBack = _currentDate!.isAfter(goalStartDate);
+    const bool canGoForward = true;
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1406,16 +1360,14 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
             children: [
               // Previous button
               IconButton(
-                onPressed: canGoBack ? _previousWindow : null,
+                onPressed: canGoBack ? _previousMonth : null,
                 icon: const Icon(Icons.arrow_back_ios, size: 16),
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
               ),
               // Date range display
               Text(
-                daysToShow.isNotEmpty 
-                  ? '${DateFormat('MMM d').format(daysToShow.first)} - ${DateFormat('MMM d, yyyy').format(daysToShow.last)}'
-                  : 'No data',
+                '${DateFormat('MMM d').format(daysToShow.first)} - ${DateFormat('MMM d, yyyy').format(daysToShow.last)}',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -1426,7 +1378,7 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
               ),
               // Next button
               IconButton(
-                onPressed: canGoForward ? _nextWindow : null,
+                onPressed: canGoForward ? _nextMonth : null,
                 icon: const Icon(Icons.arrow_forward_ios, size: 16),
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
@@ -1470,15 +1422,7 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
                     }
                     
                     // Check if the day is within the goal range to show it
-                    bool isWithinGoalRange = false;
-                    if (widget.goal.isHabit) {
-                      isWithinGoalRange = true; // For habits, all days are valid
-                    } else if (widget.goal.startDate != null && widget.goal.endDate != null) {
-                      isWithinGoalRange = day.isAfter(widget.goal.startDate!.subtract(const Duration(days: 1))) && 
-                                          day.isBefore(widget.goal.endDate!.add(const Duration(days: 1)));
-                    } else {
-                      isWithinGoalRange = true; // If no date range defined, show all
-                    }
+                    final bool isWithinGoalRange = !day.isBefore(goalStartDate);
                     
                     // Make the heatmap read-only - no tapping allowed
                     return Container(
