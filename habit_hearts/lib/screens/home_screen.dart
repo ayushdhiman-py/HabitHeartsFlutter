@@ -925,46 +925,80 @@ class _EditTaskModalState extends State<_EditTaskModal> {
           const SizedBox(height: 10),
           Row(
             children: [
-              const Text(
-                'Date:',
-                style: TextStyle(fontSize: 16),
-              ),
-              const SizedBox(width: 10),
-              TextButton(
-                onPressed: () => _selectDate(context),
-                child: Text(
-                  DateFormat('MMM d, yyyy').format(_selectedDate),
-                  style: const TextStyle(fontSize: 16),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => _selectDate(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.calendar_today, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          DateFormat('MMM dd, yyyy').format(_selectedDate),
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(width: 20),
-              const Text(
-                'Start Time:',
-                style: TextStyle(fontSize: 16),
-              ),
-              const SizedBox(width: 10),
-              TextButton(
-                onPressed: () => _selectStartTime(context),
-                child: Text(
-                  _startTime != null
-                      ? '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}'
-                      : 'Select',
-                  style: const TextStyle(fontSize: 16),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => _selectStartTime(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.access_time, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          _startTime != null
+                              ? '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}'
+                              : 'Start Time',
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(width: 20),
-              const Text(
-                'End Time:',
-                style: TextStyle(fontSize: 16),
-              ),
               const SizedBox(width: 10),
-              TextButton(
-                onPressed: () => _selectEndTime(context),
-                child: Text(
-                  _endTime != null
-                      ? '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}'
-                      : 'Select',
-                  style: const TextStyle(fontSize: 16),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => _selectEndTime(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.access_time, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          _endTime != null
+                              ? '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}'
+                              : 'End Time',
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],
