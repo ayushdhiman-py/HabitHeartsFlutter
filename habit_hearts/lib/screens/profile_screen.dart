@@ -250,6 +250,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 15),
               ],
+
+              // Link with Partner Section
+              if (authProvider.habitHeartsUser?.linkedUsers.isEmpty == true) ...[
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Link with Partner',
+                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontSize: 18,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _partnerCodeController,
+                          decoration: InputDecoration(
+                            labelText: 'Partner\'s Unique Code',
+                            border: const OutlineInputBorder(),
+                            suffixIcon: _isLinking
+                                ? const Padding(
+                                    padding: EdgeInsets.all(8.0),
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : null,
+                            errorText: _linkError,
+                          ),
+                          enabled: !_isLinking,
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: _isLinking ? null : _linkWithPartner,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: themeProvider.selectedColor,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text('Link Accounts'),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'You can link with one partner for free. To link with more partners, please consider buying a subscription.',
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 15),
+              ],
               
               // Theme Selection Section
               Card(
@@ -556,12 +617,7 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
                 darkModeProvider.toggleDarkMode();
               },
             ),
-            IconButton(
-              icon: const Icon(Icons.logout),
-              onPressed: () {
-                authProvider.signOut();
-              },
-            ),
+
           ],
         );
       },
