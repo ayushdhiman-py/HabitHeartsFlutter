@@ -1438,17 +1438,14 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
                         day.day == widget.goal.endDate!.day) {
                       showTargetEmoji = true;
                     }
-                    
-                    final bool isWithinGoalRange = !day.isBefore(goalStartDate) && (widget.goal.endDate == null || !day.isAfter(widget.goal.endDate!));
-                    final bool isStreakDay = streakDates.any((d) => d.year == day.year && d.month == day.month && d.day == day.day);
+
+                    final isStreakDay = streakDates.any((d) => d.year == day.year && d.month == day.month && d.day == day.day);
 
                     Color dayColor;
                     if (isStreakDay) {
                       dayColor = Colors.yellow.shade700;
                     } else if (isCompleted) {
                       dayColor = AppColors.vibrantGreen.withOpacity(0.8);
-                    } else if (isWithinGoalRange) {
-                      dayColor = themeProvider.selectedColor.withOpacity(0.3);
                     } else {
                       dayColor = Theme.of(context).brightness == Brightness.dark
                                     ? AppColors.darkCardBackground
@@ -1465,9 +1462,9 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
                           color: showTargetEmoji ? Colors.orangeAccent : (isCompleted 
                               ? dayColor
                               : Theme.of(context).brightness == Brightness.dark
-                                  ? (isWithinGoalRange ? AppColors.darkBorderColor : Colors.grey[400]!)
-                                  : (isWithinGoalRange ? AppColors.borderColor : Colors.grey[400]!)),
-                          width: showTargetEmoji ? 1.5 : (isWithinGoalRange ? 1 : 0.5),
+                                  ? AppColors.darkBorderColor
+                                  : AppColors.borderColor),
+                          width: showTargetEmoji ? 1.5 : 1.0,
                         ),
                       ),
                       child: Center(
@@ -1479,9 +1476,7 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
                                   fontSize: 8,
                                   color: isCompleted || isStreakDay
                                       ? Colors.white 
-                                      : Theme.of(context).brightness == Brightness.dark
-                                          ? (isWithinGoalRange ? AppColors.darkTextColor : Colors.grey[400])
-                                          : (isWithinGoalRange ? AppColors.textColor : Colors.grey[400]),
+                                      : Theme.of(context).textTheme.bodyLarge?.color,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),

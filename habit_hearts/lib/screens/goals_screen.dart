@@ -762,7 +762,6 @@ class _EditGoalModalState extends State<_EditGoalModal> {
       description: _descriptionController.text.trim(),
       emoji: _selectedEmoji,
       startDate: _selectedStartDate,
-      clearStartDate: _isHabit,
       endDate: _selectedEndDate,
       clearEndDate: _isHabit,
       isHabit: _isHabit,
