@@ -420,6 +420,26 @@ class GoalsProvider with ChangeNotifier {
     return progressSummary.getLongestStreak();
   }
 
+  List<DateTime> getDatesInCurrentStreak(String goalId) {
+    final goal = _goals.firstWhereOrNull((g) => g.id == goalId);
+    if (goal == null) return [];
+
+    final List<DateTime> streakDates = [];
+    DateTime currentDate = DateTime.now();
+
+    // Adjust for today: if today is not completed, start checking from yesterday
+    if (!isGoalCompletedForDate(goalId, currentDate)) {
+      currentDate = currentDate.subtract(const Duration(days: 1));
+    }
+
+    while (isGoalCompletedForDate(goalId, currentDate)) {
+      streakDates.add(DateTime(currentDate.year, currentDate.month, currentDate.day));
+      currentDate = currentDate.subtract(const Duration(days: 1));
+    }
+    
+    return streakDates;
+  }
+
   // Calculate progress percentage for a goal based on actual completion data
   double calculateGoalProgress(String goalId) {
     // Get the goal to determine the date range

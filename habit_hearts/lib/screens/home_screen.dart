@@ -1306,19 +1306,33 @@ class _MonthlyGoalHeatmap extends StatefulWidget {
 }
 
 class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
-  DateTime? _currentDate;
+  late DateTime _currentDate;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentDate = widget.goal.startDate ?? DateTime.now();
+  }
+
+  @override
+  void didUpdateWidget(covariant _MonthlyGoalHeatmap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.goal.startDate != oldWidget.goal.startDate) {
+      setState(() {
+        _currentDate = widget.goal.startDate ?? DateTime.now();
+      });
+    }
+  }
 
   void _previousMonth() {
-    if (_currentDate == null) return;
     setState(() {
-      _currentDate = DateTime(_currentDate!.year, _currentDate!.month - 1, _currentDate!.day);
+      _currentDate = DateTime(_currentDate.year, _currentDate.month - 1, _currentDate.day);
     });
   }
 
   void _nextMonth() {
-    if (_currentDate == null) return;
     setState(() {
-      _currentDate = DateTime(_currentDate!.year, _currentDate!.month + 1, _currentDate!.day);
+      _currentDate = DateTime(_currentDate.year, _currentDate.month + 1, _currentDate.day);
     });
   }
 
@@ -1338,15 +1352,17 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
 
   @override
   Widget build(BuildContext context) {
-    _currentDate ??= widget.goal.startDate ?? DateTime.now();
+    final goalsProvider = Provider.of<GoalsProvider>(context, listen: false);
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    final streakDates = goalsProvider.getDatesInCurrentStreak(widget.goal.id);
 
     final List<DateTime> daysToShow = [];
     for (int i = 0; i < 40; i++) {
-      daysToShow.add(_currentDate!.add(Duration(days: i)));
+      daysToShow.add(_currentDate.add(Duration(days: i)));
     }
 
     final goalStartDate = widget.goal.startDate ?? widget.goal.createdAt;
-    final canGoBack = _currentDate!.isAfter(goalStartDate);
+    final canGoBack = _currentDate.isAfter(goalStartDate);
     const bool canGoForward = true;
     
     return Column(
@@ -1417,48 +1433,58 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
                     bool showTargetEmoji = false;
                     if (!widget.goal.isHabit && 
                         widget.goal.endDate != null && 
-                        day.isAtSameMomentAs(widget.goal.endDate!)) {
+                        day.year == widget.goal.endDate!.year &&
+                        day.month == widget.goal.endDate!.month &&
+                        day.day == widget.goal.endDate!.day) {
                       showTargetEmoji = true;
                     }
                     
-                    // Check if the day is within the goal range to show it
-                    final bool isWithinGoalRange = !day.isBefore(goalStartDate);
+                    final bool isWithinGoalRange = !day.isBefore(goalStartDate) && (widget.goal.endDate == null || !day.isAfter(widget.goal.endDate!));
+                    final bool isStreakDay = streakDates.any((d) => d.year == day.year && d.month == day.month && d.day == day.day);
+
+                    Color dayColor;
+                    if (isStreakDay) {
+                      dayColor = Colors.yellow.shade700;
+                    } else if (isCompleted) {
+                      dayColor = AppColors.vibrantGreen.withOpacity(0.8);
+                    } else if (isWithinGoalRange) {
+                      dayColor = themeProvider.selectedColor.withOpacity(0.3);
+                    } else {
+                      dayColor = Theme.of(context).brightness == Brightness.dark
+                                    ? AppColors.darkCardBackground
+                                    : AppColors.lightCardBackground;
+                    }
                     
-                    // Make the heatmap read-only - no tapping allowed
                     return Container(
                       width: 12.0,
                       height: 12.0,
                       decoration: BoxDecoration(
-                        color: isCompleted 
-                            ? AppColors.vibrantGreen.withOpacity(0.8) 
-                            : isWithinGoalRange // Only show background color if within goal range
-                                ? (Theme.of(context).brightness == Brightness.dark
-                                    ? AppColors.darkCardBackground
-                                    : AppColors.lightCardBackground)
-                                : Colors.grey[400]!.withOpacity(0.5), // Gray out days outside goal range
-                        borderRadius: BorderRadius.circular(2),
+                        color: dayColor,
+                        borderRadius: BorderRadius.circular(showTargetEmoji ? 6.0 : 2),
                         border: Border.all(
-                          color: isCompleted 
-                              ? AppColors.vibrantGreen.withOpacity(0.8)
+                          color: showTargetEmoji ? Colors.orangeAccent : (isCompleted 
+                              ? dayColor
                               : Theme.of(context).brightness == Brightness.dark
                                   ? (isWithinGoalRange ? AppColors.darkBorderColor : Colors.grey[400]!)
-                                  : (isWithinGoalRange ? AppColors.borderColor : Colors.grey[400]!),
-                          width: isWithinGoalRange ? 1 : 0.5, // Thinner borders for disabled days
+                                  : (isWithinGoalRange ? AppColors.borderColor : Colors.grey[400]!)),
+                          width: showTargetEmoji ? 1.5 : (isWithinGoalRange ? 1 : 0.5),
                         ),
                       ),
                       child: Center(
-                        child: Text(
-                          '${day.day}',
-                          style: TextStyle(
-                            fontSize: 8,
-                            color: isCompleted 
-                                ? Colors.white 
-                                : Theme.of(context).brightness == Brightness.dark
-                                    ? (isWithinGoalRange ? AppColors.darkTextColor : Colors.grey[400])
-                                    : (isWithinGoalRange ? AppColors.textColor : Colors.grey[400]),
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        child: showTargetEmoji
+                            ? Text('🏆', style: TextStyle(fontSize: 8))
+                            : Text(
+                                '${day.day}',
+                                style: TextStyle(
+                                  fontSize: 8,
+                                  color: isCompleted || isStreakDay
+                                      ? Colors.white 
+                                      : Theme.of(context).brightness == Brightness.dark
+                                          ? (isWithinGoalRange ? AppColors.darkTextColor : Colors.grey[400])
+                                          : (isWithinGoalRange ? AppColors.textColor : Colors.grey[400]),
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                       ),
                     );
                   } else {

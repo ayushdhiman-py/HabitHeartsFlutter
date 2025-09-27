@@ -490,7 +490,6 @@ class _AddGoalModalState extends State<_AddGoalModal> {
                         onChanged: (value) => setState(() {
                           _isHabit = value;
                           if (value) {
-                            _selectedStartDate = null;
                             _selectedEndDate = null;
                           }
                         }),
@@ -762,8 +761,10 @@ class _EditGoalModalState extends State<_EditGoalModal> {
       text: _goalController.text.trim(),
       description: _descriptionController.text.trim(),
       emoji: _selectedEmoji,
-      startDate: _isHabit ? null : _selectedStartDate,
-      endDate: _isHabit ? null : _selectedEndDate,
+      startDate: _selectedStartDate,
+      clearStartDate: _isHabit,
+      endDate: _selectedEndDate,
+      clearEndDate: _isHabit,
       isHabit: _isHabit,
       isShared: _isShared,
       updatedAt: DateTime.now(),
@@ -850,7 +851,6 @@ class _EditGoalModalState extends State<_EditGoalModal> {
                         onChanged: (value) => setState(() {
                           _isHabit = value;
                           if (value) {
-                            _selectedStartDate = null;
                             _selectedEndDate = null;
                           }
                         }),
