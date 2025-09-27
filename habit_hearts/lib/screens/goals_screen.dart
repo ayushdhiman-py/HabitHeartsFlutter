@@ -368,9 +368,9 @@ class _AddGoalModalState extends State<_AddGoalModal> {
       overlayState?.insert(overlayEntry);
 
       // Remove the toast after 3 seconds
-      Future.delayed(Duration(seconds: 3), () {
-        if (overlayEntry.mounted) {
-          overlayEntry.remove();
+      Future.delayed(const Duration(seconds: 3), () {
+        if (overlayEntry?.mounted ?? false) {
+          overlayEntry?.remove();
         }
       });
     }
@@ -656,6 +656,62 @@ class _EditGoalModalState extends State<_EditGoalModal> {
           } else {
             _selectedEndDate = picked;
           }
+        }
+      });
+    }
+  }
+
+  // Show toast above modal using Overlay
+  void _showToast(String message) {
+    if (context.mounted) {
+      OverlayState? overlayState = Overlay.of(context);
+      OverlayEntry? overlayEntry;
+
+      overlayEntry = OverlayEntry(
+        builder: (context) => Positioned(
+          top: 100.0,
+          left: 50.0,
+          right: 50.0,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.all(16.0),
+              decoration: BoxDecoration(
+                color: Colors.orange,
+                borderRadius: BorderRadius.circular(8.0),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 4.0,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      message,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      overlayState?.insert(overlayEntry);
+
+      // Remove the toast after 3 seconds
+      Future.delayed(const Duration(seconds: 3), () {
+        if (overlayEntry?.mounted ?? false) {
+          overlayEntry?.remove();
         }
       });
     }
