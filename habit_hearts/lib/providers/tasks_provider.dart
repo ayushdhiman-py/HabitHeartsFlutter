@@ -83,19 +83,42 @@ class TasksProvider with ChangeNotifier {
   Future<Task?> updateTask(Task updatedTask) async {
     if (_userId == null) return null;
 
+    final originalTaskIndex = _tasks.indexWhere((t) => t.id == updatedTask.id);
+    Task? originalTask;
+
+    if (originalTaskIndex != -1) {
+      originalTask = _tasks[originalTaskIndex];
+      // Optimistically update the UI
+      _tasks[originalTaskIndex] = updatedTask;
+      _tasks.sort((a, b) => (a.startTime ?? '').compareTo(b.startTime ?? '')); // Sort by start time
+      notifyListeners();
+    }
+
     try {
       final result = await ApiService.updateTask(updatedTask);
-      if (result != null) {
-        final index = _tasks.indexWhere((t) => t.id == result.id);
-        if (index != -1) {
-          _tasks[index] = result;
+      if (result == null && originalTask != null) {
+        // Revert the change if the API call fails
+        if (originalTaskIndex != -1) {
+          _tasks[originalTaskIndex] = originalTask;
           _tasks.sort((a, b) => (a.startTime ?? '').compareTo(b.startTime ?? '')); // Sort by start time
           notifyListeners();
         }
+        print('Error updating task: API call failed, reverted UI.');
+      } else if (result != null && originalTaskIndex != -1) {
+        // If API call succeeds, ensure the list is updated with the actual result (e.g., if backend modified it)
+        _tasks[originalTaskIndex] = result;
+        _tasks.sort((a, b) => (a.startTime ?? '').compareTo(b.startTime ?? '')); // Sort by start time
+        notifyListeners();
       }
       return result;
     } catch (e) {
       print('Error updating task in provider: $e');
+      // Revert the change on error
+      if (originalTask != null && originalTaskIndex != -1) {
+        _tasks[originalTaskIndex] = originalTask;
+        _tasks.sort((a, b) => (a.startTime ?? '').compareTo(b.startTime ?? '')); // Sort by start time
+        notifyListeners();
+      }
       return null;
     }
   }
