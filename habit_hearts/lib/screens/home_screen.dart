@@ -29,7 +29,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late ScrollController _scrollController;
   DateTime _selectedDate = DateTime.now();
   bool _isLoading = true;
@@ -90,6 +90,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showAddTaskModal() {
     showModalBottomSheet(
       context: context,
+      transitionAnimationController: AnimationController(vsync: this, duration: const Duration(milliseconds: 150)),
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
@@ -262,6 +263,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           onTaskEdit: (task) {
                             showModalBottomSheet(
                               context: context,
+                              transitionAnimationController: AnimationController(vsync: this, duration: const Duration(milliseconds: 150)),
                               isScrollControlled: true,
                               shape: const RoundedRectangleBorder(
                                 borderRadius: BorderRadius.vertical(top: Radius.circular(25)),

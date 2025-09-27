@@ -19,10 +19,11 @@ class GoalsScreen extends StatefulWidget {
   State<GoalsScreen> createState() => _GoalsScreenState();
 }
 
-class _GoalsScreenState extends State<GoalsScreen> {
+class _GoalsScreenState extends State<GoalsScreen> with TickerProviderStateMixin {
   void _showAddGoalModal() {
     showModalBottomSheet(
       context: context,
+      transitionAnimationController: AnimationController(vsync: this, duration: const Duration(milliseconds: 150)),
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
       builder: (_) => const _AddGoalModal(),
@@ -40,6 +41,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
           if (goalsProvider.goals.isEmpty) return _EmptyGoalsState(onAddGoal: _showAddGoalModal);
           return _GoalsList(
             goals: goalsProvider.goals,
+            vsync: this,
             onToggleCompletion: (goalId) {
               final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
               final userId = authProvider.user?.uid ?? 'unknown';
@@ -118,8 +120,9 @@ class _EmptyGoalsState extends StatelessWidget {
 class _GoalsList extends StatelessWidget {
   final List<Goal> goals;
   final Function(String) onToggleCompletion;
+  final TickerProvider vsync;
 
-  const _GoalsList({required this.goals, required this.onToggleCompletion});
+  const _GoalsList({required this.goals, required this.onToggleCompletion, required this.vsync});
 
   @override
   Widget build(BuildContext context) {
@@ -211,6 +214,7 @@ class _GoalsList extends StatelessWidget {
   void _showEditGoalModal(BuildContext context, Goal goal) {
     showModalBottomSheet(
       context: context,
+      transitionAnimationController: AnimationController(vsync: vsync, duration: const Duration(milliseconds: 150)),
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
       builder: (_) => _EditGoalModal(goal: goal),
