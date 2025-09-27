@@ -773,7 +773,7 @@ class _EditGoalModalState extends State<_EditGoalModal> {
       updatedAt: DateTime.now(),
     );
 
-    await Provider.of<GoalsProvider>(context, listen: false).updateGoal(context, updatedGoal);
+    Provider.of<GoalsProvider>(context, listen: false).updateGoal(context, updatedGoal);
 
     if (mounted) {
       Navigator.of(context).pop();

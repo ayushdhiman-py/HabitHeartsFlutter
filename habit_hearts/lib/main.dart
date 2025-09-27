@@ -18,6 +18,7 @@ import 'screens/home_screen.dart';
 import 'screens/calendar_screen.dart';
 import 'screens/goals_screen.dart';
 import 'screens/profile_screen.dart';
+import 'providers/tasks_provider.dart'; // Import TasksProvider
 import 'dart:ui' as ui;
 
 // Widget to handle system UI overlay styling
@@ -101,6 +102,10 @@ void main() async {
         ChangeNotifierProxyProvider<HabitHeartsAuthProvider, CalendarProvider>(
           create: (context) => CalendarProvider(),
           update: (context, auth, previous) => previous!..update(auth),
+        ),
+        ChangeNotifierProxyProvider<HabitHeartsAuthProvider, TasksProvider>(
+          create: (context) => TasksProvider(),
+          update: (context, auth, previous) => previous!..setUserId(auth.user?.uid),
         ),
         ChangeNotifierProvider(create: (_) => DarkModeProvider()),
       ],

@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import 'dart:math' as math;
 import '../providers/habit_hearts_auth_provider.dart';
 import '../providers/goals_provider.dart';
+import '../providers/tasks_provider.dart'; // Import TasksProvider
 import '../theme/app_theme.dart';
 import '../models/task.dart';
 import '../models/goal.dart';
@@ -21,6 +22,7 @@ import '../widgets/swipeable_goal_item.dart';
 import '../utils/lottie_decoder.dart';
 import '../widgets/themed_background.dart';
 import 'dart:ui' as ui;
+import '../providers/tasks_provider.dart'; // Import TasksProvider
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -31,54 +33,19 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late ScrollController _scrollController;
-  DateTime _selectedDate = DateTime.now();
-  bool _isLoading = true;
-  List<Task> _tasks = [];
 
   @override
   void initState() {
     super.initState();
     _scrollController = ScrollController();
     
-    // Load data
-    _loadData();
-  }
-
-  void _loadData() {
-    // Load tasks from API
+    // Initialize TasksProvider with the current date
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadTasksForDate(_selectedDate);
-    });
-  }
-  
-  Future<void> _loadTasksForDate(DateTime date) async {
-    try {
+      final tasksProvider = Provider.of<TasksProvider>(context, listen: false);
       final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
-      if (authProvider.user == null) return;
-      
-      setState(() {
-        _isLoading = true;
-      });
-      
-      print('Loading tasks for date: $date, user: ${authProvider.user!.uid}');
-      
-      // Load tasks from API
-      final tasks = await ApiService.getTasksForDate(authProvider.user!.uid, date);
-      print('Loaded ${tasks.length} tasks from API');
-      if (mounted) {
-        setState(() {
-          _tasks = tasks;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      print('Error loading tasks: $e');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
+      tasksProvider.setUserId(authProvider.user?.uid); // Ensure userId is set
+      tasksProvider.loadTasksForDate(tasksProvider.selectedDate);
+    });
   }
 
   @override
@@ -97,10 +64,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ),
       builder: (BuildContext context) {
         return _AddTaskModal(
-          selectedDate: _selectedDate,
+          selectedDate: Provider.of<TasksProvider>(context, listen: false).selectedDate,
           onTaskCreated: () {
-            // Reload tasks for the current date to ensure we have the latest data
-            _loadTasksForDate(_selectedDate);
+            // TasksProvider will handle updating the task list
           },
         );
       },
@@ -110,6 +76,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<HabitHeartsAuthProvider>(context);
+    final tasksProvider = Provider.of<TasksProvider>(context);
 
     return Scaffold(
       appBar: _ThemedAppBar(title: 'HabitHearts', onAddTask: _showAddTaskModal),
@@ -133,7 +100,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        DateFormat('MMMM yyyy').format(_selectedDate),
+                        DateFormat('MMMM yyyy').format(tasksProvider.selectedDate),
                         style: TextStyle(
                           fontSize: 16, // Reduced from 18 to 16
                           fontWeight: FontWeight.w600,
@@ -144,16 +111,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         ),
                       ),
                       // Today button (only shown when not on today's date)
-                      if (!_isSameDay(_selectedDate, DateTime.now()))
+                      if (!_isSameDay(tasksProvider.selectedDate, DateTime.now()))
                         TextButton(
                           onPressed: () {
                             final today = DateTime.now();
-                            if (!_isSameDay(_selectedDate, today)) {
-                              setState(() {
-                                _selectedDate = today;
-                              });
-                              // Load tasks for today's date
-                              _loadTasksForDate(today);
+                            if (!_isSameDay(tasksProvider.selectedDate, today)) {
+                              tasksProvider.setSelectedDate(today);
                             }
                           },
                           style: TextButton.styleFrom(
@@ -178,15 +141,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   
                   // Date Carousel with better styling
                       _DateCarousel(
-                        selectedDate: _selectedDate,
+                        selectedDate: tasksProvider.selectedDate,
                         onDateSelected: (date) {
-                          if (!_isSameDay(_selectedDate, date)) {
-                            setState(() {
-                              _selectedDate = date;
-                            });
-                            // Load tasks for the selected date
-                            _loadTasksForDate(date);
-                          }
+                          tasksProvider.setSelectedDate(date);
                         },
                       ),
                   const SizedBox(height: 10), // Changed from 3 to 10 to match spacing before Goals section
@@ -203,7 +160,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         ),
                       ),
                       Text(
-                        '${_tasks.where((task) => !task.completed).length} pending',
+                        '${tasksProvider.tasks.where((task) => !task.completed).length} pending',
                         style: TextStyle(
                           fontSize: 14, // Reduced from 16 to 14
                           color: Theme.of(context).brightness == Brightness.dark 
@@ -214,51 +171,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ],
                   ),
                   const SizedBox(height: 10), // Updated to match spacing after Goals title
-                  _isLoading
+                  tasksProvider.isLoading
                       ? const _TaskListSkeleton._()
                       : _TaskList(
-                          tasks: _tasks,
+                          tasks: tasksProvider.tasks,
                           onTaskToggle: (task) async {
-                            final originalTask = task;
-                            final updatedTask = task.copyWith(completed: !task.completed, updatedAt: DateTime.now());
-
-                            // Optimistically update the UI
-                            setState(() {
-                              final index = _tasks.indexWhere((t) => t.id == task.id);
-                              if (index != -1) {
-                                _tasks[index] = updatedTask;
-                              }
-                            });
-
-                            try {
-                              final result = await ApiService.updateTask(updatedTask);
-                              if (result == null && mounted) {
-                                // Revert the change if the API call fails
-                                setState(() {
-                                  final index = _tasks.indexWhere((t) => t.id == task.id);
-                                  if (index != -1) {
-                                    _tasks[index] = originalTask;
-                                  }
-                                });
-                              } else if (result != null) {
-                                // If the API call succeeds, update the UI with the returned task
-                                setState(() {
-                                  final index = _tasks.indexWhere((t) => t.id == result.id);
-                                  if (index != -1) {
-                                    _tasks[index] = result;
-                                  }
-                                });
-                              }
-                            } catch (e) {
-                              print('Error toggling task: $e');
-                              // Revert the change on error
-                              setState(() {
-                                final index = _tasks.indexWhere((t) => t.id == task.id);
-                                if (index != -1) {
-                                  _tasks[index] = originalTask;
-                                }
-                              });
-                            }
+                            await tasksProvider.updateTask(task.copyWith(completed: !task.completed, updatedAt: DateTime.now()));
                           },
                           onTaskEdit: (task) {
                             showModalBottomSheet(
@@ -271,9 +189,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               builder: (BuildContext context) {
                                 return _EditTaskModal(
                                   task: task,
-                                  onTaskUpdated: (updatedTask) {
-                                    // When a task is updated, reload the data to ensure consistency
-                                    _loadTasksForDate(_selectedDate);
+                                  onTaskUpdated: (updatedTask) async {
+                                    await tasksProvider.updateTask(updatedTask);
                                   },
                                 );
                               },
@@ -281,11 +198,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           },
                           onTaskDelete: (task) async {
                             try {
-                              final success = await ApiService.deleteTask(task.id);
+                              final success = await tasksProvider.deleteTask(task.id);
                               if (success && mounted) {
-                                setState(() {
-                                  _tasks.removeWhere((t) => t.id == task.id);
-                                });
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(content: Text('Task deleted successfully')),
                                 );
@@ -317,9 +231,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  _isLoading 
-                      ? const _GoalsSectionSkeleton._()
-                      : Consumer<GoalsProvider>(
+                  Consumer<GoalsProvider>(
                           builder: (context, goalsProvider, child) {
                             return _GoalsSection(
                               goals: goalsProvider.goals,
@@ -813,44 +725,24 @@ class _EditTaskModalState extends State<_EditTaskModal> {
       return;
     }
 
-    try {
-      final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
-      
-      final updatedTask = widget.task.copyWith(
-        text: _taskController.text.trim(),
-        description: _descriptionController.text.trim(),
-        emoji: _selectedEmoji,
-        dueDate: _selectedDate,
-        startTime: _startTime != null
-            ? '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}'
-            : null,
-        endTime: _endTime != null
-            ? '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}'
-            : null,
-        updatedAt: DateTime.now(),
-      );
+    final updatedTask = widget.task.copyWith(
+      text: _taskController.text.trim(),
+      description: _descriptionController.text.trim(),
+      emoji: _selectedEmoji,
+      dueDate: _selectedDate,
+      startTime: _startTime != null
+          ? '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}'
+          : null,
+      endTime: _endTime != null
+          ? '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}'
+          : null,
+      updatedAt: DateTime.now(),
+    );
 
-      final updatedTaskResult = await ApiService.updateTask(updatedTask);
-
-      if (updatedTaskResult != null && mounted) {
-        widget.onTaskUpdated(updatedTaskResult);
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Task updated successfully')),
-        );
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to update task')),
-        );
-      }
-    } catch (e) {
-      print('Error updating task: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error updating task')),
-        );
-      }
-    }
+    final tasksProvider = Provider.of<TasksProvider>(context, listen: false);
+    await tasksProvider.updateTask(updatedTask);
+    widget.onTaskUpdated(updatedTask); // This callback is now mostly for external notifications if needed
+    Navigator.of(context).pop();
   }
 
   @override
@@ -1797,6 +1689,7 @@ class _AddTaskModalState extends State<_AddTaskModal> {
 
     try {
       final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
+      final tasksProvider = Provider.of<TasksProvider>(context, listen: false);
       
       final newTask = Task(
         id: DateTime.now().millisecondsSinceEpoch.toString(), // This will be replaced by the backend
@@ -1820,11 +1713,10 @@ class _AddTaskModalState extends State<_AddTaskModal> {
 
       print('Creating task: ${newTask.text}, dueDate: ${newTask.dueDate}');
       
-      final createdTask = await ApiService.createTask(newTask);
+      final createdTask = await tasksProvider.addTask(newTask);
       print('Task creation result: $createdTask');
       if (createdTask != null && mounted) {
-        // Notify that a task was created
-        widget.onTaskCreated();
+        widget.onTaskCreated(); // This callback is now mostly for external notifications if needed
         
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(

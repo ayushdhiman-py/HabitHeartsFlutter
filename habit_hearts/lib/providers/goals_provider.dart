@@ -133,17 +133,25 @@ class GoalsProvider with ChangeNotifier {
 
   // Update a goal
   Future<void> updateGoal(BuildContext context, Goal updatedGoal) async {
+    final index = _goals.indexWhere((g) => g.id == updatedGoal.id);
+    if (index == -1) return;
+
+    final originalGoal = _goals[index];
+    _goals[index] = updatedGoal;
+    notifyListeners();
+
     try {
       final result = await ApiService.updateGoal(updatedGoal);
-      if (result != null) {
-        final index = _goals.indexWhere((g) => g.id == updatedGoal.id);
-        if (index != -1) {
-          _goals[index] = updatedGoal;
-        }
+      if (result == null) {
+        // Revert if the API call fails
+        _goals[index] = originalGoal;
         notifyListeners();
       }
     } catch (e) {
       print('Error updating goal: $e');
+      // Revert on error
+      _goals[index] = originalGoal;
+      notifyListeners();
     }
   }
 
