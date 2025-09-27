@@ -1364,6 +1364,9 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
     final goalStartDate = widget.goal.startDate ?? widget.goal.createdAt;
     final canGoBack = _currentDate.isAfter(goalStartDate);
     const bool canGoForward = true;
+
+    final today = DateTime.now();
+    final bool showTodayButton = !daysToShow.any((day) => day.year == today.year && day.month == today.month && day.day == today.day);
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1382,15 +1385,35 @@ class _MonthlyGoalHeatmapState extends State<_MonthlyGoalHeatmap> {
                 constraints: const BoxConstraints(),
               ),
               // Date range display
-              Text(
-                '${DateFormat('MMM d').format(daysToShow.first)} - ${DateFormat('MMM d, yyyy').format(daysToShow.last)}',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Theme.of(context).brightness == Brightness.dark 
-                      ? AppColors.darkTextColor 
-                      : AppColors.textColor,
-                ),
+              Row(
+                children: [
+                  Text(
+                    '${DateFormat('MMM d').format(daysToShow.first)} - ${DateFormat('MMM d, yyyy').format(daysToShow.last)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).brightness == Brightness.dark 
+                          ? AppColors.darkTextColor 
+                          : AppColors.textColor,
+                    ),
+                  ),
+                  if (showTodayButton)
+                    const SizedBox(width: 8),
+                  if (showTodayButton)
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _currentDate = DateTime.now();
+                        });
+                      },
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(30, 30),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text('Today'),
+                    ),
+                ],
               ),
               // Next button
               IconButton(
