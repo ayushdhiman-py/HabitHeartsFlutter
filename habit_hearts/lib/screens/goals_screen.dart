@@ -9,6 +9,7 @@ import '../models/goal.dart';
 import '../theme/app_theme.dart';
 import '../widgets/modern_goal_item.dart'; // Changed from swipeable_goal_item.dart
 import '../widgets/emoji_selector.dart'; // Added for emoji selection in goal modals
+import 'package:intl/intl.dart';
 import 'dart:ui' as ui;
 
 class GoalsScreen extends StatefulWidget {
@@ -517,13 +518,36 @@ class _AddGoalModalState extends State<_AddGoalModal> {
             if (!_isHabit) ...[
               const SizedBox(height: 10),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: _DatePicker(label: 'Start Date', selectedDate: _selectedStartDate, onSelectDate: () => _selectDate()),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Start Date', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 8),
+                        _DatePicker(
+                          selectedDate: _selectedStartDate,
+                          onSelectDate: () => _selectDate(),
+                          hintText: 'Select Date',
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: _DatePicker(label: 'End Date', selectedDate: _selectedEndDate, onSelectDate: () => _selectDate(isStart: false)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('End Date', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 8),
+                        _DatePicker(
+                          selectedDate: _selectedEndDate,
+                          onSelectDate: () => _selectDate(isStart: false),
+                          hintText: 'Select Date',
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -854,13 +878,36 @@ class _EditGoalModalState extends State<_EditGoalModal> {
             if (!_isHabit) ...[
               const SizedBox(height: 10),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: _DatePicker(label: 'Start Date', selectedDate: _selectedStartDate, onSelectDate: () => _selectDate()),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Start Date', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 8),
+                        _DatePicker(
+                          selectedDate: _selectedStartDate,
+                          onSelectDate: () => _selectDate(),
+                          hintText: 'Select Date',
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: _DatePicker(label: 'End Date', selectedDate: _selectedEndDate, onSelectDate: () => _selectDate(isStart: false)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('End Date', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 8),
+                        _DatePicker(
+                          selectedDate: _selectedEndDate,
+                          onSelectDate: () => _selectDate(isStart: false),
+                          hintText: 'Select Date',
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -891,41 +938,38 @@ class _EditGoalModalState extends State<_EditGoalModal> {
 
 
 class _DatePicker extends StatelessWidget {
-  final String label;
   final DateTime? selectedDate;
   final VoidCallback onSelectDate;
+  final String hintText;
 
-  const _DatePicker({required this.label, this.selectedDate, required this.onSelectDate});
+  const _DatePicker({Key? key, this.selectedDate, required this.onSelectDate, required this.hintText}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Text(label, style: const TextStyle(fontSize: 16)),
-        const SizedBox(width: 10),
-        Expanded(
-          child: InkWell(
-            onTap: onSelectDate,
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(8)),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      selectedDate != null ? '${selectedDate!.day}/${selectedDate!.month}/${selectedDate!.year}' : 'Select Date',
-                      style: const TextStyle(fontSize: 14),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const Icon(Icons.calendar_today, size: 16),
-                ],
+    return GestureDetector(
+      onTap: onSelectDate,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.calendar_today, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                selectedDate != null
+                    ? DateFormat('MMM dd, yyyy').format(selectedDate!)
+                    : hintText,
+                style: const TextStyle(fontSize: 16),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-          ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
