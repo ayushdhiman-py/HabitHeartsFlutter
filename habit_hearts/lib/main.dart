@@ -20,6 +20,7 @@ import 'screens/goals_screen.dart';
 import 'screens/profile_screen.dart';
 import 'providers/tasks_provider.dart'; // Import TasksProvider
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 
 // Widget to handle system UI overlay styling
 class SystemUiOverlayController extends StatefulWidget {
@@ -84,7 +85,19 @@ void main() async {
   );
   
   // Initialize Firebase App Check
-  await FirebaseAppCheck.instance.activate();
+  if (kDebugMode) {
+    // Use debug provider in development
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: AndroidProvider.debug,
+      appleProvider: AppleProvider.debug,
+    );
+  } else {
+    // Use release provider in production
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: AndroidProvider.playIntegrity,
+      appleProvider: AppleProvider.appAttest,
+    );
+  }
 
   // Clear API cache on app start
   ApiService.clearAllCache();

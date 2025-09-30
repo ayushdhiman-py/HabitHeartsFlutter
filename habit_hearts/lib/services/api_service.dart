@@ -7,7 +7,7 @@ import '../models/goal.dart';
 import '../models/calendar_event.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://10.103.28.41:3000';
+  static const String baseUrl = 'http://10.168.124.41:3000';
   static const String usersEndpoint = '/api/users';
   static const String tasksEndpoint = '/api/tasks';
   static const String goalsEndpoint = '/api/goals';
@@ -23,8 +23,15 @@ class ApiService {
       }
       return null;
     } catch (e) {
-      print('Error getting ID token: $e');
-      return null;
+      // Handle specific error for unlinked provider
+      if (e.toString().contains('[firebase_auth/no-such-provider]')) {
+        print('User is not linked to the requested provider, signing out to prevent issues');
+        await FirebaseAuth.instance.signOut();
+        return null;
+      } else {
+        print('Error getting ID token: $e');
+        return null;
+      }
     }
   }
 
