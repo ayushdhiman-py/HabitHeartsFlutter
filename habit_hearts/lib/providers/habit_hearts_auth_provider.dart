@@ -122,4 +122,37 @@ class HabitHeartsAuthProvider with ChangeNotifier {
       rethrow;
     }
   }
+  
+  // Update user's zodiac sign
+  Future<void> updateUserZodiacSign(String zodiacSign) async {
+    if (_user == null || _habitHeartsUser == null) return;
+    
+    try {
+      // Create updated user object with new zodiac sign
+      habit_hearts_user.User updatedUser = habit_hearts_user.User(
+        uid: _habitHeartsUser!.uid,
+        email: _habitHeartsUser!.email,
+        displayName: _habitHeartsUser!.displayName,
+        photoURL: _habitHeartsUser!.photoURL,
+        uniqueCode: _habitHeartsUser!.uniqueCode,
+        linkedUsers: _habitHeartsUser!.linkedUsers,
+        createdAt: _habitHeartsUser!.createdAt,
+        updatedAt: DateTime.now(),
+        status: _habitHeartsUser!.status,
+        subscription: _habitHeartsUser!.subscription,
+        goalProgress: _habitHeartsUser!.goalProgress,
+        zodiacSign: zodiacSign,
+      );
+      
+      // Update the user in the database
+      await _userService.setUser(updatedUser);
+      
+      // Update the local user object
+      _habitHeartsUser = updatedUser;
+      notifyListeners();
+    } catch (e) {
+      print('Error updating user zodiac sign: $e');
+      rethrow;
+    }
+  }
 }

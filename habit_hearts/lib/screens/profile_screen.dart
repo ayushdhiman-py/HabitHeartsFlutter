@@ -6,9 +6,11 @@ import 'dart:math';
 import '../providers/habit_hearts_auth_provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/dark_mode_provider.dart';
+import '../providers/horoscope_provider.dart';
 import '../theme/app_theme.dart';
 import '../models/user.dart' as habit_hearts_user;
 import '../services/api_service.dart';
+import '../widgets/horoscope_widget.dart';
 import 'dart:ui' as ui;
 
 class ProfileScreen extends StatefulWidget {
@@ -189,46 +191,84 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 20),
               ],
               
+              // Horoscope Section
+              Consumer2<HabitHeartsAuthProvider, HoroscopeProvider>(
+                builder: (context, authProvider, horoscopeProvider, child) {
+                  // Sync the user's zodiac sign from their profile data
+                  final userProfileZodiacSign = authProvider.habitHeartsUser?.zodiacSign;
+                  
+                  // Update the horoscope provider if the user's zodiac sign has changed
+                  if (userProfileZodiacSign != null && 
+                      horoscopeProvider.userZodiacSign != userProfileZodiacSign) {
+                    horoscopeProvider.userZodiacSign = userProfileZodiacSign;
+                    // Fetch the horoscope for the new zodiac sign
+                    horoscopeProvider.fetchTodaysHoroscope();
+                  }
+                  
+                  return HoroscopeWidget();
+                },
+              ),
+              const SizedBox(height: 15),
+              
+              // Link with Partner Section
+
               // Unique Code Section
               if (authProvider.habitHeartsUser != null) ...[
                 Card(
                   child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    padding: const EdgeInsets.all(10.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'Your Unique Code',
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontSize: 18,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Your Unique Code',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: darkModeProvider.isDarkMode 
+                                      ? Colors.white 
+                                      : Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Share this code with your partner to link accounts',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 8),
                         Container(
-                          padding: const EdgeInsets.all(8),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
-                            gradient: _getThemeGradient(themeProvider.selectedColor),
-                            borderRadius: BorderRadius.circular(8),
+                            color: themeProvider.selectedColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: themeProvider.selectedColor,
-                              width: 1.5,
+                              color: themeProvider.selectedColor.withOpacity(0.3),
                             ),
                           ),
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
                                 authProvider.habitHeartsUser!.uniqueCode,
                                 style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
                                   color: themeProvider.selectedColor,
                                 ),
                               ),
                               IconButton(
                                 icon: Icon(
-                                  Icons.copy, 
-                                  size: 20,
+                                  Icons.copy,
+                                  size: 16,
                                   color: themeProvider.selectedColor,
                                 ),
                                 onPressed: () {
@@ -236,51 +276,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     authProvider.habitHeartsUser!.uniqueCode,
                                   );
                                 },
-                                padding: EdgeInsets.zero,
+                                padding: const EdgeInsets.all(2.0),
+                                constraints: const BoxConstraints(
+                                  minWidth: 20,
+                                  minHeight: 20,
+                                ),
                               ),
                             ],
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Share this code with your partner to link accounts',
-                          style: TextStyle(
-                            color: Colors.grey,
-                            fontSize: 12,
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 15),
+                const SizedBox(height: 12),
               ],
 
               // Link with Partner Section
               if (authProvider.habitHeartsUser?.linkedUsers.isEmpty == true) ...[
                 Card(
                   child: Padding(
-                    padding: const EdgeInsets.all(12.0),
+                    padding: const EdgeInsets.all(10.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'Link with Partner',
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontSize: 18,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: darkModeProvider.isDarkMode 
+                                ? Colors.white 
+                                : Colors.black87,
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 6),
                         Consumer<DarkModeProvider>(
                           builder: (context, darkModeProvider, child) {
                             return TextField(
                               controller: _partnerCodeController,
                               style: TextStyle(
+                                fontSize: 14,
                                 color: darkModeProvider.isDarkMode ? Colors.white : Colors.black,
                               ),
                               decoration: InputDecoration(
-                                labelText: 'Partner\'s Unique Code',
+                                labelText: 'Partner\'s Code',
                                 labelStyle: TextStyle(
+                                  fontSize: 12,
                                   color: darkModeProvider.isDarkMode ? Colors.grey[300] : Colors.grey[700],
                                 ),
                                 border: const OutlineInputBorder(),
@@ -292,17 +334,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 focusedBorder: OutlineInputBorder(
                                   borderSide: BorderSide(
                                     color: themeProvider.selectedColor,
-                                    width: 2.0,
+                                    width: 1.5,
                                   ),
                                 ),
                                 suffixIcon: _isLinking
                                     ? const Padding(
-                                        padding: EdgeInsets.all(8.0),
-                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                        padding: EdgeInsets.all(6.0),
+                                        child: SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(strokeWidth: 1.5),
+                                        ),
                                       )
                                     : null,
                                 errorText: _linkError,
                                 errorStyle: TextStyle(
+                                  fontSize: 11,
                                   color: darkModeProvider.isDarkMode ? Colors.redAccent : Colors.red,
                                 ),
                               ),
@@ -311,7 +358,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             );
                           },
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 8),
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
@@ -319,60 +366,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: themeProvider.selectedColor,
                               foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(6),
                               ),
                             ),
-                            child: const Text('Link Accounts'),
+                            child: const Text(
+                              'Link Accounts',
+                              style: TextStyle(fontSize: 14),
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 6),
                         const Text(
-                          'You can link with one partner for free. To link with more partners, please consider buying a subscription.',
+                          'One free partner. Subscribe for more.',
                           style: TextStyle(
                             color: Colors.grey,
-                            fontSize: 12,
+                            fontSize: 11,
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 15),
+                const SizedBox(height: 12),
               ],
               
               // Theme Selection Section
               Card(
                 child: Padding(
-                  padding: const EdgeInsets.all(12.0),
+                  padding: const EdgeInsets.all(10.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Theme Color',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontSize: 18,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: darkModeProvider.isDarkMode 
+                              ? Colors.white 
+                              : Colors.black87,
                         ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 4),
                       const Text(
-                        'Select your favorite color theme',
+                        'Select your favorite theme',
                         style: TextStyle(
                           color: Colors.grey,
-                          fontSize: 12,
+                          fontSize: 11,
                         ),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 8),
                       SizedBox(
-                        height: 50,
+                        height: 40,
                         child: ListView(
                           scrollDirection: Axis.horizontal,
                           children: [
                             // Solid colors using the simpler approach
                             for (Color color in ThemeProvider.availableColors)
                               Padding(
-                                padding: const EdgeInsets.only(right: 8),
+                                padding: const EdgeInsets.only(right: 6),
                                 child: GestureDetector(
                                   onTap: () {
                                     themeProvider.updateTheme(color);
@@ -386,21 +440,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     );
                                   },
                                   child: Container(
-                                    width: 40,
-                                    height: 40,
+                                    width: 32,
+                                    height: 32,
                                     decoration: BoxDecoration(
                                       color: color,
                                       shape: BoxShape.circle,
                                       border: color == themeProvider.selectedColor
                                           ? Border.all(
                                               color: Colors.white,
-                                              width: 2,
+                                              width: 1.5,
                                             )
                                           : null,
                                       boxShadow: [
                                         BoxShadow(
                                           color: Colors.black.withOpacity(0.1),
-                                          blurRadius: 3,
+                                          blurRadius: 2,
                                           offset: const Offset(0, 1),
                                         ),
                                       ],
@@ -415,7 +469,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 15),
+              const SizedBox(height: 12),
               
               // Linked Partners Section
               if (authProvider.habitHeartsUser?.linkedUsers.isNotEmpty == true) ...[
@@ -572,10 +626,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.coralRed,
                       foregroundColor: Colors.white,
-                      minimumSize: const Size(double.infinity, 45),
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      minimumSize: const Size(double.infinity, 40),
+                      padding: const EdgeInsets.symmetric(vertical: 6),
                     ),
-                    child: const Text('Sign Out'),
+                    child: const Text(
+                      'Sign Out',
+                      style: TextStyle(fontSize: 14),
+                    ),
                   ),
                 ),
               ),

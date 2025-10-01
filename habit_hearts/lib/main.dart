@@ -17,8 +17,10 @@ import 'services/api_service.dart';
 import 'screens/home_screen.dart';
 import 'screens/calendar_screen.dart';
 import 'screens/goals_screen.dart';
+import 'screens/games_screen.dart';
 import 'screens/profile_screen.dart';
 import 'providers/tasks_provider.dart'; // Import TasksProvider
+import 'providers/horoscope_provider.dart'; // Import HoroscopeProvider
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 
@@ -121,6 +123,7 @@ void main() async {
           update: (context, auth, previous) => previous!..setUserId(auth.user?.uid),
         ),
         ChangeNotifierProvider(create: (_) => DarkModeProvider()),
+        ChangeNotifierProvider(create: (_) => HoroscopeProvider()),
       ],
       child: const MyApp(),
     ),
@@ -188,6 +191,7 @@ class _MainScreenState extends State<MainScreen> {
     const HomeScreen(),
     const CalendarScreen(),
     const GoalsScreen(),
+    const GamesScreen(),
     const ProfileScreen(),
   ];
 
@@ -256,6 +260,11 @@ class _MainScreenState extends State<MainScreen> {
                               icon: Icon(Icons.flag_outlined),
                               activeIcon: Icon(Icons.flag),
                               label: 'Goals',
+                            ),
+                            BottomNavigationBarItem(
+                              icon: Icon(Icons.games_outlined),
+                              activeIcon: Icon(Icons.games),
+                              label: 'Games',
                             ),
                             BottomNavigationBarItem(
                               icon: Icon(Icons.person_outline),

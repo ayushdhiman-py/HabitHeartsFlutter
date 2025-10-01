@@ -12,6 +12,7 @@ class User {
   final String status;
   final String subscription; // Default: 'free', Possible values: 'free', 'premium', 'family'
   final Map<String, GoalProgressSummary> goalProgress;
+  final String? zodiacSign;
 
   User({
     required this.uid,
@@ -25,6 +26,7 @@ class User {
     required this.status,
     this.subscription = 'free',
     this.goalProgress = const {},
+    this.zodiacSign,
   });
 
   Map<String, dynamic> toJson() {
@@ -40,6 +42,7 @@ class User {
       'status': status,
       'subscription': subscription,
       'goalProgress': goalProgress.map((key, value) => MapEntry(key, value.toJson())),
+      'zodiacSign': zodiacSign,
     };
   }
 
@@ -71,6 +74,7 @@ class User {
       status: json['status'] ?? 'active',
       subscription: json['subscription'] ?? 'free',
       goalProgress: progressMap,
+      zodiacSign: json['zodiacSign'],
     );
   }
 }
