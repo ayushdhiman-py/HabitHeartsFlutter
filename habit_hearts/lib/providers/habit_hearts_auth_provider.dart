@@ -36,7 +36,9 @@ class HabitHeartsAuthProvider with ChangeNotifier {
       if (user != null) {
         // User document exists, use it
         _habitHeartsUser = user;
+        print('HabitHeartsAuthProvider - Loaded user document for $uid with zodiac sign: ${user.zodiacSign}');
       } else {
+        print('HabitHeartsAuthProvider - No user document found for $uid, creating new one');
         // User document doesn't exist, create it
         await _createUserDocument();
       }
@@ -67,10 +69,12 @@ class HabitHeartsAuthProvider with ChangeNotifier {
         updatedAt: DateTime.now(),
         status: 'active',
         subscription: 'free',
+        zodiacSign: null, // Explicitly set to null initially
       );
       
       await _userService.setUser(newUser);
       _habitHeartsUser = newUser;
+      print('HabitHeartsAuthProvider - Created new user document for ${_user!.uid} with zodiac sign: null');
       notifyListeners();
     } catch (e) {
       print('Error creating user document: $e');
@@ -128,6 +132,8 @@ class HabitHeartsAuthProvider with ChangeNotifier {
     if (_user == null || _habitHeartsUser == null) return;
     
     try {
+      print('HabitHeartsAuthProvider - Updating zodiac sign to: $zodiacSign for user: ${_habitHeartsUser!.uid}');
+      
       // Create updated user object with new zodiac sign
       habit_hearts_user.User updatedUser = habit_hearts_user.User(
         uid: _habitHeartsUser!.uid,
@@ -144,8 +150,11 @@ class HabitHeartsAuthProvider with ChangeNotifier {
         zodiacSign: zodiacSign,
       );
       
+      print('HabitHeartsAuthProvider - Created updated user with zodiac sign: ${updatedUser.zodiacSign}');
+      
       // Update the user in the database
       await _userService.setUser(updatedUser);
+      print('HabitHeartsAuthProvider - Successfully saved user with zodiac sign to database');
       
       // Update the local user object
       _habitHeartsUser = updatedUser;

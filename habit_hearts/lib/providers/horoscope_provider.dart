@@ -14,6 +14,7 @@ class HoroscopeProvider extends ChangeNotifier {
 
   set userZodiacSign(String? sign) {
     if (_userZodiacSign != sign) {
+      print('HoroscopeProvider - Setting zodiac sign to: $sign (was: $_userZodiacSign)');
       _userZodiacSign = sign;
       // Force refresh of horoscope when zodiac sign changes
       if (sign != null) {
@@ -31,6 +32,8 @@ class HoroscopeProvider extends ChangeNotifier {
 
   // Fetch today's real horoscope
   Future<void> fetchTodaysHoroscope() async {
+    print('HoroscopeProvider - fetchTodaysHoroscope called for sign: $_userZodiacSign');
+    
     if (_userZodiacSign == null) {
       // If no zodiac sign is set, return a default message
       _todaysHoroscope = Horoscope(
@@ -41,6 +44,7 @@ class HoroscopeProvider extends ChangeNotifier {
         compatibility: 'Not available',
       );
       _lastFetched = DateTime.now();
+      print('HoroscopeProvider - No zodiac sign set, showing default message');
       notifyListeners();
       return;
     }
@@ -51,6 +55,7 @@ class HoroscopeProvider extends ChangeNotifier {
         _lastFetched!.month == DateTime.now().month &&
         _lastFetched!.year == DateTime.now().year &&
         _todaysHoroscope?.sunSign == _userZodiacSign) {
+      print('HoroscopeProvider - Already have today\'s horoscope for ${_userZodiacSign}, not fetching again');
       // Already fetched today's horoscope for this specific zodiac sign
       notifyListeners(); // Still notify in case other data changed
       return;
@@ -64,6 +69,7 @@ class HoroscopeProvider extends ChangeNotifier {
       // Fetch real horoscope from API
       _todaysHoroscope = await _fetchRealHoroscope(_userZodiacSign!);
       _lastFetched = DateTime.now();
+      print('HoroscopeProvider - Successfully fetched horoscope for ${_userZodiacSign}');
     } finally {
       _isLoading = false;
       notifyListeners(); // Notify to update with new data and hide loading

@@ -194,15 +194,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
               // Horoscope Section
               Consumer2<HabitHeartsAuthProvider, HoroscopeProvider>(
                 builder: (context, authProvider, horoscopeProvider, child) {
-                  // Sync the user's zodiac sign from their profile data
+                  // Debug logs to see what's happening
                   final userProfileZodiacSign = authProvider.habitHeartsUser?.zodiacSign;
+                  final currentHoroscopeZodiacSign = horoscopeProvider.userZodiacSign;
+                  
+                  print('ProfileScreen - User zodiac: $userProfileZodiacSign, Horoscope provider zodiac: $currentHoroscopeZodiacSign');
                   
                   // Update the horoscope provider if the user's zodiac sign has changed
                   if (userProfileZodiacSign != null && 
-                      horoscopeProvider.userZodiacSign != userProfileZodiacSign) {
+                      currentHoroscopeZodiacSign != userProfileZodiacSign) {
+                    print('ProfileScreen - Syncing zodiac sign: $userProfileZodiacSign');
                     horoscopeProvider.userZodiacSign = userProfileZodiacSign;
                     // Fetch the horoscope for the new zodiac sign
                     horoscopeProvider.fetchTodaysHoroscope();
+                  } else if (userProfileZodiacSign == null) {
+                    print('ProfileScreen - No user zodiac sign found in profile');
+                  } else if (currentHoroscopeZodiacSign == userProfileZodiacSign) {
+                    print('ProfileScreen - Zodiac signs match, no sync needed');
                   }
                   
                   return HoroscopeWidget();
