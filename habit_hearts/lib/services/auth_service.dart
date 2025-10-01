@@ -14,24 +14,24 @@ class AuthService {
   // Sign in with Google
   Future<UserCredential?> signInWithGoogle() async {
     try {
-      // Trigger the authentication flow
+      // Sign in with Google
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      
+
       if (googleUser == null) {
         // User canceled the sign-in
         return null;
       }
 
-      // Obtain the auth details from the request
+      // Get authentication details
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
 
-      // Create a new credential
+      // Create a credential with the access token and ID token
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      // Once signed in, return the UserCredential
+      // Sign in to Firebase with the Google credential
       return await _auth.signInWithCredential(credential);
     } catch (e) {
       print('Error signing in with Google: $e');

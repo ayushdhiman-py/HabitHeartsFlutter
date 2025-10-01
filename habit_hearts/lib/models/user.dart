@@ -10,6 +10,7 @@ class User {
   final DateTime createdAt;
   final DateTime updatedAt;
   final String status;
+  final String subscription; // Default: 'free', Possible values: 'free', 'premium', 'family'
   final Map<String, GoalProgressSummary> goalProgress;
 
   User({
@@ -22,6 +23,7 @@ class User {
     required this.createdAt,
     required this.updatedAt,
     required this.status,
+    this.subscription = 'free',
     this.goalProgress = const {},
   });
 
@@ -36,6 +38,7 @@ class User {
       'createdAt': createdAt.millisecondsSinceEpoch,
       'updatedAt': updatedAt.millisecondsSinceEpoch,
       'status': status,
+      'subscription': subscription,
       'goalProgress': goalProgress.map((key, value) => MapEntry(key, value.toJson())),
     };
   }
@@ -49,11 +52,11 @@ class User {
     }
 
     return User(
-      uid: json['uid'],
+      uid: json['uid'] ?? '',
       email: json['email'],
       displayName: json['displayName'],
       photoURL: json['photoURL'],
-      uniqueCode: json['uniqueCode'],
+      uniqueCode: json['uniqueCode'] ?? '',
       linkedUsers: List<String>.from(json['linkedUsers'] ?? []),
       createdAt: DateTime.fromMillisecondsSinceEpoch(json['createdAt'] is int
           ? json['createdAt']
@@ -65,7 +68,8 @@ class User {
           : (json['updatedAt'] as Map<String, dynamic>).containsKey('_seconds')
               ? json['updatedAt']['_seconds'] * 1000
               : json['updatedAt']['seconds'] * 1000),
-      status: json['status'],
+      status: json['status'] ?? 'active',
+      subscription: json['subscription'] ?? 'free',
       goalProgress: progressMap,
     );
   }

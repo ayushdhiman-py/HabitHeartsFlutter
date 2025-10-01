@@ -34,14 +34,17 @@ class HabitHeartsAuthProvider with ChangeNotifier {
     try {
       habit_hearts_user.User? user = await _userService.getUser(uid);
       if (user != null) {
+        // User document exists, use it
         _habitHeartsUser = user;
       } else {
-        // Create new user document if it doesn't exist
+        // User document doesn't exist, create it
         await _createUserDocument();
       }
       notifyListeners();
     } catch (e) {
       print('Error loading user document: $e');
+      // Don't create a new document if there was an error accessing the existing one
+      // This prevents creating duplicate documents due to network or permission errors
     }
   }
   
@@ -63,6 +66,7 @@ class HabitHeartsAuthProvider with ChangeNotifier {
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
         status: 'active',
+        subscription: 'free',
       );
       
       await _userService.setUser(newUser);

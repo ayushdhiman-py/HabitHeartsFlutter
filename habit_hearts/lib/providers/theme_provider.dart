@@ -4,17 +4,26 @@ import '../theme/app_theme.dart';
 
 class ThemeProvider with ChangeNotifier {
   Color _selectedColor = AppColors.electricBlue;
+  bool _isLoading = true;
   static const String _themeColorKey = 'selected_theme_color';
 
   ThemeProvider() {
-    _loadThemePreferences();
+    _initializeThemePreferences();
   }
 
   Color get selectedColor => _selectedColor;
+  bool get isLoading => _isLoading;
 
-  void updateTheme(Color newColor) {
+  void updateTheme(Color newColor) async {
     _selectedColor = newColor;
-    _saveThemePreferences();
+    await _saveThemePreferences();
+    notifyListeners();
+  }
+
+  // Initialize theme preferences
+  Future<void> _initializeThemePreferences() async {
+    await _loadThemePreferences();
+    _isLoading = false;
     notifyListeners();
   }
 
@@ -26,9 +35,13 @@ class ThemeProvider with ChangeNotifier {
       
       if (colorValue != null) {
         _selectedColor = Color(colorValue);
+      } else {
+        // Default to electric blue if no preference exists
+        _selectedColor = AppColors.electricBlue;
       }
     } catch (e) {
       print('Error loading theme preferences: $e');
+      _selectedColor = AppColors.electricBlue; // Default to electric blue on error
     }
   }
 

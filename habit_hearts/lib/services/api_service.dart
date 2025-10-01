@@ -101,18 +101,28 @@ class ApiService {
         headers: headers,
       );
       if (response.statusCode == 200) {
+        // Check if response body is not empty
+        if (response.body.isEmpty) {
+          print('Empty response body for user: $uid');
+          return null;
+        }
+        
         final jsonData = json.decode(response.body);
         final user = habit_hearts_user.User.fromJson(jsonData);
         _setCachedData(cacheKey, user);
         return user;
-      } else if (response.statusCode == 401 || response.statusCode == 403) {
-        // Unauthorized - token might be invalid/expired
-        print('Authentication error: ${response.statusCode} - ${response.body}');
+      } else if (response.statusCode == 404) {
+        // User not found - this is not an error, just means the user document doesn't exist yet
+        return null;
+      } else {
+        // For all other errors (401, 403, 500, etc.), return null instead of throwing
+        // This prevents creating duplicate documents when there are network/auth errors
+        print('Error getting user: ${response.statusCode} - ${response.body}');
+        return null;
       }
-      return null;
     } catch (e) {
       print('Error getting user: $e');
-      return null;
+      throw e; // Re-throw the error so calling methods can distinguish between "not found" and "error"
     }
   }
 

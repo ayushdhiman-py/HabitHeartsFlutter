@@ -146,6 +146,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     final authProvider = Provider.of<HabitHeartsAuthProvider>(context);
     final themeProvider = Provider.of<ThemeProvider>(context);
+    final darkModeProvider = Provider.of<DarkModeProvider>(context);
     
     return Scaffold(
       appBar: _ThemedAppBar(title: 'Profile'),
@@ -221,11 +222,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 style: TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,
-                                  color: _getDarkerShade(themeProvider.selectedColor),
+                                  color: themeProvider.selectedColor,
                                 ),
                               ),
                               IconButton(
-                                icon: const Icon(Icons.copy, size: 20),
+                                icon: Icon(
+                                  Icons.copy, 
+                                  size: 20,
+                                  color: themeProvider.selectedColor,
+                                ),
                                 onPressed: () {
                                   _copyToClipboard(
                                     authProvider.habitHeartsUser!.uniqueCode,
@@ -266,20 +271,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        TextField(
-                          controller: _partnerCodeController,
-                          decoration: InputDecoration(
-                            labelText: 'Partner\'s Unique Code',
-                            border: const OutlineInputBorder(),
-                            suffixIcon: _isLinking
-                                ? const Padding(
-                                    padding: EdgeInsets.all(8.0),
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  )
-                                : null,
-                            errorText: _linkError,
-                          ),
-                          enabled: !_isLinking,
+                        Consumer<DarkModeProvider>(
+                          builder: (context, darkModeProvider, child) {
+                            return TextField(
+                              controller: _partnerCodeController,
+                              style: TextStyle(
+                                color: darkModeProvider.isDarkMode ? Colors.white : Colors.black,
+                              ),
+                              decoration: InputDecoration(
+                                labelText: 'Partner\'s Unique Code',
+                                labelStyle: TextStyle(
+                                  color: darkModeProvider.isDarkMode ? Colors.grey[300] : Colors.grey[700],
+                                ),
+                                border: const OutlineInputBorder(),
+                                enabledBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: darkModeProvider.isDarkMode ? Colors.grey[600]! : Colors.grey[400]!,
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: themeProvider.selectedColor,
+                                    width: 2.0,
+                                  ),
+                                ),
+                                suffixIcon: _isLinking
+                                    ? const Padding(
+                                        padding: EdgeInsets.all(8.0),
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      )
+                                    : null,
+                                errorText: _linkError,
+                                errorStyle: TextStyle(
+                                  color: darkModeProvider.isDarkMode ? Colors.redAccent : Colors.red,
+                                ),
+                              ),
+                              enabled: !_isLinking,
+                              cursorColor: themeProvider.selectedColor,
+                            );
+                          },
                         ),
                         const SizedBox(height: 10),
                         SizedBox(
@@ -592,7 +622,69 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
           systemOverlayStyle: darkModeProvider.isDarkMode 
               ? SystemUiOverlayStyle.light 
               : SystemUiOverlayStyle.dark,
-          title: Text(title),
+          title: Consumer<HabitHeartsAuthProvider>(
+            builder: (context, authProvider, child) {
+                  String subscriptionText = 'Free';
+                  Color subscriptionColor = themeProvider.selectedColor;
+                  Color subscriptionBgColor = themeProvider.selectedColor.withOpacity(0.15);
+                  
+                  if (authProvider.habitHeartsUser != null) {
+                    String sub = authProvider.habitHeartsUser!.subscription.toLowerCase();
+                    switch (sub) {
+                      case 'premium':
+                        subscriptionText = 'Premium';
+                        subscriptionColor = const Color(0xFFFF9800); // Orange
+                        subscriptionBgColor = const Color(0xFFFF9800).withOpacity(0.2);
+                        break;
+                      case 'family':
+                        subscriptionText = 'Family';
+                        subscriptionColor = const Color(0xFF9C27B0); // Purple
+                        subscriptionBgColor = const Color(0xFF9C27B0).withOpacity(0.2);
+                        break;
+                      default:
+                        subscriptionText = 'Free';
+                        subscriptionColor = themeProvider.selectedColor;
+                        subscriptionBgColor = themeProvider.selectedColor.withOpacity(0.15);
+                    }
+                  }
+                  
+              return GestureDetector(
+                onTap: () {
+                  _showSubscriptionModal(context, themeProvider, darkModeProvider);
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: subscriptionBgColor,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: subscriptionColor.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.workspace_premium,
+                        size: 16,
+                        color: subscriptionColor,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Current Plan: $subscriptionText',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: subscriptionColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
           titleTextStyle: TextStyle(
             color: darkModeProvider.isDarkMode ? Colors.white : Colors.black,
             fontSize: 20,
@@ -624,6 +716,584 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
     );
   }
   
+  void _showSubscriptionModal(BuildContext context, ThemeProvider themeProvider, DarkModeProvider darkModeProvider) {
+    // Get the user's current subscription
+    final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
+    String currentSubscription = 'free';
+    if (authProvider.habitHeartsUser != null) {
+      currentSubscription = authProvider.habitHeartsUser!.subscription.toLowerCase();
+    }
+    
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(20),
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.95, // 95% of screen width
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.85, // 85% of screen height max
+            ),
+            decoration: BoxDecoration(
+              color: darkModeProvider.isDarkMode ? AppColors.darkBackground : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header with gradient
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        themeProvider.selectedColor,
+                        themeProvider.selectedColor.withOpacity(0.9),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Subscription Plans',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Choose the plan that fits your needs',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.white.withOpacity(0.85),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Content with plans
+                Flexible(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: [
+                        _buildSubscriptionCard(
+                          context, 
+                          'Free Plan', 
+                          'Perfect for getting started', 
+                          '\$0/month', 
+                          [
+                            '1 fun game only from all the games 🎮',
+                            '10 shared/unshared tasks/goals/events/habits 📋',
+                            'Limited theme colors 🎨',
+                            'Link with up to 1 partner 👥',
+                            'Shared heatmap 📊',
+                          ],
+                          isCurrent: currentSubscription == 'free',
+                          themeProvider: themeProvider,
+                          darkModeProvider: darkModeProvider,
+                        ),
+                        const SizedBox(height: 12),
+                        _buildSubscriptionCard(
+                          context, 
+                          'Premium Plan', 
+                          'For dedicated habit builders', 
+                          '\$4.99/month', 
+                          [
+                            'All the games 🎮',
+                            'All theme colors 🎨',
+                            'Book reading 📚',
+                            'Dark/light theme 🌗',
+                            'Link with up to 4 partners 👥',
+                            'Shared heatmap 📈',
+                            'Shared Mood tracker 😊',
+                            'Shared Spin the wheel (with custom truth & dares) 🎡',
+                            '20 shared/unshared tasks/goals/events/habits 📋',
+                          ],
+                          themeProvider: themeProvider,
+                          darkModeProvider: darkModeProvider,
+                          isCurrent: currentSubscription == 'premium',
+                        ),
+                        const SizedBox(height: 12),
+                        _buildSubscriptionCard(
+                          context, 
+                          'Supreme Plan', 
+                          'For the ultimate experience', 
+                          '\$10.00/month', 
+                          [
+                            'All games 🎮',
+                            'All theme colors 🎨',
+                            'Book reading with live call 📚',
+                            'Dark/light theme 🌗',
+                            'Link with up to 10 partners 👥',
+                            'Shared Personal daily horoscopes 🔮',
+                            'Shared Mood tracker 😊',
+                            'Special Shared bucket list 🎯',
+                            'Spin the wheel (with custom truth & dares) 🎡',
+                            'Unlimited shared/unshared tasks/goals/events/habits 📋',
+                            'Shared heatmaps 📈',
+                          ],
+                          themeProvider: themeProvider,
+                          darkModeProvider: darkModeProvider,
+                          isCurrent: currentSubscription == 'family',
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Close button
+                Container(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: themeProvider.selectedColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Close',
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+  
+  Widget _buildSubscriptionCard(
+    BuildContext context,
+    String title,
+    String subtitle,
+    String price,
+    List<String> features,
+    {
+      bool isCurrent = false,
+      required ThemeProvider themeProvider,
+      required DarkModeProvider darkModeProvider,
+    }
+  ) {
+    Color cardBgColor = darkModeProvider.isDarkMode 
+      ? (isCurrent ? themeProvider.selectedColor.withOpacity(0.08) : Colors.grey[850]!) 
+      : (isCurrent ? themeProvider.selectedColor.withOpacity(0.05) : Colors.grey[50]!);
+    
+    Color borderColor = isCurrent 
+      ? themeProvider.selectedColor 
+      : (darkModeProvider.isDarkMode ? Colors.grey[700]! : Colors.grey[200]!);
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBgColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: borderColor,
+          width: isCurrent ? 2.0 : 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: isCurrent 
+                            ? themeProvider.selectedColor 
+                            : (darkModeProvider.isDarkMode ? Colors.white : Colors.black87),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: darkModeProvider.isDarkMode ? Colors.grey[400] : Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: darkModeProvider.isDarkMode 
+                        ? Colors.grey[800] 
+                        : themeProvider.selectedColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: darkModeProvider.isDarkMode 
+                          ? Colors.grey[700]! 
+                          : themeProvider.selectedColor.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Text(
+                    price,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: themeProvider.selectedColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ...features.map((feature) {
+              // Split the feature into text and emoji
+              String emoji = '';
+              String text = feature;
+              
+              // Find the emoji at the end (if it exists)
+              if (feature.contains('🎮')) {
+                int index = feature.lastIndexOf('🎮');
+                text = feature.substring(0, index).trim();
+                emoji = '🎮';
+              } else if (feature.contains('📋')) {
+                int index = feature.lastIndexOf('📋');
+                text = feature.substring(0, index).trim();
+                emoji = '📋';
+              } else if (feature.contains('🎨')) {
+                int index = feature.lastIndexOf('🎨');
+                text = feature.substring(0, index).trim();
+                emoji = '🎨';
+              } else if (feature.contains('👥')) {
+                int index = feature.lastIndexOf('👥');
+                text = feature.substring(0, index).trim();
+                emoji = '👥';
+              } else if (feature.contains('📊')) {
+                int index = feature.lastIndexOf('📊');
+                text = feature.substring(0, index).trim();
+                emoji = '📊';
+              } else if (feature.contains('😊')) {
+                int index = feature.lastIndexOf('😊');
+                text = feature.substring(0, index).trim();
+                emoji = '😊';
+              } else if (feature.contains('🎡')) {
+                int index = feature.lastIndexOf('🎡');
+                text = feature.substring(0, index).trim();
+                emoji = '🎡';
+              } else if (feature.contains('🎯')) {
+                int index = feature.lastIndexOf('🎯');
+                text = feature.substring(0, index).trim();
+                emoji = '🎯';
+              } else if (feature.contains('🔮')) {
+                int index = feature.lastIndexOf('🔮');
+                text = feature.substring(0, index).trim();
+                emoji = '🔮';
+              } else if (feature.contains('📚')) {
+                int index = feature.lastIndexOf('📚');
+                text = feature.substring(0, index).trim();
+                emoji = '📚';
+              } else if (feature.contains('🌗')) {
+                int index = feature.lastIndexOf('🌗');
+                text = feature.substring(0, index).trim();
+                emoji = '🌗';
+              } else if (feature.contains('📈')) {
+                int index = feature.lastIndexOf('📈');
+                text = feature.substring(0, index).trim();
+                emoji = '📈';
+              }
+              
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 18,
+                      height: 18,
+                      margin: const EdgeInsets.only(top: 2),
+                      decoration: BoxDecoration(
+                        color: themeProvider.selectedColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(9),
+                        border: Border.all(
+                          color: themeProvider.selectedColor,
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.check,
+                        size: 12,
+                        color: themeProvider.selectedColor,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              text,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: darkModeProvider.isDarkMode ? Colors.white70 : Colors.black87,
+                                fontWeight: FontWeight.w500,
+                                height: 1.3,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            margin: const EdgeInsets.only(left: 4),
+                            child: Text(
+                              emoji,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: isCurrent ? null : () {
+                  // Handle subscription selection
+                  _showPaymentConfirmationModal(context, title, themeProvider, darkModeProvider);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isCurrent 
+                    ? (darkModeProvider.isDarkMode 
+                        ? themeProvider.selectedColor.withOpacity(0.1) 
+                        : Colors.grey[300])
+                    : themeProvider.selectedColor,
+                  foregroundColor: isCurrent 
+                    ? (darkModeProvider.isDarkMode 
+                        ? Colors.white60 
+                        : Colors.grey[500]) 
+                    : Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    side: isCurrent 
+                      ? BorderSide(
+                          color: darkModeProvider.isDarkMode 
+                              ? Colors.grey[700]! 
+                              : Colors.grey[400]!)
+                      : BorderSide.none,
+                  ),
+                  elevation: isCurrent ? 0 : 2,
+                  shadowColor: themeProvider.selectedColor.withOpacity(0.2),
+                ),
+                child: Text(
+                  isCurrent ? 'Current Plan' : 'Select Plan',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }
+  
+  void _showPaymentConfirmationModal(
+    BuildContext context,
+    String planTitle,
+    ThemeProvider themeProvider,
+    DarkModeProvider darkModeProvider,
+  ) {
+    String price = planTitle == 'Premium Plan' ? '\$4.99' : '\$10.00';
+    String planEmoji = planTitle == 'Premium Plan' ? '⭐' : '👑'; // Star for Premium, crown for Supreme
+    
+    Navigator.of(context).pop(); // Close the subscription modal first
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: darkModeProvider.isDarkMode ? AppColors.darkBackground : Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          insetPadding: const EdgeInsets.all(20),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  planEmoji,
+                  style: const TextStyle(fontSize: 36),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Confirm Payment',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: darkModeProvider.isDarkMode ? Colors.white : Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Subscribe to $planTitle?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: darkModeProvider.isDarkMode ? Colors.grey[300] : Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: darkModeProvider.isDarkMode ? Colors.grey[800] : Colors.grey[100],
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '$price',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: themeProvider.selectedColor,
+                        ),
+                      ),
+                      Text(
+                        '/month',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: darkModeProvider.isDarkMode ? Colors.grey[400] : Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          Navigator.of(context).pop(); // Close confirmation modal
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: darkModeProvider.isDarkMode 
+                              ? Colors.white 
+                              : Colors.black,
+                          side: BorderSide(
+                            color: darkModeProvider.isDarkMode 
+                                ? Colors.grey[600]! 
+                                : Colors.grey[400]!,
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          // In a real app, this would redirect to a payment processor
+                          Navigator.of(context).pop(); // Close confirmation modal
+                          
+                          // Show success message
+                          final successSnackBar = SnackBar(
+                            content: Text('🎉 ${planTitle} selected!'),
+                            backgroundColor: themeProvider.selectedColor,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            padding: const EdgeInsets.all(16),
+                            width: 300,
+                            action: SnackBarAction(
+                              label: 'OK',
+                              onPressed: () {},
+                            ),
+                          );
+                          ScaffoldMessenger.of(context).showSnackBar(successSnackBar);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: themeProvider.selectedColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text(
+                          'Confirm',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }

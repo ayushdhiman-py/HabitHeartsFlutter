@@ -134,6 +134,17 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer2<DarkModeProvider, ThemeProvider>(
       builder: (context, darkModeProvider, themeProvider, child) {
+        // Show a loading screen while providers are initializing
+        if (darkModeProvider.isLoading || themeProvider.isLoading) {
+          return const MaterialApp(
+            home: Scaffold(
+              body: Center(
+                child: CircularProgressIndicator(),
+              ),
+            ),
+          );
+        }
+        
         return MaterialApp(
           title: 'HabitHearts',
           debugShowCheckedModeBanner: false,
