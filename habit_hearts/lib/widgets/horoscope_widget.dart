@@ -7,6 +7,7 @@ import '../providers/dark_mode_provider.dart';
 import '../models/horoscope.dart';
 import '../services/api_service.dart';
 import '../services/horoscope_service.dart';
+import 'dart:math' as math;
 
 class HoroscopeWidget extends StatefulWidget {
   const HoroscopeWidget({super.key});
@@ -253,21 +254,30 @@ class _HoroscopeWidgetState extends State<HoroscopeWidget> {
                   ),
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () => _showZodiacSelectionDialog(context, authProvider, horoscopeProvider),
-                      child: Text(
-                        horoscopeProvider.userZodiacSign != null ? 'Change Sign' : 'Set Sign',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    child: CustomPaint(
+                      painter: WaveBorderPainter(
+                        waveHeight: 3.0,
+                        waveLength: 4.0, // Further decreased from 6.0 to 4.0 to make curves even closer together
+                        borderColor: themeProvider.selectedColor,
+                        borderWidth: 4.0,
                       ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: themeProvider.selectedColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                      child: ElevatedButton(
+                        onPressed: () => _showZodiacSelectionDialog(context, authProvider, horoscopeProvider),
+                        child: Text(
+                          horoscopeProvider.userZodiacSign != null ? 'Change Sign' : 'Set Sign',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: themeProvider.selectedColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          elevation: 0, // Remove shadow to create flat appearance
                         ),
                       ),
                     ),
@@ -525,4 +535,118 @@ class _HoroscopeWidgetState extends State<HoroscopeWidget> {
     
     return {'partnerDetails': partnerDetails, 'horoscopes': partnerHoroscopes};
   }
+}
+
+// Custom WaveBorderPainter to draw sine wave pattern around button
+class WaveBorderPainter extends CustomPainter {
+  final double waveHeight;
+  final double waveLength;
+  final Color borderColor;
+  final double borderWidth;
+
+  WaveBorderPainter({
+    this.waveHeight = 3.0,
+    this.waveLength = 12.0,
+    this.borderColor = Colors.blue,
+    this.borderWidth = 2.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Validate size to prevent NaN errors
+    if (size.width <= 0 || size.height <= 0) {
+      return;
+    }
+    
+    // Draw the wave path with slight extension on left and right to go a bit outside
+    final rect = Rect.fromLTWH(
+      (borderWidth / 2 - 2).clamp(0.0, size.width), // Extend 2 pixels to the left, but clamp to valid range
+      borderWidth / 2, 
+      (size.width - borderWidth + 4).clamp(0.0, size.width), // Extend 4 pixels total (2 on each side)
+      (size.height - borderWidth).clamp(0.0, size.height)
+    );
+    
+    // Ensure rectangle is valid
+    if (rect.width <= 0 || rect.height <= 0) {
+      return;
+    }
+    
+    final path = _createWavePath(rect);
+    
+    final paint = Paint()
+      ..color = borderColor
+      ..strokeWidth = borderWidth
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    
+    canvas.drawPath(path, paint);
+  }
+
+  Path _createWavePath(Rect rect) {
+    final path = Path();
+    
+    // Validate rectangle to prevent NaN errors
+    if (rect.width <= 0 || rect.height <= 0) {
+      return path;
+    }
+    
+    // Ensure minimum dimensions for wave calculations
+    double safeWidth = math.max(rect.width, 1.0);
+    double safeHeight = math.max(rect.height, 1.0);
+    
+    // Avoid division by zero in sine calculations
+    double safeWaveLength = math.max(waveLength, 1.0);
+    
+    // Start from top-left
+    path.moveTo(rect.left, rect.top + waveHeight / 2);
+    
+    // Top edge with waves - even more frequent waves with adjusted wave length
+    double stepX = math.max(1.0, safeWidth / 50); // Reduce number of points to prevent issues
+    for (double x = rect.left; x <= rect.right; x += stepX) {
+      // Clamp x to valid range
+      double clampedX = math.min(x, rect.right);
+      // Increased frequency by multiplying by 3 and using the shorter wave length
+      double waveFrequency = 3 * math.pi / safeWaveLength;
+      double y = rect.top + waveHeight / 2 + waveHeight / 2 * math.sin((clampedX - rect.left) * waveFrequency);
+      path.lineTo(clampedX, y);
+    }
+    
+    // Right edge with waves
+    double stepY = math.max(1.0, safeHeight / 50); // Reduce number of points to prevent issues
+    for (double y = rect.top; y <= rect.bottom; y += stepY) {
+      // Clamp y to valid range
+      double clampedY = math.min(y, rect.bottom);
+      // Increased frequency by multiplying by 3 and using the shorter wave length
+      double waveFrequency = 3 * math.pi / safeWaveLength;
+      double x = rect.right - waveHeight / 2 + waveHeight / 2 * math.sin((clampedY - rect.top) * waveFrequency);
+      path.lineTo(x, clampedY);
+    }
+    
+    // Bottom edge with waves (inverted)
+    for (double x = rect.right; x >= rect.left; x -= stepX) {
+      // Clamp x to valid range
+      double clampedX = math.max(x, rect.left);
+      // Increased frequency by multiplying by 3 and using the shorter wave length
+      double waveFrequency = 3 * math.pi / safeWaveLength;
+      double y = rect.bottom - waveHeight / 2 - waveHeight / 2 * math.sin((rect.right - clampedX) * waveFrequency);
+      path.lineTo(clampedX, y);
+    }
+    
+    // Left edge with waves (inverted)
+    for (double y = rect.bottom; y >= rect.top; y -= stepY) {
+      // Clamp y to valid range
+      double clampedY = math.max(y, rect.top);
+      // Increased frequency by multiplying by 3 and using the shorter wave length
+      double waveFrequency = 3 * math.pi / safeWaveLength;
+      double x = rect.left + waveHeight / 2 - waveHeight / 2 * math.sin((rect.bottom - clampedY) * waveFrequency);
+      path.lineTo(x, clampedY);
+    }
+    
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }

@@ -1144,7 +1144,7 @@ class _GoalsSection extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            Expanded(
+                            Flexible(
                               child: Text(
                                 goal.text,
                                 style: const TextStyle(
@@ -1173,7 +1173,7 @@ class _GoalsSection extends StatelessWidget {
                           ],
                         ),
                         // Show creator name below the goal text
-                        if (goal.creatorName.isNotEmpty && goal.creatorName != 'You')
+                        if (goal.creatorName.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(top: 2),
                             child: Text(
@@ -2033,3 +2033,5 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }
+
+

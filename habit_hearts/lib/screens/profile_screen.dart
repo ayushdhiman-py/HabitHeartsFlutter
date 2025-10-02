@@ -373,37 +373,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 12),
               ],
               
-              // Horoscope Section (only if user profile exists)
-              if (authProvider.habitHeartsUser != null) ...[
-                Consumer2<HabitHeartsAuthProvider, HoroscopeProvider>(
-                  builder: (context, authProvider, horoscopeProvider, child) {
-                    // Debug logs to see what's happening
-                    final userProfileZodiacSign = authProvider.habitHeartsUser?.zodiacSign;
-                    final currentHoroscopeZodiacSign = horoscopeProvider.userZodiacSign;
-                    
-                    print('ProfileScreen - User zodiac: $userProfileZodiacSign, Horoscope provider zodiac: $currentHoroscopeZodiacSign');
-                    
-                    // Update the horoscope provider if the user's zodiac sign has changed
-                    // This should be done in a post-frame callback to avoid setState during build
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (userProfileZodiacSign != null && 
-                          currentHoroscopeZodiacSign != userProfileZodiacSign) {
-                        print('ProfileScreen - Syncing zodiac sign: $userProfileZodiacSign');
-                        horoscopeProvider.userZodiacSign = userProfileZodiacSign;
-                        // Don't fetch horoscope here to avoid auto-refresh - only refresh when user clicks refresh button
-                      } else if (userProfileZodiacSign == null) {
-                        print('ProfileScreen - No user zodiac sign found in profile');
-                      } else if (currentHoroscopeZodiacSign == userProfileZodiacSign) {
-                        print('ProfileScreen - Zodiac signs match, no sync needed');
-                      }
-                    });
-                    
-                    return HoroscopeWidget();
-                  },
-                ),
-                const SizedBox(height: 12),
-              ],
-              
               // Theme Selection Section
               Card(
                 child: Padding(
@@ -482,6 +451,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               const SizedBox(height: 12),
+              
+              // Horoscope Section (only if user profile exists)
+              if (authProvider.habitHeartsUser != null) ...[
+                Consumer2<HabitHeartsAuthProvider, HoroscopeProvider>(
+                  builder: (context, authProvider, horoscopeProvider, child) {
+                    // Debug logs to see what's happening
+                    final userProfileZodiacSign = authProvider.habitHeartsUser?.zodiacSign;
+                    final currentHoroscopeZodiacSign = horoscopeProvider.userZodiacSign;
+                    
+                    print('ProfileScreen - User zodiac: $userProfileZodiacSign, Horoscope provider zodiac: $currentHoroscopeZodiacSign');
+                    
+                    // Update the horoscope provider if the user's zodiac sign has changed
+                    // This should be done in a post-frame callback to avoid setState during build
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (userProfileZodiacSign != null && 
+                          currentHoroscopeZodiacSign != userProfileZodiacSign) {
+                        print('ProfileScreen - Syncing zodiac sign: $userProfileZodiacSign');
+                        horoscopeProvider.userZodiacSign = userProfileZodiacSign;
+                        // Don't fetch horoscope here to avoid auto-refresh - only refresh when user clicks refresh button
+                      } else if (userProfileZodiacSign == null) {
+                        print('ProfileScreen - No user zodiac sign found in profile');
+                      } else if (currentHoroscopeZodiacSign == userProfileZodiacSign) {
+                        print('ProfileScreen - Zodiac signs match, no sync needed');
+                      }
+                    });
+                    
+                    return HoroscopeWidget();
+                  },
+                ),
+                const SizedBox(height: 12),
+              ],
               
               // Linked Partners Section
               if (authProvider.habitHeartsUser?.linkedUsers.isNotEmpty == true) ...[
