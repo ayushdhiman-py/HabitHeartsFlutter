@@ -20,7 +20,7 @@ class CalendarScreen extends StatefulWidget {
   State<CalendarScreen> createState() => _CalendarScreenState();
 }
 
-class _CalendarScreenState extends State<CalendarScreen> {
+class _CalendarScreenState extends State<CalendarScreen> with TickerProviderStateMixin {
   CalendarFormat _calendarFormat = CalendarFormat.week;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
@@ -66,7 +66,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return Scaffold(
       appBar: _ThemedAppBar(
         title: 'Calendar',
-        onAddEvent: () => _showAddEventModal(context),
+        onAddEvent: () => _showAddEventModal(),
         currentFormat: _calendarFormat,
         onFormatChanged: _onFormatChanged,
       ),
@@ -148,7 +148,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
               ),
             const SizedBox(height: 8.0),
             Expanded(
-              child: _EventList(selectedDay: _selectedDay),
+              child: _EventList(
+                selectedDay: _selectedDay, 
+                onShowEditModal: (event) => _showEditEventModal(context, event),
+              ),
             ),
           ],
         ),
@@ -156,20 +159,37 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-  void _showAddEventModal(BuildContext context) {
+  void _showAddEventModal() {
     showModalBottomSheet(
       context: context,
+      transitionAnimationController: AnimationController(vsync: this, duration: const Duration(milliseconds: 150)),
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
       builder: (_) => _AddEventModal(selectedDate: _selectedDay ?? DateTime.now(), onEventCreated: () => Provider.of<CalendarProvider>(context, listen: false).loadEvents(DateTime(_focusedDay.year, _focusedDay.month, 1), DateTime(_focusedDay.year, _focusedDay.month + 1, 0))),
+    );
+  }
+
+  void _showEditEventModal(BuildContext context, CalendarEvent event) {
+    final calendarProvider = Provider.of<CalendarProvider>(context, listen: false);
+    showModalBottomSheet(
+      context: context,
+      transitionAnimationController: AnimationController(vsync: this, duration: const Duration(milliseconds: 150)),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+      builder: (_) => _EditEventModal(
+        event: event,
+        onEventUpdated: () => calendarProvider.loadEvents(DateTime(event.date.year, event.date.month, 1), DateTime(event.date.year, event.date.month + 1, 0)),
+        onEventDeleted: () => calendarProvider.loadEvents(DateTime(event.date.year, event.date.month, 1), DateTime(event.date.year, event.date.month + 1, 0)),
+      ),
     );
   }
 }
 
 class _EventList extends StatelessWidget {
   final DateTime? selectedDay;
+  final Function(CalendarEvent) onShowEditModal;
 
-  const _EventList({this.selectedDay});
+  const _EventList({this.selectedDay, required this.onShowEditModal});
 
   @override
   Widget build(BuildContext context) {
@@ -306,25 +326,10 @@ class _EventList extends StatelessWidget {
                     style: Theme.of(context).textTheme.bodySmall,
                   )
                 : null,
-            onTap: () => _showEditEventModal(context, event),
+            onTap: () => onShowEditModal(event),
           ),
         );
       },
-    );
-  }
-
-  void _showEditEventModal(BuildContext context, CalendarEvent event) {
-    final calendarProvider = Provider.of<CalendarProvider>(context, listen: false);
-    final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
-      builder: (_) => _EditEventModal(
-        event: event,
-        onEventUpdated: () => calendarProvider.loadEvents(DateTime(event.date.year, event.date.month, 1), DateTime(event.date.year, event.date.month + 1, 0)),
-        onEventDeleted: () => calendarProvider.loadEvents(DateTime(event.date.year, event.date.month, 1), DateTime(event.date.year, event.date.month + 1, 0)),
-      ),
     );
   }
 }

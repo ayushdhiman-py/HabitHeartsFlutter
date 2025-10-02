@@ -126,20 +126,40 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
                 title: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      widget.task.text,
-                      style: TextStyle(
-                        fontSize: 15, // Reduced from 16 to 15
-                        decoration: widget.task.completed ? TextDecoration.lineThrough : null,
-                        color: widget.task.completed 
-                            ? (Theme.of(context).brightness == Brightness.dark 
-                                ? AppColors.darkSecondaryTextColor 
-                                : AppColors.secondaryTextColor)
-                            : (Theme.of(context).brightness == Brightness.dark 
-                                ? AppColors.darkTextColor 
-                                : AppColors.textColor),
-                        fontWeight: widget.task.completed ? FontWeight.normal : FontWeight.w600,
-                      ),
+                    Row(
+                      children: [
+                        Text(
+                          widget.task.text,
+                          style: TextStyle(
+                            fontSize: 15, // Reduced from 16 to 15
+                            decoration: widget.task.completed ? TextDecoration.lineThrough : null,
+                            color: widget.task.completed 
+                                ? (Theme.of(context).brightness == Brightness.dark 
+                                    ? AppColors.darkSecondaryTextColor 
+                                    : AppColors.secondaryTextColor)
+                                : (Theme.of(context).brightness == Brightness.dark 
+                                    ? AppColors.darkTextColor 
+                                    : AppColors.textColor),
+                            fontWeight: widget.task.completed ? FontWeight.normal : FontWeight.w600,
+                          ),
+                        ),
+                        if (widget.task.isShared) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            width: 16,
+                            height: 16,
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).primaryColor.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.group,
+                              size: 10,
+                              color: Theme.of(context).primaryColor,
+                            ),
+                          )
+                        ],
+                      ],
                     ),
                     Visibility(
                       visible: widget.task.creatorName.isNotEmpty && widget.task.creatorName != 'You',

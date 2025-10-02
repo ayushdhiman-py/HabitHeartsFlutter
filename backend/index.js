@@ -519,18 +519,40 @@ app.get('/api/tasks/:userId/:date', authenticateToken, async (req, res) => {
     // Include the current user in the list of users to fetch tasks for
     const allUserIds = [userId, ...linkedUsers];
     
-    // Use a more scalable approach by fetching documents in batches
-    // instead of using 'in' operator which has a limit of 10 values
     let tasks = [];
-    const batchSize = 10; // Firestore 'in' operator limit is 10
-    
-    for (let i = 0; i < allUserIds.length; i += batchSize) {
-      const batchUserIds = allUserIds.slice(i, i + batchSize);
-      const snapshot = await db.collection('tasks')
-        .where('createdBy', 'in', batchUserIds)
-        .get();
-      
-      tasks = tasks.concat(snapshot.docs);
+
+    // Fetch tasks created by the requested user
+    const userTasksSnapshot = await db.collection('tasks')
+      .where('createdBy', '==', userId)
+      .get();
+
+    let userTasks = userTasksSnapshot.docs;
+    userTasks = userTasks.filter(doc => {
+        const data = doc.data();
+        if (!data.dueDate) return false;
+        const taskDate = data.dueDate.toDate();
+        return taskDate >= startOfDay && taskDate <= endOfDay;
+    });
+    tasks = tasks.concat(userTasks);
+
+    // Fetch shared tasks from linked users
+    if (linkedUsers.length > 0) {
+      for (const linkedId of linkedUsers) {
+        const sharedTasksSnapshot = await db.collection('tasks')
+          .where('createdBy', '==', linkedId)
+          .where('isShared', '==', true)
+          .get();
+        
+        let sharedTasks = sharedTasksSnapshot.docs;
+        sharedTasks = sharedTasks.filter(doc => {
+            const data = doc.data();
+            if (!data.dueDate) return false;
+            const taskDate = data.dueDate.toDate();
+            return taskDate >= startOfDay && taskDate <= endOfDay;
+        });
+
+        tasks = tasks.concat(sharedTasks);
+      }
     }
     
     // Fetch user data for all users to get their display names
@@ -547,8 +569,7 @@ app.get('/api/tasks/:userId/:date', authenticateToken, async (req, res) => {
       }
     });
     
-    // Filter by date on the client side
-    const filteredTasks = tasks
+    const mappedTasks = tasks
       .map(doc => {
         const data = doc.data();
         // Convert Firestore Timestamps to milliseconds
@@ -601,14 +622,9 @@ app.get('/api/tasks/:userId/:date', authenticateToken, async (req, res) => {
           updatedAt,
           dueDate
         };
-      })
-    .filter(task => {
-      if (!task.dueDate) return false;
-      const taskDate = new Date(task.dueDate);
-      return taskDate >= startOfDay && taskDate <= endOfDay;
-    });
+      });
     
-    res.status(200).json(filteredTasks);
+    res.status(200).json(mappedTasks);
   } catch (error) {
     console.error('Error getting tasks:', error);
     res.status(500).json({ message: 'Error getting tasks' });
@@ -831,18 +847,23 @@ app.get('/api/goals/:userId', authenticateToken, async (req, res) => {
     // Include the current user in the list of users to fetch goals for
     const allUserIds = [userId, ...linkedUsers];
     
-    // Use a more scalable approach by fetching documents in batches
-    // instead of using 'in' operator which has a limit of 10 values
     let goals = [];
-    const batchSize = 10; // Firestore 'in' operator limit is 10
-    
-    for (let i = 0; i < allUserIds.length; i += batchSize) {
-      const batchUserIds = allUserIds.slice(i, i + batchSize);
-      const snapshot = await db.collection('goals')
-        .where('createdBy', 'in', batchUserIds)
-        .get();
-      
-      goals = goals.concat(snapshot.docs);
+
+    // Fetch goals created by the requested user
+    const userGoalsSnapshot = await db.collection('goals')
+      .where('createdBy', '==', userId)
+      .get();
+    goals = goals.concat(userGoalsSnapshot.docs);
+
+    // Fetch shared goals from linked users
+    if (linkedUsers.length > 0) {
+      for (const linkedId of linkedUsers) {
+        const sharedGoalsSnapshot = await db.collection('goals')
+          .where('createdBy', '==', linkedId)
+          .where('isShared', '==', true)
+          .get();
+        goals = goals.concat(sharedGoalsSnapshot.docs);
+      }
     }
     
     // Fetch user data for all users to get their display names
@@ -1206,27 +1227,55 @@ app.get('/api/calendarEvents/:userId', authenticateToken, async (req, res) => {
     // Include the current user in the list of users to fetch events for
     const allUserIds = [userId, ...linkedUsers];
     
-    // Use a more scalable approach by fetching documents in batches
-    // instead of using 'in' operator which has a limit of 10 values
     let events = [];
-    const batchSize = 10; // Firestore 'in' operator limit is 10
-    
-    for (let i = 0; i < allUserIds.length; i += batchSize) {
-      const batchUserIds = allUserIds.slice(i, i + batchSize);
-      
-      let query = db.collection('calendarEvents').where('createdBy', 'in', batchUserIds);
-      
-      if (startDate) {
-        query = query.where('date', '>=', DateTime.fromISO(startDate, { zone: 'UTC' }).toJSDate());
+
+    // Fetch events created by the requested user
+    const userEventsSnapshot = await db.collection('calendarEvents')
+      .where('createdBy', '==', userId)
+      .get();
+
+    let userEvents = userEventsSnapshot.docs;
+    if (startDate || endDate) {
+        const start = startDate ? DateTime.fromISO(startDate, { zone: 'UTC' }).toJSDate() : null;
+        const end = endDate ? DateTime.fromISO(endDate, { zone: 'UTC' }).endOf('day').toJSDate() : null;
+
+        userEvents = userEvents.filter(doc => {
+            const data = doc.data();
+            if (!data.date) return false;
+            const eventDate = data.date.toDate();
+            if (start && eventDate < start) return false;
+            if (end && eventDate > end) return false;
+            return true;
+        });
+    }
+    events = events.concat(userEvents);
+
+    // Fetch shared events from linked users
+    if (linkedUsers.length > 0) {
+      for (const linkedId of linkedUsers) {
+        const sharedEventsSnapshot = await db.collection('calendarEvents')
+          .where('createdBy', '==', linkedId)
+          .where('isShared', '==', true)
+          .get();
+        
+        let sharedEvents = sharedEventsSnapshot.docs;
+
+        if (startDate || endDate) {
+            const start = startDate ? DateTime.fromISO(startDate, { zone: 'UTC' }).toJSDate() : null;
+            const end = endDate ? DateTime.fromISO(endDate, { zone: 'UTC' }).endOf('day').toJSDate() : null;
+
+            sharedEvents = sharedEvents.filter(doc => {
+                const data = doc.data();
+                if (!data.date) return false;
+                const eventDate = data.date.toDate();
+                if (start && eventDate < start) return false;
+                if (end && eventDate > end) return false;
+                return true;
+            });
+        }
+        
+        events = events.concat(sharedEvents);
       }
-      
-      if (endDate) {
-        const end = DateTime.fromISO(endDate, { zone: 'UTC' }).endOf('day').toJSDate();
-        query = query.where('date', '<=', end);
-      }
-      
-      const snapshot = await query.get();
-      events = events.concat(snapshot.docs);
     }
     
     // Fetch user data for all users to get their display names

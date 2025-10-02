@@ -147,8 +147,10 @@ class CalendarProvider with ChangeNotifier {
         for (String linkedId in habitHeartsUser.linkedUsers) {
           try {
             final linkedUserEvents = await ApiService.getCalendarEvents(linkedId, startDate, endDate);
-            // Only add shared events from linked users
-            allEvents.addAll(linkedUserEvents.where((event) => event.isShared));
+            // Filter out events that are already in the current user's events to prevent duplicates
+            final sharedEvents = linkedUserEvents.where((event) => event.isShared && 
+                !allEvents.any((existingEvent) => existingEvent.id == event.id));
+            allEvents.addAll(sharedEvents);
           } catch (e) {
             print('Error loading events for user $linkedId: $e');
           }

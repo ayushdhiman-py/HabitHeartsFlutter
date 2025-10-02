@@ -71,7 +71,10 @@ class GoalsProvider with ChangeNotifier {
         for (String linkedId in habitHeartsUser.linkedUsers) {
           try {
             final linkedUserGoals = await ApiService.getGoals(linkedId);
-            allGoals.addAll(linkedUserGoals.where((goal) => goal.isShared));
+            // Filter out goals that are already in the current user's goals to prevent duplicates
+            final sharedGoals = linkedUserGoals.where((goal) => goal.isShared && 
+                !allGoals.any((existingGoal) => existingGoal.id == goal.id));
+            allGoals.addAll(sharedGoals);
           } catch (e) {
             print('Error loading goals for user $linkedId: $e');
           }

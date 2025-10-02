@@ -50,8 +50,10 @@ class TasksProvider with ChangeNotifier {
         for (String linkedId in _authProvider!.habitHeartsUser!.linkedUsers) {
           try {
             final linkedUserTasks = await ApiService.getTasksForDate(linkedId, date);
-            // Only add shared tasks
-            allTasks.addAll(linkedUserTasks.where((task) => task.isShared));
+            // Filter out tasks that are already in the current user's tasks to prevent duplicates
+            final sharedTasks = linkedUserTasks.where((task) => task.isShared && 
+                !allTasks.any((existingTask) => existingTask.id == task.id));
+            allTasks.addAll(sharedTasks);
           } catch (e) {
             print('Error loading tasks for user $linkedId: $e');
           }
@@ -61,6 +63,7 @@ class TasksProvider with ChangeNotifier {
       print('Loaded ${allTasks.length} total tasks (${myTasks.length} my tasks, ${allTasks.length - myTasks.length} linked shared tasks)');
       // Remove duplicates by ID to avoid showing the same event multiple times
       _tasks = _removeDuplicateTasks(allTasks);
+      _sortTasks(); // Sort by date/time with completed tasks at the end
     } catch (e) {
       print('Error loading tasks: $e');
       _tasks = []; // Clear tasks on error
@@ -92,7 +95,7 @@ class TasksProvider with ChangeNotifier {
             createdTask.dueDate!.month == _selectedDate.month &&
             createdTask.dueDate!.day == _selectedDate.day) {
           _tasks.add(createdTask);
-          _tasks.sort((a, b) => (a.startTime ?? '').compareTo(b.startTime ?? '')); // Sort by start time
+          _sortTasks(); // Sort by date/time with completed tasks at the end
           notifyListeners();
         }
       }
@@ -126,7 +129,7 @@ class TasksProvider with ChangeNotifier {
       originalTask = _tasks[originalTaskIndex];
       // Optimistically update the UI
       _tasks[originalTaskIndex] = updatedTask;
-      _tasks.sort((a, b) => (a.startTime ?? '').compareTo(b.startTime ?? '')); // Sort by start time
+      _sortTasks(); // Sort by date/time with completed tasks at the end
       notifyListeners();
     }
 
@@ -136,14 +139,14 @@ class TasksProvider with ChangeNotifier {
         // Revert the change if the API call fails
         if (originalTaskIndex != -1) {
           _tasks[originalTaskIndex] = originalTask;
-          _tasks.sort((a, b) => (a.startTime ?? '').compareTo(b.startTime ?? '')); // Sort by start time
+          _sortTasks(); // Sort by date/time with completed tasks at the end
           notifyListeners();
         }
         print('Error updating task: API call failed, reverted UI.');
       } else if (result != null && originalTaskIndex != -1) {
         // If API call succeeds, ensure the list is updated with the actual result (e.g., if backend modified it)
         _tasks[originalTaskIndex] = result;
-        _tasks.sort((a, b) => (a.startTime ?? '').compareTo(b.startTime ?? '')); // Sort by start time
+        _sortTasks(); // Sort by date/time with completed tasks at the end
         notifyListeners();
       }
       return result;
@@ -189,6 +192,27 @@ class TasksProvider with ChangeNotifier {
       print('Error deleting task in provider: $e');
       return false;
     }
+  }
+  
+  void _sortTasks() {
+    _tasks.sort((a, b) {
+      // First, sort by completion status - incomplete tasks first
+      if (a.completed && !b.completed) return 1;
+      if (!a.completed && b.completed) return -1;
+      
+      // If both have the same completion status, sort by time
+      // If both have start times, compare start times
+      if (a.startTime != null && b.startTime != null) {
+        return a.startTime!.compareTo(b.startTime!);
+      }
+      
+      // If only one has a start time, prioritize tasks with start times
+      if (a.startTime != null && b.startTime == null) return -1;
+      if (a.startTime == null && b.startTime != null) return 1;
+      
+      // If neither has start time, just sort by text
+      return a.text.compareTo(b.text);
+    });
   }
   
   List<Task> _removeDuplicateTasks(List<Task> tasks) {
