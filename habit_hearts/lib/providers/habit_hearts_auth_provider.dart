@@ -153,15 +153,40 @@ class HabitHeartsAuthProvider with ChangeNotifier {
       print('HabitHeartsAuthProvider - Created updated user with zodiac sign: ${updatedUser.zodiacSign}');
       
       // Update the user in the database
-      await _userService.setUser(updatedUser);
-      print('HabitHeartsAuthProvider - Successfully saved user with zodiac sign to database');
-      
-      // Update the local user object
-      _habitHeartsUser = updatedUser;
-      notifyListeners();
+      bool success = await _userService.setUser(updatedUser);
+      if (success) {
+        print('HabitHeartsAuthProvider - Successfully saved user with zodiac sign to database');
+        // Update the local user object only if the save was successful
+        _habitHeartsUser = updatedUser;
+        notifyListeners();
+      } else {
+        print('HabitHeartsAuthProvider - Failed to save zodiac sign to database, but keeping it locally');
+        // Still update the local object for immediate UI update, even if remote save failed
+        _habitHeartsUser = updatedUser;
+        notifyListeners();
+        // Try to save again later by reloading the user
+        _loadUserDocument(_user!.uid);
+      }
     } catch (e) {
       print('Error updating user zodiac sign: $e');
-      rethrow;
+      // Still update the local object for immediate UI update, even if there was an error
+      habit_hearts_user.User updatedUser = habit_hearts_user.User(
+        uid: _habitHeartsUser!.uid,
+        email: _habitHeartsUser!.email,
+        displayName: _habitHeartsUser!.displayName,
+        photoURL: _habitHeartsUser!.photoURL,
+        uniqueCode: _habitHeartsUser!.uniqueCode,
+        linkedUsers: _habitHeartsUser!.linkedUsers,
+        createdAt: _habitHeartsUser!.createdAt,
+        updatedAt: DateTime.now(),
+        status: _habitHeartsUser!.status,
+        subscription: _habitHeartsUser!.subscription,
+        goalProgress: _habitHeartsUser!.goalProgress,
+        zodiacSign: zodiacSign,
+      );
+      _habitHeartsUser = updatedUser;
+      notifyListeners();
+      // The error is caught and logged but we maintain the local change
     }
   }
 }

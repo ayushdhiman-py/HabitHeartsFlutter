@@ -266,7 +266,7 @@ app.post('/api/users', authenticateToken, async (req, res) => {
     }
     
     // Sanitize input
-    const allowedFields = ['uid', 'displayName', 'email', 'photoURL', 'uniqueCode', 'linkedUsers', 'createdAt', 'updatedAt', 'goalProgress'];
+    const allowedFields = ['uid', 'displayName', 'email', 'photoURL', 'uniqueCode', 'linkedUsers', 'createdAt', 'updatedAt', 'goalProgress', 'zodiacSign'];
     const sanitizedUserData = {};
     for (const field of allowedFields) {
       if (userData[field] !== undefined) {
@@ -300,7 +300,7 @@ app.put('/api/users/:uid', authenticateToken, async (req, res) => {
     const userData = req.body;
     
     // Sanitize input - don't allow updating uid
-    const allowedFields = ['displayName', 'email', 'photoURL', 'uniqueCode', 'linkedUsers', 'createdAt', 'updatedAt'];
+    const allowedFields = ['displayName', 'email', 'photoURL', 'uniqueCode', 'linkedUsers', 'createdAt', 'updatedAt', 'zodiacSign'];
     const sanitizedUserData = {};
     for (const field of allowedFields) {
       if (userData[field] !== undefined) {

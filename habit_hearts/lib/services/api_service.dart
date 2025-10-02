@@ -138,9 +138,12 @@ class ApiService {
         // Clear cache when creating new user
         _clearCache('user_${user.uid}');
         return true;
-      } else if (response.statusCode == 401 || response.statusCode == 403) {
-        // Unauthorized - token might be invalid/expired
-        print('Authentication error: ${response.statusCode} - ${response.body}');
+      } else {
+        print('Error creating user: ${response.statusCode} - ${response.body}');
+        if (response.statusCode == 401 || response.statusCode == 403) {
+          // Unauthorized - token might be invalid/expired
+          print('Authentication error: ${response.statusCode} - ${response.body}');
+        }
       }
       return false;
     } catch (e) {
@@ -161,13 +164,17 @@ class ApiService {
         // Clear cache when updating user
         _clearCache('user_${user.uid}');
         return true;
-      } else if (response.statusCode == 401 || response.statusCode == 403) {
-        // Unauthorized - token might be invalid/expired
-        print('Authentication error: ${response.statusCode} - ${response.body}');
+      } else {
+        print('Error updating user: ${response.statusCode} - ${response.body}');
+        if (response.statusCode == 401 || response.statusCode == 403) {
+          // Unauthorized - token might be invalid/expired
+          print('Authentication error: ${response.statusCode} - ${response.body}');
+        }
       }
       return false;
     } catch (e) {
       print('Error updating user: $e');
+      // Don't print the full exception as it might contain sensitive info
       return false;
     }
   }

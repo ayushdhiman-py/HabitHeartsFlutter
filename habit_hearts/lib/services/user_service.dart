@@ -14,19 +14,20 @@ class UserService {
   }
 
   // Create or update user document
-  Future<void> setUser(habit_hearts_user.User user) async {
+  Future<bool> setUser(habit_hearts_user.User user) async {
     try {
       // Check if user exists
       final existingUser = await getUser(user.uid);
       if (existingUser != null) {
         // Update existing user
-        await ApiService.updateUser(user);
+        return await ApiService.updateUser(user);
       } else {
         // Create new user
-        await ApiService.createUser(user);
+        return await ApiService.createUser(user);
       }
     } catch (e) {
       print('Error setting user: $e');
+      return false;
     }
   }
 

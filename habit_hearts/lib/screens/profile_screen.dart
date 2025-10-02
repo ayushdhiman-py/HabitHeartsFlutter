@@ -201,17 +201,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   print('ProfileScreen - User zodiac: $userProfileZodiacSign, Horoscope provider zodiac: $currentHoroscopeZodiacSign');
                   
                   // Update the horoscope provider if the user's zodiac sign has changed
-                  if (userProfileZodiacSign != null && 
-                      currentHoroscopeZodiacSign != userProfileZodiacSign) {
-                    print('ProfileScreen - Syncing zodiac sign: $userProfileZodiacSign');
-                    horoscopeProvider.userZodiacSign = userProfileZodiacSign;
-                    // Fetch the horoscope for the new zodiac sign
-                    horoscopeProvider.fetchTodaysHoroscope();
-                  } else if (userProfileZodiacSign == null) {
-                    print('ProfileScreen - No user zodiac sign found in profile');
-                  } else if (currentHoroscopeZodiacSign == userProfileZodiacSign) {
-                    print('ProfileScreen - Zodiac signs match, no sync needed');
-                  }
+                  // This should be done in a post-frame callback to avoid setState during build
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (userProfileZodiacSign != null && 
+                        currentHoroscopeZodiacSign != userProfileZodiacSign) {
+                      print('ProfileScreen - Syncing zodiac sign: $userProfileZodiacSign');
+                      horoscopeProvider.userZodiacSign = userProfileZodiacSign;
+                      // Fetch the horoscope for the new zodiac sign
+                      horoscopeProvider.fetchTodaysHoroscope();
+                    } else if (userProfileZodiacSign == null) {
+                      print('ProfileScreen - No user zodiac sign found in profile');
+                    } else if (currentHoroscopeZodiacSign == userProfileZodiacSign) {
+                      print('ProfileScreen - Zodiac signs match, no sync needed');
+                    }
+                  });
                   
                   return HoroscopeWidget();
                 },
