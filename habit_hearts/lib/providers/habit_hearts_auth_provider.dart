@@ -55,8 +55,32 @@ class HabitHeartsAuthProvider with ChangeNotifier {
     if (_user == null) return;
     
     try {
-      // Generate unique code
-      String uniqueCode = _userService.generateUniqueCode();
+      // Check if a user document already exists by trying to fetch it first
+      habit_hearts_user.User? existingUser = await _userService.getUser(_user!.uid);
+      
+      String uniqueCode;
+      String? zodiacSign;
+      
+      if (existingUser != null) {
+        // Use the existing unique code and zodiac sign if the user document exists
+        if (existingUser.uniqueCode.isNotEmpty) {
+          uniqueCode = existingUser.uniqueCode;
+          print('HabitHeartsAuthProvider - Using existing unique code for user ${_user!.uid}');
+        } else {
+          // Generate a new unique code if the existing user doesn't have one
+          uniqueCode = _userService.generateUniqueCode();
+          print('HabitHeartsAuthProvider - Generated new unique code for user ${_user!.uid}');
+        }
+        
+        // Use the existing zodiac sign if the user has one
+        zodiacSign = existingUser.zodiacSign;
+        print('HabitHeartsAuthProvider - Using existing zodiac sign for user ${_user!.uid}: $zodiacSign');
+      } else {
+        // Generate new values for a completely new user
+        uniqueCode = _userService.generateUniqueCode();
+        zodiacSign = null;
+        print('HabitHeartsAuthProvider - Generated new unique code and zodiac sign (null) for new user ${_user!.uid}');
+      }
       
       habit_hearts_user.User newUser = habit_hearts_user.User(
         uid: _user!.uid,
@@ -64,17 +88,17 @@ class HabitHeartsAuthProvider with ChangeNotifier {
         displayName: _user!.displayName,
         photoURL: _user!.photoURL,
         uniqueCode: uniqueCode,
-        linkedUsers: [],
-        createdAt: DateTime.now(),
+        linkedUsers: existingUser?.linkedUsers ?? [],
+        createdAt: existingUser?.createdAt ?? DateTime.now(),
         updatedAt: DateTime.now(),
-        status: 'active',
-        subscription: 'free',
-        zodiacSign: null, // Explicitly set to null initially
+        status: existingUser?.status ?? 'active',
+        subscription: existingUser?.subscription ?? 'free',
+        zodiacSign: zodiacSign,
       );
       
       await _userService.setUser(newUser);
       _habitHeartsUser = newUser;
-      print('HabitHeartsAuthProvider - Created new user document for ${_user!.uid} with zodiac sign: null');
+      print('HabitHeartsAuthProvider - Created/Updated user document for ${_user!.uid} with unique code: $uniqueCode and zodiac sign: $zodiacSign');
       notifyListeners();
     } catch (e) {
       print('Error creating user document: $e');

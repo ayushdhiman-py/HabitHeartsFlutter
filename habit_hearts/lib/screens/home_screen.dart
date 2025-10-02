@@ -615,6 +615,7 @@ class _EditTaskModalState extends State<_EditTaskModal> {
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
   late DateTime _selectedDate;
+  late bool _isShared;
 
   @override
   void initState() {
@@ -623,6 +624,7 @@ class _EditTaskModalState extends State<_EditTaskModal> {
     _descriptionController = TextEditingController(text: widget.task.description);
     _selectedEmoji = widget.task.emoji;
     _selectedDate = widget.task.dueDate ?? DateTime.now();
+    _isShared = widget.task.isShared; // Initialize from the task's current isShared value
     
     if (widget.task.startTime != null) {
       final parts = widget.task.startTime!.split(':');
@@ -737,6 +739,7 @@ class _EditTaskModalState extends State<_EditTaskModal> {
           ? '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}'
           : null,
       updatedAt: DateTime.now(),
+      isShared: _isShared,
     );
 
     final tasksProvider = Provider.of<TasksProvider>(context, listen: false);
@@ -897,7 +900,21 @@ class _EditTaskModalState extends State<_EditTaskModal> {
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 10),
+          // Sharing toggle
+          Row(
+            children: [
+              Checkbox(
+                value: _isShared,
+                onChanged: (value) => setState(() => _isShared = value ?? false),
+              ),
+              const Text(
+                'Share with linked partners',
+                style: TextStyle(fontSize: 16),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -1122,32 +1139,51 @@ class _GoalsSection extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          goal.text,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          overflow: TextOverflow.ellipsis,
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                goal.text,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (goal.isShared) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                width: 24,
+                                height: 24,
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).primaryColor.withOpacity(0.2),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.group,
+                                  size: 14,
+                                  color: Theme.of(context).primaryColor,
+                                ),
+                              )
+                            ],
+                          ],
                         ),
-                        if (goal.isShared) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            width: 24,
-                            height: 24,
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).primaryColor.withOpacity(0.2),
-                              shape: BoxShape.circle,
+                        // Show creator name below the goal text
+                        if (goal.creatorName.isNotEmpty && goal.creatorName != 'You')
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              'by ${goal.creatorName}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(context).hintColor,
+                              ),
                             ),
-                            child: Icon(
-                              Icons.group,
-                              size: 14,
-                              color: Theme.of(context).primaryColor,
-                            ),
-                          )
-                        ],
+                          ),
                       ],
                     ),
                   ),
@@ -1594,6 +1630,7 @@ class _AddTaskModalState extends State<_AddTaskModal> {
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
   DateTime _selectedDate = DateTime.now();
+  bool _isShared = false;
 
   @override
   void initState() {
@@ -1709,6 +1746,7 @@ class _AddTaskModalState extends State<_AddTaskModal> {
             ? '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}'
             : null,
         emoji: _selectedEmoji,
+        isShared: _isShared,
       );
 
       print('Creating task: ${newTask.text}, dueDate: ${newTask.dueDate}');
@@ -1892,7 +1930,21 @@ class _AddTaskModalState extends State<_AddTaskModal> {
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 10),
+          // Sharing toggle
+          Row(
+            children: [
+              Checkbox(
+                value: _isShared,
+                onChanged: (value) => setState(() => _isShared = value ?? false),
+              ),
+              const Text(
+                'Share with linked partners',
+                style: TextStyle(fontSize: 16),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(

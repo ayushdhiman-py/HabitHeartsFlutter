@@ -50,7 +50,20 @@ class _GoalHeatmapState extends State<GoalHeatmap> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Show creator name below the goal text in the heatmap
+          if (widget.goal.creatorName.isNotEmpty && widget.goal.creatorName != 'You')
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                'by ${widget.goal.creatorName}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ),
           _buildWeekdayLabels(),
           const SizedBox(height: 4),
           _buildCalendarGrid(),
@@ -95,9 +108,9 @@ class _GoalHeatmapState extends State<GoalHeatmap> {
         
         // Check if the day falls within the goal's date range
         bool isWithinGoalRange = true;
-        if (goal.startDate != null && goal.endDate != null) {
-          isWithinGoalRange = day.isAfter(goal.startDate!.subtract(const Duration(days: 1))) && 
-                              day.isBefore(goal.endDate!.add(const Duration(days: 1)));
+        if (widget.goal.startDate != null && widget.goal.endDate != null) {
+          isWithinGoalRange = day.isAfter(widget.goal.startDate!.subtract(const Duration(days: 1))) && 
+                              day.isBefore(widget.goal.endDate!.add(const Duration(days: 1)));
         }
 
         Color cellColor;
@@ -120,7 +133,7 @@ class _GoalHeatmapState extends State<GoalHeatmap> {
             child: Text(
               '${day.day}',
               style: TextStyle(
-                color: isCompleted || isCurrentMonth ? Colors.white : Colors.grey[500],
+                color: isCompleted || day.month == DateTime.now().month ? Colors.white : Colors.grey[500],
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
               ),

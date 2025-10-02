@@ -137,15 +137,24 @@ class CalendarProvider with ChangeNotifier {
       }
       final List<CalendarEvent> allEvents = [];
 
-      for (String id in allUserIds) {
-        try {
-          final userEvents = await ApiService.getCalendarEvents(id, startDate, endDate);
-          allEvents.addAll(userEvents);
-        } catch (e) {
-          print('Error loading events for user $id: $e');
+      // Load events for current user (all events for self)
+      final myUserId = user!.uid;
+      final myEvents = await ApiService.getCalendarEvents(myUserId, startDate, endDate);
+      allEvents.addAll(myEvents);
+      
+      // Load only shared events from linked users
+      if (habitHeartsUser != null) {
+        for (String linkedId in habitHeartsUser.linkedUsers) {
+          try {
+            final linkedUserEvents = await ApiService.getCalendarEvents(linkedId, startDate, endDate);
+            // Only add shared events from linked users
+            allEvents.addAll(linkedUserEvents.where((event) => event.isShared));
+          } catch (e) {
+            print('Error loading events for user $linkedId: $e');
+          }
         }
       }
-      _events = allEvents;
+      _events = _removeDuplicateEvents(allEvents);
       print('Total events loaded: ${_events.length}');
     } catch (e) {
       _error = e.toString();
@@ -176,6 +185,19 @@ class CalendarProvider with ChangeNotifier {
 
   // Update an event
   Future<CalendarEvent?> updateEvent(BuildContext context, CalendarEvent event) async {
+    final userId = _authProvider?.user?.uid;
+    if (userId != null) {
+      // Check if the current user has permission to update this event
+      final existingEvent = _events.firstWhere((e) => e.id == event.id, orElse: () => throw Exception('Event not found'));
+      final isOwner = existingEvent.createdBy == userId;
+      final canEdit = isOwner || existingEvent.isShared; // Owner or shared events can be edited
+      
+      if (!canEdit) {
+        print('User does not have permission to update event ${event.id}');
+        return null;
+      }
+    }
+
     try {
       final success = await ApiService.updateCalendarEvent(event);
       if (success) {
@@ -197,6 +219,25 @@ class CalendarProvider with ChangeNotifier {
 
   // Delete an event
   Future<bool> deleteEvent(BuildContext context, String eventId) async {
+    final userId = _authProvider?.user?.uid;
+    if (userId != null) {
+      // Check if the current user has permission to delete this event
+      final eventIndex = _events.indexWhere((e) => e.id == eventId);
+      if (eventIndex == -1) {
+        print('Event $eventId not found');
+        return false;
+      }
+      
+      final event = _events[eventIndex];
+      final isOwner = event.createdBy == userId;
+      final canDelete = isOwner || event.isShared; // Owner or shared events can be deleted
+      
+      if (!canDelete) {
+        print('User does not have permission to delete event $eventId');
+        return false;
+      }
+    }
+
     try {
       final success = await ApiService.deleteCalendarEvent(eventId);
       if (success) {
@@ -211,5 +252,10 @@ class CalendarProvider with ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+  
+  List<CalendarEvent> _removeDuplicateEvents(List<CalendarEvent> events) {
+    final seenIds = <String>{};
+    return events.where((event) => seenIds.add(event.id)).toList();
   }
 }

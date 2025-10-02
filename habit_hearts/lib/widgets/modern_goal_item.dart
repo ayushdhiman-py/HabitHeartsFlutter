@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/goal.dart';
 import '../theme/app_theme.dart';
 import '../providers/goals_provider.dart';
+import '../providers/habit_hearts_auth_provider.dart';
 import 'gradient_progress_bar.dart';
 
 class ModernGoalItem extends StatefulWidget {

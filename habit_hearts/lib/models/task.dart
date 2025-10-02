@@ -12,6 +12,7 @@ class Task {
   final String? emoji;
   final String? startTime;
   final String? endTime;
+  final bool isShared; // New field for sharing
 
   Task({
     required this.id,
@@ -27,6 +28,7 @@ class Task {
     this.emoji,
     this.startTime,
     this.endTime,
+    this.isShared = false, // By default, it's not shared
   });
 
   Map<String, dynamic> toJson() {
@@ -44,6 +46,7 @@ class Task {
       'emoji': emoji,
       'startTime': startTime,
       'endTime': endTime,
+      'isShared': isShared,
     };
   }
 
@@ -62,6 +65,7 @@ class Task {
       emoji: json['emoji'],
       startTime: json['startTime'],
       endTime: json['endTime'],
+      isShared: json['isShared'] ?? false,
     );
   }
 
@@ -79,6 +83,7 @@ class Task {
     String? emoji,
     String? startTime,
     String? endTime,
+    bool? isShared,
   }) {
     return Task(
       id: id ?? this.id,
@@ -94,6 +99,7 @@ class Task {
       emoji: emoji ?? this.emoji,
       startTime: startTime ?? this.startTime,
       endTime: endTime ?? this.endTime,
+      isShared: isShared ?? this.isShared,
     );
   }
 }

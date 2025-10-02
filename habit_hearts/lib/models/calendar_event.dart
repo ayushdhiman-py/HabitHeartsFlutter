@@ -13,6 +13,7 @@ class CalendarEvent {
   final DateTime updatedAt;
   final String status;
   final String? emoji;
+  final bool isShared; // New field for sharing
 
   CalendarEvent({
     required this.id,
@@ -29,6 +30,7 @@ class CalendarEvent {
     required this.updatedAt,
     required this.status,
     this.emoji,
+    this.isShared = false, // By default, it's not shared
   });
 
   Map<String, dynamic> toJson() {
@@ -63,6 +65,7 @@ class CalendarEvent {
       'updatedAt': updatedAt.millisecondsSinceEpoch,
       'status': status,
       'emoji': emoji,
+      'isShared': isShared,
     };
   }
 
@@ -81,6 +84,7 @@ class CalendarEvent {
     DateTime? updatedAt,
     String? status,
     String? emoji,
+    bool? isShared,
   }) {
     return CalendarEvent(
       id: id ?? this.id,
@@ -97,6 +101,7 @@ class CalendarEvent {
       updatedAt: updatedAt ?? this.updatedAt,
       status: status ?? this.status,
       emoji: emoji ?? this.emoji,
+      isShared: isShared ?? this.isShared,
     );
   }
 
@@ -166,6 +171,7 @@ class CalendarEvent {
       updatedAt: parsedUpdatedAt,
       status: json['status'],
       emoji: json['emoji'],
+      isShared: json['isShared'] ?? false,
     );
   }
 

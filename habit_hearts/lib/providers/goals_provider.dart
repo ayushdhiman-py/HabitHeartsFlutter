@@ -140,6 +140,22 @@ class GoalsProvider with ChangeNotifier {
     _goals[index] = updatedGoal;
     notifyListeners();
 
+    // Check if the current user has permission to update this goal
+    final userId = _authProvider?.user?.uid;
+    if (userId != null) {
+      final goal = _goals[index];
+      final isOwner = goal.createdBy == userId;
+      final canEdit = isOwner || goal.isShared; // Owner or shared goals can be edited
+      
+      if (!canEdit) {
+        print('User does not have permission to update goal ${updatedGoal.id}');
+        // Revert the UI change
+        _goals[index] = originalGoal;
+        notifyListeners();
+        return;
+      }
+    }
+
     try {
       final result = await ApiService.updateGoal(updatedGoal);
       if (result == null) {
@@ -162,6 +178,24 @@ class GoalsProvider with ChangeNotifier {
 
       if (userId == null) {
         throw Exception("User not logged in.");
+      }
+
+      // Find the goal to check permissions
+      final goalIndex = _goals.indexWhere((g) => g.id == goalId);
+      if (goalIndex == -1) {
+        print('Goal $goalId not found');
+        return;
+      }
+      
+      final goal = _goals[goalIndex];
+
+      // Check if the current user has permission to delete this goal
+      final isOwner = goal.createdBy == userId;
+      final canDelete = isOwner || goal.isShared; // Owner or shared goals can be deleted
+      
+      if (!canDelete) {
+        print('User does not have permission to delete goal $goalId');
+        return;
       }
 
       // Optimistically remove from UI

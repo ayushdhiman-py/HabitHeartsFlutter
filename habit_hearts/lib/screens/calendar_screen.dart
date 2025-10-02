@@ -346,6 +346,7 @@ class _AddEventModalState extends State<_AddEventModal> {
   String? _selectedEmoji;
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
+  bool _isShared = false;
   void initState() {
     super.initState();
     _selectedDate = widget.selectedDate;
@@ -417,6 +418,7 @@ class _AddEventModalState extends State<_AddEventModal> {
       emoji: _selectedEmoji,
       completed: false,
       endDate: null,
+      isShared: _isShared, // Add isShared field
     );
 
     final calendarProvider = Provider.of<CalendarProvider>(context, listen: false);
@@ -563,7 +565,21 @@ class _AddEventModalState extends State<_AddEventModal> {
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 10),
+          // Sharing toggle
+          Row(
+            children: [
+              Checkbox(
+                value: _isShared,
+                onChanged: (value) => setState(() => _isShared = value ?? false),
+              ),
+              const Text(
+                'Share with linked partners',
+                style: TextStyle(fontSize: 16),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -600,6 +616,7 @@ class _EditEventModalState extends State<_EditEventModal> {
   String? _selectedEmoji;
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
+  late bool _isShared;
 
   @override
   void initState() {
@@ -607,8 +624,9 @@ class _EditEventModalState extends State<_EditEventModal> {
     _titleController = TextEditingController(text: widget.event.title);
     _descriptionController = TextEditingController(text: widget.event.description);
     _selectedEmoji = widget.event.emoji;
-    _startTime = widget.event.startTime != null ? TimeOfDay.fromDateTime(DateFormat.jm().parse(widget.event.startTime!)) : null;
-    _endTime = widget.event.endTime != null ? TimeOfDay.fromDateTime(DateFormat.jm().parse(widget.event.endTime!)) : null;
+    _startTime = _parseTimeOfDay(widget.event.startTime);
+    _endTime = _parseTimeOfDay(widget.event.endTime);
+    _isShared = widget.event.isShared;
   }
 
   @override
@@ -649,6 +667,7 @@ class _EditEventModalState extends State<_EditEventModal> {
       endTime: _endTime?.format(context),
       emoji: _selectedEmoji,
       updatedAt: DateTime.now(),
+      isShared: _isShared,
     );
 
     final calendarProvider = Provider.of<CalendarProvider>(context, listen: false);
@@ -660,6 +679,31 @@ class _EditEventModalState extends State<_EditEventModal> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Event updated successfully')));
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to update event')));
+    }
+  }
+
+  TimeOfDay? _parseTimeOfDay(String? timeString) {
+    if (timeString == null) return null;
+    
+    try {
+      // Try parsing as HH:mm format first (24-hour)
+      final parts = timeString.split(':');
+      if (parts.length == 2) {
+        final hour = int.tryParse(parts[0]);
+        final minute = int.tryParse(parts[1]);
+        if (hour != null && minute != null && 
+            hour >= 0 && hour < 24 && minute >= 0 && minute < 60) {
+          return TimeOfDay(hour: hour, minute: minute);
+        }
+      }
+      
+      // If that fails, try parsing with DateFormat
+      final parsedDateTime = DateFormat.jm().parse(timeString);
+      return TimeOfDay.fromDateTime(parsedDateTime);
+    } catch (e) {
+      // If all parsing fails, return null
+      print('Error parsing time string: $timeString, error: $e');
+      return null;
     }
   }
 
@@ -796,7 +840,21 @@ class _EditEventModalState extends State<_EditEventModal> {
             ],
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 10),
+          // Sharing toggle
+          Row(
+            children: [
+              Checkbox(
+                value: _isShared,
+                onChanged: (value) => setState(() => _isShared = value ?? false),
+              ),
+              const Text(
+                'Share with linked partners',
+                style: TextStyle(fontSize: 16),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
           Row(
             children: [
                             Expanded(

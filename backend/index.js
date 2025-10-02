@@ -625,7 +625,7 @@ app.post('/api/tasks', authenticateToken, async (req, res) => {
     }
     
     // Sanitize input
-    const allowedFields = ['text', 'description', 'dueDate', 'completed', 'createdBy', 'creatorName', 'status', 'emoji', 'startTime', 'endTime', 'createdAt', 'updatedAt'];
+    const allowedFields = ['text', 'description', 'dueDate', 'completed', 'createdBy', 'creatorName', 'status', 'emoji', 'startTime', 'endTime', 'isShared', 'createdAt', 'updatedAt'];
     const sanitizedTaskData = {};
     for (const field of allowedFields) {
       if (taskData[field] !== undefined) {
@@ -724,7 +724,7 @@ app.put('/api/tasks/:id', authenticateToken, async (req, res) => {
     }
     
     // Sanitize input
-    const allowedFields = ['text', 'description', 'dueDate', 'completed', 'creatorName', 'status', 'emoji', 'startTime', 'endTime', 'updatedAt'];
+    const allowedFields = ['text', 'description', 'dueDate', 'completed', 'creatorName', 'status', 'emoji', 'startTime', 'endTime', 'isShared', 'updatedAt'];
     const sanitizedTaskData = {};
     for (const field of allowedFields) {
       if (taskData[field] !== undefined) {

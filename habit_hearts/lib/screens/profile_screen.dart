@@ -191,36 +191,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 20),
               ],
               
-              // Horoscope Section
-              Consumer2<HabitHeartsAuthProvider, HoroscopeProvider>(
-                builder: (context, authProvider, horoscopeProvider, child) {
-                  // Debug logs to see what's happening
-                  final userProfileZodiacSign = authProvider.habitHeartsUser?.zodiacSign;
-                  final currentHoroscopeZodiacSign = horoscopeProvider.userZodiacSign;
-                  
-                  print('ProfileScreen - User zodiac: $userProfileZodiacSign, Horoscope provider zodiac: $currentHoroscopeZodiacSign');
-                  
-                  // Update the horoscope provider if the user's zodiac sign has changed
-                  // This should be done in a post-frame callback to avoid setState during build
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (userProfileZodiacSign != null && 
-                        currentHoroscopeZodiacSign != userProfileZodiacSign) {
-                      print('ProfileScreen - Syncing zodiac sign: $userProfileZodiacSign');
-                      horoscopeProvider.userZodiacSign = userProfileZodiacSign;
-                      // Fetch the horoscope for the new zodiac sign
-                      horoscopeProvider.fetchTodaysHoroscope();
-                    } else if (userProfileZodiacSign == null) {
-                      print('ProfileScreen - No user zodiac sign found in profile');
-                    } else if (currentHoroscopeZodiacSign == userProfileZodiacSign) {
-                      print('ProfileScreen - Zodiac signs match, no sync needed');
-                    }
-                  });
-                  
-                  return HoroscopeWidget();
-                },
-              ),
-              const SizedBox(height: 15),
-              
               // Link with Partner Section
 
               // Unique Code Section
@@ -399,6 +369,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
                   ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              
+              // Horoscope Section (only if user profile exists)
+              if (authProvider.habitHeartsUser != null) ...[
+                Consumer2<HabitHeartsAuthProvider, HoroscopeProvider>(
+                  builder: (context, authProvider, horoscopeProvider, child) {
+                    // Debug logs to see what's happening
+                    final userProfileZodiacSign = authProvider.habitHeartsUser?.zodiacSign;
+                    final currentHoroscopeZodiacSign = horoscopeProvider.userZodiacSign;
+                    
+                    print('ProfileScreen - User zodiac: $userProfileZodiacSign, Horoscope provider zodiac: $currentHoroscopeZodiacSign');
+                    
+                    // Update the horoscope provider if the user's zodiac sign has changed
+                    // This should be done in a post-frame callback to avoid setState during build
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (userProfileZodiacSign != null && 
+                          currentHoroscopeZodiacSign != userProfileZodiacSign) {
+                        print('ProfileScreen - Syncing zodiac sign: $userProfileZodiacSign');
+                        horoscopeProvider.userZodiacSign = userProfileZodiacSign;
+                        // Don't fetch horoscope here to avoid auto-refresh - only refresh when user clicks refresh button
+                      } else if (userProfileZodiacSign == null) {
+                        print('ProfileScreen - No user zodiac sign found in profile');
+                      } else if (currentHoroscopeZodiacSign == userProfileZodiacSign) {
+                        print('ProfileScreen - Zodiac signs match, no sync needed');
+                      }
+                    });
+                    
+                    return HoroscopeWidget();
+                  },
                 ),
                 const SizedBox(height: 12),
               ],
@@ -624,9 +625,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   Navigator.of(context).pop();
                                   authProvider.signOut();
                                 },
-                                child: const Text(
+                                child: Text(
                                   'Sign Out',
-                                  style: TextStyle(color: AppColors.coralRed),
+                                  style: TextStyle(color: Colors.red.shade600),
                                 ),
                               ),
                             ],
@@ -635,7 +636,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       );
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.coralRed,
+                      backgroundColor: Colors.red.shade600,
                       foregroundColor: Colors.white,
                       minimumSize: const Size(double.infinity, 40),
                       padding: const EdgeInsets.symmetric(vertical: 6),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/task.dart';
+import '../services/task_service.dart';
 import '../services/api_service.dart';
 import 'habit_hearts_auth_provider.dart'; // Assuming this is needed for userId
 
@@ -8,22 +9,25 @@ class TasksProvider with ChangeNotifier {
   List<Task> _tasks = [];
   bool _isLoading = false;
   String? _userId; // To store the current user's ID
+  HabitHeartsAuthProvider? _authProvider;
+  final TaskService _taskService = TaskService();
 
   DateTime get selectedDate => _selectedDate;
   List<Task> get tasks => _tasks;
   bool get isLoading => _isLoading;
 
-  // Initialize with user ID
+  // Initialize with user ID and auth provider
   void setUserId(String? userId) {
-    if (_userId != userId) {
-      _userId = userId;
-      // Optionally load tasks for the current date when user changes
-      if (_userId != null) {
-        loadTasksForDate(_selectedDate);
-      } else {
-        _tasks = []; // Clear tasks if no user
-        notifyListeners();
-      }
+    _userId = userId;
+  }
+  
+  void update(HabitHeartsAuthProvider authProvider) {
+    _authProvider = authProvider;
+    if (_authProvider != null && _authProvider!.isAuthenticated) {
+      loadTasksForDate(_selectedDate);
+    } else {
+      _tasks = [];
+      notifyListeners();
     }
   }
 
@@ -35,9 +39,28 @@ class TasksProvider with ChangeNotifier {
 
     try {
       print('Loading tasks for date: $date, user: $_userId');
-      final fetchedTasks = await ApiService.getTasksForDate(_userId!, date);
-      print('Loaded ${fetchedTasks.length} tasks from API');
-      _tasks = fetchedTasks;
+      
+      // Load tasks for current user
+      List<Task> allTasks = [];
+      final myTasks = await ApiService.getTasksForDate(_userId!, date);
+      allTasks.addAll(myTasks);
+      
+      // Load shared tasks from linked users
+      if (_authProvider != null && _authProvider!.habitHeartsUser != null) {
+        for (String linkedId in _authProvider!.habitHeartsUser!.linkedUsers) {
+          try {
+            final linkedUserTasks = await ApiService.getTasksForDate(linkedId, date);
+            // Only add shared tasks
+            allTasks.addAll(linkedUserTasks.where((task) => task.isShared));
+          } catch (e) {
+            print('Error loading tasks for user $linkedId: $e');
+          }
+        }
+      }
+      
+      print('Loaded ${allTasks.length} total tasks (${myTasks.length} my tasks, ${allTasks.length - myTasks.length} linked shared tasks)');
+      // Remove duplicates by ID to avoid showing the same event multiple times
+      _tasks = _removeDuplicateTasks(allTasks);
     } catch (e) {
       print('Error loading tasks: $e');
       _tasks = []; // Clear tasks on error
@@ -83,6 +106,19 @@ class TasksProvider with ChangeNotifier {
   Future<Task?> updateTask(Task updatedTask) async {
     if (_userId == null) return null;
 
+    // Check if the current user has permission to update this task
+    final taskIndex = _tasks.indexWhere((t) => t.id == updatedTask.id);
+    if (taskIndex != -1) {
+      final task = _tasks[taskIndex];
+      final isOwner = task.createdBy == _userId;
+      final canEdit = isOwner || task.isShared; // Owner or shared tasks can be edited
+      
+      if (!canEdit) {
+        print('User does not have permission to update task ${updatedTask.id}');
+        return null;
+      }
+    }
+
     final originalTaskIndex = _tasks.indexWhere((t) => t.id == updatedTask.id);
     Task? originalTask;
 
@@ -126,6 +162,22 @@ class TasksProvider with ChangeNotifier {
   Future<bool> deleteTask(String taskId) async {
     if (_userId == null) return false;
 
+    // Check if the current user has permission to delete this task
+    final taskIndex = _tasks.indexWhere((t) => t.id == taskId);
+    if (taskIndex == -1) {
+      print('Task $taskId not found');
+      return false;
+    }
+    
+    final task = _tasks[taskIndex];
+    final isOwner = task.createdBy == _userId;
+    final canDelete = isOwner || task.isShared; // Owner or shared tasks can be deleted
+    
+    if (!canDelete) {
+      print('User does not have permission to delete task $taskId');
+      return false;
+    }
+
     try {
       final success = await ApiService.deleteTask(taskId);
       if (success) {
@@ -137,5 +189,10 @@ class TasksProvider with ChangeNotifier {
       print('Error deleting task in provider: $e');
       return false;
     }
+  }
+  
+  List<Task> _removeDuplicateTasks(List<Task> tasks) {
+    final seenIds = <String>{};
+    return tasks.where((task) => seenIds.add(task.id)).toList();
   }
 }
