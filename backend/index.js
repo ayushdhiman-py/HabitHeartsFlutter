@@ -3,6 +3,7 @@ const { OAuth2Client } = require('google-auth-library');
 const admin = require('firebase-admin');
 const rateLimit = require('express-rate-limit');
 const { DateTime } = require('luxon'); // For timezone handling
+const { WebSocketServer } = require('ws'); // For real-time communication
 require('dotenv').config();
 
 // Enhanced logging function
@@ -18,6 +19,9 @@ function logger(level, message, metadata = {}) {
 }
 
 const app = express();
+
+// Global variable to hold the broadcast function
+let broadcastTaskUpdate = null;
 
 // Rate limiting middleware
 const limiter = rateLimit({
@@ -511,49 +515,133 @@ app.get('/api/tasks/:userId/:date', authenticateToken, async (req, res) => {
     const userDoc = await db.collection('users').doc(userId).get();
     if (!userDoc.exists) {
       return res.status(404).json({ message: 'User not found' });
-    }
-    
-    const userData = userDoc.data();
-    const linkedUsers = userData.linkedUsers || [];
-    
-    // Include the current user in the list of users to fetch tasks for
-    const allUserIds = [userId, ...linkedUsers];
-    
-    let tasks = [];
+      }
+      
+      const userData = userDoc.data();
+      const linkedUsers = userData.linkedUsers || [];
+      
+      // Include the current user in the list of users to fetch tasks for
+      const allUserIds = [userId, ...linkedUsers];
+      
+      let tasks = [];
 
-    // Fetch tasks created by the requested user
-    const userTasksSnapshot = await db.collection('tasks')
-      .where('createdBy', '==', userId)
-      .get();
+      // Fetch tasks created by the requested user
+      const userTasksSnapshot = await db.collection('tasks')
+        .where('createdBy', '==', userId)
+        .get();
 
-    let userTasks = userTasksSnapshot.docs;
-    userTasks = userTasks.filter(doc => {
-        const data = doc.data();
-        if (!data.dueDate) return false;
-        const taskDate = data.dueDate.toDate();
-        return taskDate >= startOfDay && taskDate <= endOfDay;
-    });
-    tasks = tasks.concat(userTasks);
+      let userTasks = userTasksSnapshot.docs;
+      userTasks = userTasks.filter(doc => {
+          const data = doc.data();
+          if (!data.dueDate) return false;
+          const taskDate = data.dueDate.toDate();
+          return taskDate >= startOfDay && taskDate <= endOfDay;
+      });
+      tasks = tasks.concat(userTasks);
 
-    // Fetch shared tasks from linked users
-    if (linkedUsers.length > 0) {
-      for (const linkedId of linkedUsers) {
-        const sharedTasksSnapshot = await db.collection('tasks')
-          .where('createdBy', '==', linkedId)
-          .where('isShared', '==', true)
+      // Fetch shared tasks from linked users (old format - tasks in 'tasks' collection)
+      if (linkedUsers.length > 0) {
+        for (const linkedId of linkedUsers) {
+          const sharedTasksSnapshot = await db.collection('tasks')
+            .where('createdBy', '==', linkedId)
+            .where('isShared', '==', true)
+            .get();
+          
+          let sharedTasks = sharedTasksSnapshot.docs;
+          sharedTasks = sharedTasks.filter(doc => {
+              const data = doc.data();
+              if (!data.dueDate) return false;
+              const taskDate = data.dueDate.toDate();
+              return taskDate >= startOfDay && taskDate <= endOfDay;
+          });
+
+          tasks = tasks.concat(sharedTasks);
+        }
+      }
+      
+      // Fetch new format shared tasks from 'shared_tasks' collection
+      // NEW: Fetch shared task documents for linked users
+      if (linkedUsers.length > 0) {
+        const sharedTasksSnapshot = await db.collection('shared_tasks')
+          .where('linkedUserIds', 'array-contains', userId) // Tasks shared with the requesting user
           .get();
         
-        let sharedTasks = sharedTasksSnapshot.docs;
-        sharedTasks = sharedTasks.filter(doc => {
-            const data = doc.data();
-            if (!data.dueDate) return false;
-            const taskDate = data.dueDate.toDate();
-            return taskDate >= startOfDay && taskDate <= endOfDay;
+        // Process shared tasks with async operations
+        const sharedTaskPromises = sharedTasksSnapshot.docs.map(async (doc) => {
+          const data = doc.data();
+          
+          // Convert Firestore Timestamps to milliseconds
+          let createdAt = Date.now();
+          if (data.createdAt) {
+            if (typeof data.createdAt.toMillis === 'function') {
+              createdAt = data.createdAt.toMillis();
+            } else if (typeof data.createdAt === 'number') {
+              createdAt = data.createdAt;
+            } else if (data.createdAt instanceof Date) {
+              createdAt = data.createdAt.getTime();
+            }
+          }
+          
+          let updatedAt = Date.now();
+          if (data.updatedAt) {
+            if (typeof data.updatedAt.toMillis === 'function') {
+              updatedAt = data.updatedAt.toMillis();
+            } else if (typeof data.updatedAt === 'number') {
+              updatedAt = data.updatedAt;
+            } else if (data.updatedAt instanceof Date) {
+              updatedAt = data.updatedAt.getTime();
+            }
+          }
+          
+          let dueDate = null;
+          if (data.dueDate) {
+            if (typeof data.dueDate.toMillis === 'function') {
+              dueDate = data.dueDate.toMillis();
+            } else if (typeof data.dueDate === 'number') {
+              dueDate = data.dueDate;
+            } else if (data.dueDate instanceof Date) {
+              dueDate = data.dueDate.getTime();
+            }
+          }
+          
+          // Determine the completion status for the requesting user
+          let userSpecificCompleted = data.completed || false;
+          if (data.completionStatus && data.completionStatus[userId] !== undefined) {
+            userSpecificCompleted = data.completionStatus[userId];
+          }
+          
+          // Get the user who completed the task
+          const completedByUserId = data.completedBy || null;
+          let completedByUserDisplayName = 'Unknown';
+          if (completedByUserId) {
+            const userRef = await db.collection('users').doc(completedByUserId).get();
+            if (userRef.exists) {
+              const userData = userRef.data();
+              completedByUserDisplayName = userData.displayName || completedByUserId;
+            }
+          }
+          
+          return {
+            id: doc.id,
+            ...data.taskData, // Use the task data from the shared task
+            // Override with shared-specific properties
+            completed: userSpecificCompleted,
+            isShared: true, // Mark as shared task
+            createdBy: data.ownerId, // Owner of the shared task
+            creatorName: data.ownerName || 'Unknown', // Name of the owner
+            completedBy: completedByUserId,
+            completedByName: completedByUserDisplayName,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            dueDate: dueDate
+          };
         });
+
+        // Wait for all async operations to complete
+        const sharedTasks = await Promise.all(sharedTaskPromises);
 
         tasks = tasks.concat(sharedTasks);
       }
-    }
     
     // Fetch user data for all users to get their display names
     const userDocs = await Promise.all(
@@ -846,6 +934,298 @@ app.delete('/api/tasks/:id', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error deleting task:', error);
     res.status(500).json({ message: 'Error deleting task' });
+  }
+});
+
+// Shared Task endpoints
+app.post('/api/shared-tasks', authenticateToken, async (req, res) => {
+  try {
+    const taskData = req.body;
+    
+    // Validate input
+    if (!taskData.createdBy || taskData.createdBy !== req.user.uid) {
+      return res.status(400).json({ message: 'Shared task must be created by authenticated user' });
+    }
+    
+    if (!taskData.linkedUserIds || !Array.isArray(taskData.linkedUserIds)) {
+      return res.status(400).json({ message: 'linkedUserIds array is required' });
+    }
+    
+    // Verify that all linked users are actually linked to the creator
+    const userDoc = await db.collection('users').doc(req.user.uid).get();
+    if (!userDoc.exists) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    const userData = userDoc.data();
+    const linkedUsers = userData.linkedUsers || [];
+    
+    // Check if all requested users are linked to the creator
+    const invalidUsers = taskData.linkedUserIds.filter(userId => !linkedUsers.includes(userId));
+    if (invalidUsers.length > 0) {
+      return res.status(403).json({ message: `Unauthorized to share tasks with users: ${invalidUsers.join(', ')}` });
+    }
+    
+    // Get the owner's display name
+    const ownerName = userData.displayName || req.user.uid;
+    
+    // Sanitize input - extract task-specific data
+    const allowedTaskFields = ['text', 'description', 'dueDate', 'status', 'emoji', 'startTime', 'endTime'];
+    const allowedSharedTaskFields = ['isShared', 'completed', 'createdAt', 'updatedAt'];
+    
+    const taskSpecificData = {};
+    for (const field of allowedTaskFields) {
+      if (taskData[field] !== undefined) {
+        taskSpecificData[field] = taskData[field];
+      }
+    }
+    
+    // Ensure isShared is true for shared tasks
+    taskSpecificData.isShared = true;
+    
+    const sharedTaskData = {};
+    for (const field of allowedSharedTaskFields) {
+      if (taskData[field] !== undefined) {
+        sharedTaskData[field] = taskData[field];
+      }
+    }
+    
+    // Add shared task specific properties
+    sharedTaskData.taskData = taskSpecificData;
+    sharedTaskData.ownerId = req.user.uid;
+    sharedTaskData.ownerName = ownerName;
+    sharedTaskData.linkedUserIds = [...new Set([...taskData.linkedUserIds, req.user.uid])]; // Include owner in linkedUserIds
+    sharedTaskData.completionStatus = {}; // Initialize completion status map
+    sharedTaskData.createdAt = admin.firestore.FieldValue.serverTimestamp();
+    sharedTaskData.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+    
+    // Create the shared task document
+    const docRef = await db.collection('shared_tasks').add(sharedTaskData);
+    
+    console.log('Shared task created with ID:', docRef.id);
+    
+    // Format response similar to regular tasks
+    let dueDate = null;
+    if (taskSpecificData.dueDate) {
+      if (typeof taskSpecificData.dueDate.toMillis === 'function') {
+        dueDate = taskSpecificData.dueDate.toMillis();
+      } else if (typeof taskSpecificData.dueDate === 'number') {
+        dueDate = taskSpecificData.dueDate;
+      } else if (taskSpecificData.dueDate instanceof Date) {
+        dueDate = taskSpecificData.dueDate.getTime();
+      }
+    }
+    
+    const createdAt = sharedTaskData.createdAt.toMillis ? sharedTaskData.createdAt.toMillis() : Date.now();
+    const updatedAt = sharedTaskData.updatedAt.toMillis ? sharedTaskData.updatedAt.toMillis() : Date.now();
+    
+    res.status(201).json({ 
+      id: docRef.id,
+      ...taskSpecificData,
+      completed: sharedTaskData.completed || false,
+      isShared: true,
+      createdBy: req.user.uid,
+      creatorName: ownerName,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      dueDate: dueDate
+    });
+    
+  } catch (error) {
+    console.error('Error creating shared task:', error);
+    res.status(500).json({ message: 'Error creating shared task', error: error.message });
+  }
+});
+
+// Update shared task endpoint
+app.put('/api/shared-tasks/:id', authenticateToken, async (req, res) => {
+  try {
+    const taskData = req.body;
+    const taskId = req.params.id;
+    
+    console.log('Updating shared task with ID:', taskId, 'data:', taskData);
+    
+    // Check if the shared task document exists
+    const sharedTaskDoc = await db.collection('shared_tasks').doc(taskId).get();
+    if (!sharedTaskDoc.exists) {
+      console.log('Shared task document not found:', taskId);
+      return res.status(404).json({ message: 'Shared task not found' });
+    }
+    
+    const sharedTask = sharedTaskDoc.data();
+    
+    // Only the owner can update shared tasks
+    if (sharedTask.ownerId !== req.user.uid) {
+      return res.status(403).json({ message: 'Unauthorized to update this shared task' });
+    }
+    
+    // Sanitize input - only allow updating task data fields, not shared-specific fields
+    const allowedTaskFields = ['text', 'description', 'dueDate', 'status', 'emoji', 'startTime', 'endTime'];
+    
+    const updateData = {};
+    for (const field of allowedTaskFields) {
+      if (taskData[field] !== undefined) {
+        updateData[`taskData.${field}`] = taskData[field];
+      }
+    }
+    
+    updateData.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+    
+    // Update the shared task document
+    await db.collection('shared_tasks').doc(taskId).update(updateData);
+    console.log('Shared task updated successfully:', taskId);
+    
+    // Get the updated document for response
+    const updatedDoc = await db.collection('shared_tasks').doc(taskId).get();
+    const updatedData = updatedDoc.data();
+    
+    let dueDate = null;
+    if (updatedData.taskData.dueDate) {
+      if (typeof updatedData.taskData.dueDate.toMillis === 'function') {
+        dueDate = updatedData.taskData.dueDate.toMillis();
+      } else if (typeof updatedData.taskData.dueDate === 'number') {
+        dueDate = updatedData.taskData.dueDate;
+      } else if (updatedData.taskData.dueDate instanceof Date) {
+        dueDate = updatedData.taskData.dueDate.getTime();
+      }
+    }
+    
+    const updatedAt = updatedData.updatedAt.toMillis ? updatedData.updatedAt.toMillis() : Date.now();
+    
+    res.status(200).json({ 
+      id: taskId,
+      ...updatedData.taskData,
+      completed: updatedData.completed || false,
+      isShared: true,
+      createdBy: updatedData.ownerId,
+      creatorName: updatedData.ownerName || 'Unknown',
+      createdAt: updatedData.createdAt.toMillis ? updatedData.createdAt.toMillis() : Date.now(),
+      updatedAt: updatedAt,
+      dueDate: dueDate
+    });
+    
+  } catch (error) {
+    console.error('Error updating shared task:', error);
+    res.status(500).json({ message: 'Error updating shared task', error: error.message });
+  }
+});
+
+// Toggle shared task completion endpoint
+app.post('/api/shared-tasks/:taskId/toggle', authenticateToken, async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { completed } = req.body;
+    const userId = req.user.uid; // The user toggling the task
+    
+    console.log('Toggling shared task completion for user:', userId, 'task:', taskId, 'status:', completed);
+    
+    // Check if the shared task document exists
+    const sharedTaskDoc = await db.collection('shared_tasks').doc(taskId).get();
+    if (!sharedTaskDoc.exists) {
+      console.log('Shared task document not found:', taskId);
+      return res.status(404).json({ message: 'Shared task not found' });
+    }
+    
+    const sharedTask = sharedTaskDoc.data();
+    
+    // Verify that the requesting user has access to this shared task
+    const hasAccess = [sharedTask.ownerId, ...sharedTask.linkedUserIds].includes(userId);
+    if (!hasAccess) {
+      return res.status(403).json({ message: 'Unauthorized to toggle completion for this shared task' });
+    }
+    
+    // Update the shared task document with completion status and who completed it
+    const updateData = {
+      completed: completed,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+    
+    // Update the completion status map for the current user
+    updateData[`completionStatus.${userId}`] = completed;
+    
+    // Only update completedBy if the task is being completed (not uncompleted)
+    if (completed) {
+      updateData.completedBy = userId;
+    } else {
+      // When uncompleting, set completedBy to null if the current user was the one who completed it
+      if (sharedTask.completedBy === userId) {
+        updateData.completedBy = null;
+      }
+    }
+    
+    await db.collection('shared_tasks').doc(taskId).update(updateData);
+    
+    // Get the updated document for response
+    const updatedDoc = await db.collection('shared_tasks').doc(taskId).get();
+    const updatedData = updatedDoc.data();
+    
+    // Get the display name of the user who completed the task
+    let completedByUserDisplayName = 'Unknown';
+    if (updatedData.completedBy) {
+      const userRef = await db.collection('users').doc(updatedData.completedBy).get();
+      if (userRef.exists) {
+        const userData = userRef.data();
+        completedByUserDisplayName = userData.displayName || updatedData.completedBy;
+        console.log('Task completed by user:', userData.displayName || updatedData.completedBy);
+      }
+    }
+    
+    // Broadcast the update to all subscribed clients
+    if (broadcastTaskUpdate && typeof broadcastTaskUpdate === 'function') {
+      broadcastTaskUpdate(taskId, {
+        completed: updatedData.completed,
+        completedBy: updatedData.completedBy,
+        completedByName: completedByUserDisplayName,
+        updatedAt: updatedData.updatedAt ? updatedData.updatedAt.toMillis() : Date.now()
+      });
+    } else {
+      console.log('Broadcast function not available in this scope');
+    }
+    
+    console.log('Shared task completion status updated successfully');
+    res.status(200).json({ 
+      message: 'Shared task completion status updated successfully',
+      completed: updatedData.completed,
+      completedBy: updatedData.completedBy,
+      completedByName: completedByUserDisplayName,
+      taskId: taskId,
+      userId: userId
+    });
+    
+  } catch (error) {
+    console.error('Error toggling shared task completion:', error);
+    res.status(500).json({ message: 'Error toggling shared task completion', error: error.message });
+  }
+});
+
+// Delete shared task endpoint
+app.delete('/api/shared-tasks/:id', authenticateToken, async (req, res) => {
+  try {
+    const taskId = req.params.id;
+    console.log('Deleting shared task with ID:', taskId);
+    
+    // Check if the shared task document exists
+    const sharedTaskDoc = await db.collection('shared_tasks').doc(taskId).get();
+    if (!sharedTaskDoc.exists) {
+      console.log('Shared task document not found:', taskId);
+      return res.status(404).json({ message: 'Shared task not found' });
+    }
+    
+    const sharedTask = sharedTaskDoc.data();
+    
+    // Only the owner can delete shared tasks
+    if (sharedTask.ownerId !== req.user.uid) {
+      return res.status(403).json({ message: 'Unauthorized to delete this shared task' });
+    }
+    
+    // Delete the shared task document
+    await db.collection('shared_tasks').doc(taskId).delete();
+    console.log('Shared task deleted successfully:', taskId);
+    res.status(200).json({ message: 'Shared task deleted successfully' });
+    
+  } catch (error) {
+    console.error('Error deleting shared task:', error);
+    res.status(500).json({ message: 'Error deleting shared task' });
   }
 });
 
@@ -1832,7 +2212,238 @@ async function checkAndRunMigration() {
 }
 
 // Toggle task completion endpoint for linked users
+// Toggle shared task completion endpoint - new format for shared tasks
+app.post('/api/tasks/:taskId/toggle-shared-completion', async (req, res) => {
+  console.log('DEBUG: Toggle shared task completion endpoint called');
+  console.log('DEBUG: Params:', { taskId: req.params.taskId });
+  console.log('DEBUG: Body:', { completed: req.body.completed });
+  console.log('DEBUG: Headers:', req.headers);
+
+  try {
+    const { taskId } = req.params;
+    const { completed } = req.body;
+    
+    // Verify the user is authenticated
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+    
+    if (!token) {
+      console.log('DEBUG: No authorization token provided');
+      return res.status(401).json({ message: 'Access token required' });
+    }
+    
+    let decodedToken;
+    try {
+      decodedToken = await admin.auth().verifyIdToken(token);
+      console.log('DEBUG: Token verified, decoded token UID:', decodedToken.uid);
+    } catch (error) {
+      console.error('Token verification error:', error);
+      return res.status(403).json({ message: 'Invalid or expired token' });
+    }
+    
+    const requestUserId = decodedToken.uid;
+    console.log('DEBUG: Requesting user ID:', requestUserId, 'Task ID:', taskId);
+    
+    // Check if this is a shared task document from the shared_tasks collection
+    const sharedTaskDoc = await db.collection('shared_tasks').doc(taskId).get();
+    if (sharedTaskDoc.exists) {
+      console.log('DEBUG: Found shared task in shared_tasks collection');
+      const taskData = sharedTaskDoc.data();
+      
+      // Verify that the requesting user has access to this shared task
+      const hasAccess = [taskData.ownerId, ...(taskData.linkedUserIds || [])].includes(requestUserId);
+      if (!hasAccess) {
+        console.log('DEBUG: Requesting user does not have access to this shared task');
+        return res.status(403).json({ message: 'Unauthorized to toggle completion for this shared task' });
+      }
+      
+      // Update the shared task document with completion status for the requesting user
+      const updateData = {
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+      
+      // Update the completion status map for the current user
+      updateData[`completionStatus.${requestUserId}`] = completed;
+      
+      // Only update completedBy if the task is being completed (not uncompleted)
+      if (completed) {
+        updateData.completedBy = requestUserId;
+      } else {
+        // When uncompleting, set completedBy to null if the current user was the one who completed it
+        if (taskData.completedBy === requestUserId) {
+          updateData.completedBy = null;
+        }
+      }
+      
+      await db.collection('shared_tasks').doc(taskId).update(updateData);
+      
+      // Get the updated document for response
+      const updatedDoc = await db.collection('shared_tasks').doc(taskId).get();
+      const updatedData = updatedDoc.data();
+      
+      // Get the display name of the user who completed the task
+      let completedByUserDisplayName = 'Unknown';
+      if (updatedData.completedBy) {
+        const userRef = await db.collection('users').doc(updatedData.completedBy).get();
+        if (userRef.exists) {
+          const userData = userRef.data();
+          completedByUserDisplayName = userData.displayName || updatedData.completedBy;
+          console.log('Shared task completed by user:', userData.displayName || updatedData.completedBy);
+        }
+      }
+      
+      // Broadcast the update to all subscribed clients
+      if (broadcastTaskUpdate && typeof broadcastTaskUpdate === 'function') {
+        broadcastTaskUpdate(taskId, {
+          completed: updatedData.completed,
+          completedBy: updatedData.completedBy,
+          completedByName: completedByUserDisplayName,
+          updatedAt: updatedData.updatedAt ? updatedData.updatedAt.toMillis() : Date.now()
+        });
+      } else {
+        console.log('Broadcast function not available in this scope');
+      }
+      
+      console.log('DEBUG: Shared task completion status updated successfully');
+      res.status(200).json({ 
+        message: 'Shared task completion status updated successfully',
+        completed: updatedData.completionStatus && updatedData.completionStatus[requestUserId] !== undefined 
+          ? updatedData.completionStatus[requestUserId] 
+          : updatedData.completed,
+        completedBy: updatedData.completedBy,
+        completedByName: completedByUserDisplayName,
+        taskId: taskId,
+        userId: requestUserId
+      });
+      return;
+    }
+    
+    // If not found in shared_tasks, look in regular tasks collection
+    const taskDoc = await db.collection('tasks').doc(taskId).get();
+    if (!taskDoc.exists) {
+      console.log('DEBUG: Task document does not exist in either collection');
+      return res.status(404).json({ message: 'Task not found' });
+    }
+    
+    const taskData = taskDoc.data();
+    console.log('DEBUG: Regular task data:', { isShared: taskData.isShared, createdBy: taskData.createdBy });
+    
+    // Check if this is a shared task and if the requesting user has permission to complete it
+    let hasPermission = false;
+    if (taskData.createdBy === requestUserId) {
+      // Task owner can always toggle
+      hasPermission = true;
+      console.log('DEBUG: Requesting user is task owner - permission granted');
+    } else if (taskData.isShared) {
+      // For shared tasks, check if requesting user is linked to the task owner
+      const taskOwnerDoc = await db.collection('users').doc(taskData.createdBy).get();
+      if (taskOwnerDoc.exists) {
+        const taskOwnerData = taskOwnerDoc.data();
+        const taskOwnerLinkedUsers = taskOwnerData.linkedUsers || [];
+        if (taskOwnerLinkedUsers.includes(requestUserId)) {
+          hasPermission = true;
+          console.log('DEBUG: Requesting user is linked to task owner - permission granted');
+        } else {
+          console.log('DEBUG: Requesting user is not linked to task owner - permission denied');
+        }
+      } else {
+        console.log('DEBUG: Task owner document does not exist');
+      }
+    } else {
+      console.log('DEBUG: Task is not shared and requesting user is not owner - permission denied');
+    }
+    
+    if (!hasPermission) {
+      return res.status(403).json({ message: 'Unauthorized to toggle completion for this task' });
+    }
+    
+    // Update the MAIN TASK's completion status
+    console.log('DEBUG: Updating main task completion status to:', completed, 'for user:', requestUserId);
+    const updateData = {
+      completed: completed,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+    
+    // Only update completedBy if the task is being completed (not uncompleted)
+    if (completed) {
+      updateData.completedBy = requestUserId;
+    } else {
+      // When uncompleting, set completedBy to null
+      updateData.completedBy = null;
+    }
+    
+    await db.collection('tasks').doc(taskId).update(updateData);
+    
+    // Also update the user-specific completion status (for consistency with existing design)
+    const requestUserDoc = await db.collection('users').doc(requestUserId).get();
+    if (!requestUserDoc.exists) {
+      console.log('DEBUG: Requesting user document does not exist');
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const userData = requestUserDoc.data();
+    let taskCompletionData = userData.taskCompletion || {};
+    
+    // Initialize task completion data if it doesn't exist
+    if (!taskCompletionData[taskId]) {
+      console.log('DEBUG: Initializing task completion data for task:', taskId);
+      taskCompletionData[taskId] = {};
+    }
+    
+    // Record the completion status for today
+    const today = new Date();
+    const dateKey = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
+    console.log('DEBUG: Updating user-specific completion for date:', dateKey, 'Status:', completed);
+    taskCompletionData[taskId][dateKey] = completed;
+    
+    // Update user document
+    console.log('DEBUG: Updating user document with new task completion data');
+    await db.collection('users').doc(requestUserId).update({
+      taskCompletion: taskCompletionData,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    
+    // Get the display name of the user who completed the task
+    let completedByDisplayName = 'Unknown';
+    if (requestUserId) {
+      const userRef = await db.collection('users').doc(requestUserId).get();
+      if (userRef.exists) {
+        const userData = userRef.data();
+        completedByDisplayName = userData.displayName || requestUserId;
+      }
+    }
+    
+    // Verify the main task update
+    const updatedTaskDoc = await db.collection('tasks').doc(taskId).get();
+    const updatedTaskData = updatedTaskDoc.data();
+    console.log('DEBUG: Verification - Updated main task data:', { 
+      completed: updatedTaskData.completed, 
+      completedBy: updatedTaskData.completedBy 
+    });
+    
+    console.log('DEBUG: Task completion status updated successfully in main task document');
+    res.status(200).json({ 
+      message: 'Task completion status updated successfully',
+      completed: updatedTaskData.completed,
+      completedBy: updatedTaskData.completedBy,
+      completedByName: completedByDisplayName,
+      taskId: taskId,
+      userId: requestUserId
+    });
+    
+  } catch (error) {
+    console.error('Error toggling shared task completion:', error);
+    res.status(500).json({ message: 'Error toggling shared task completion', error: error.message });
+  }
+});
+
+// Toggle task completion endpoint for linked users - updates main task completion status
 app.post('/api/user/:userId/task/:taskId/toggle', async (req, res) => {
+  console.log('DEBUG: Toggle task completion endpoint called');
+  console.log('DEBUG: Params:', { userId: req.params.userId, taskId: req.params.taskId });
+  console.log('DEBUG: Body:', { completed: req.body.completed });
+  console.log('DEBUG: Headers:', req.headers);
+
   try {
     const { userId, taskId } = req.params;
     const { completed } = req.body;
@@ -1842,55 +2453,84 @@ app.post('/api/user/:userId/task/:taskId/toggle', async (req, res) => {
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
     
     if (!token) {
+      console.log('DEBUG: No authorization token provided');
       return res.status(401).json({ message: 'Access token required' });
     }
     
     let decodedToken;
     try {
       decodedToken = await admin.auth().verifyIdToken(token);
+      console.log('DEBUG: Token verified, decoded token UID:', decodedToken.uid);
     } catch (error) {
       console.error('Token verification error:', error);
       return res.status(403).json({ message: 'Invalid or expired token' });
     }
     
-    // Check if the authenticated user is trying to update their own status or is linked
     const requestUserId = decodedToken.uid;
+    console.log('DEBUG: Request user ID:', requestUserId, 'Target userId for completion storage:', userId);
     
-    // Allow the user to update their own status, or if they're linked to the target user
-    if (requestUserId !== userId) {
-      // Check if the users are linked
-      const currentUserDoc = await db.collection('users').doc(requestUserId).get();
-      if (!currentUserDoc.exists) {
-        return res.status(404).json({ message: 'Current user not found' });
-      }
-      
-      const currentUserData = currentUserDoc.data();
-      const linkedUsers = currentUserData.linkedUsers || [];
-      
-      if (!linkedUsers.includes(userId)) {
-        return res.status(403).json({ message: 'Unauthorized to update task for this user' });
-      }
-    }
-    
-    // Get the task to verify it exists and is shared
+    // Verify that the requesting user is either:
+    // 1. The task owner, OR
+    // 2. A linked user trying to toggle a shared task
     const taskDoc = await db.collection('tasks').doc(taskId).get();
     if (!taskDoc.exists) {
+      console.log('DEBUG: Task document does not exist');
       return res.status(404).json({ message: 'Task not found' });
     }
     
     const taskData = taskDoc.data();
+    console.log('DEBUG: Task data:', { isShared: taskData.isShared, createdBy: taskData.createdBy });
     
-    // Verify that this is a shared task
-    if (!taskData.isShared) {
-      return res.status(403).json({ message: 'Can only toggle completion for shared tasks' });
+    // Check if this is a shared task and if the requesting user has permission to complete it
+    let hasPermission = false;
+    if (taskData.createdBy === requestUserId) {
+      // Task owner can always toggle
+      hasPermission = true;
+      console.log('DEBUG: Requesting user is task owner - permission granted');
+    } else if (taskData.isShared) {
+      // For shared tasks, check if requesting user is linked to the task owner
+      const taskOwnerDoc = await db.collection('users').doc(taskData.createdBy).get();
+      if (taskOwnerDoc.exists) {
+        const taskOwnerData = taskOwnerDoc.data();
+        const taskOwnerLinkedUsers = taskOwnerData.linkedUsers || [];
+        if (taskOwnerLinkedUsers.includes(requestUserId)) {
+          hasPermission = true;
+          console.log('DEBUG: Requesting user is linked to task owner - permission granted');
+        } else {
+          console.log('DEBUG: Requesting user is not linked to task owner - permission denied');
+        }
+      } else {
+        console.log('DEBUG: Task owner document does not exist');
+      }
+    } else {
+      console.log('DEBUG: Task is not shared and requesting user is not owner - permission denied');
     }
     
-    // Update the task completion status for the user
-    // This would require a data structure to store user-specific task completion status
+    if (!hasPermission) {
+      return res.status(403).json({ message: 'Unauthorized to toggle completion for this task' });
+    }
     
-    // Get user document
+    // Update the MAIN TASK's completion status
+    console.log('DEBUG: Updating main task completion status to:', completed, 'for user:', requestUserId);
+    const updateData = {
+      completed: completed,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+    
+    // Only update completedBy if the task is being completed (not uncompleted)
+    if (completed) {
+      updateData.completedBy = requestUserId;
+    } else {
+      // When uncompleting, set completedBy to null
+      updateData.completedBy = null;
+    }
+    
+    await db.collection('tasks').doc(taskId).update(updateData);
+    
+    // Also update the user-specific completion status (for consistency with existing design)
     const userDoc = await db.collection('users').doc(userId).get();
     if (!userDoc.exists) {
+      console.log('DEBUG: Target user document does not exist');
       return res.status(404).json({ message: 'User not found' });
     }
 
@@ -1899,23 +2539,47 @@ app.post('/api/user/:userId/task/:taskId/toggle', async (req, res) => {
     
     // Initialize task completion data if it doesn't exist
     if (!taskCompletionData[taskId]) {
+      console.log('DEBUG: Initializing task completion data for task:', taskId);
       taskCompletionData[taskId] = {};
     }
     
     // Record the completion status for today
     const today = new Date();
     const dateKey = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
+    console.log('DEBUG: Updating user-specific completion for date:', dateKey, 'Status:', completed);
     taskCompletionData[taskId][dateKey] = completed;
     
     // Update user document
+    console.log('DEBUG: Updating user document with new task completion data');
     await db.collection('users').doc(userId).update({
       taskCompletion: taskCompletionData,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
     
+    // Get the display name of the user who completed the task
+    let completedByDisplayName = 'Unknown';
+    if (requestUserId) {
+      const userRef = await db.collection('users').doc(requestUserId).get();
+      if (userRef.exists) {
+        const userData = userRef.data();
+        completedByDisplayName = userData.displayName || requestUserId;
+      }
+    }
+    
+    // Verify the main task update
+    const updatedTaskDoc = await db.collection('tasks').doc(taskId).get();
+    const updatedTaskData = updatedTaskDoc.data();
+    console.log('DEBUG: Verification - Updated main task data:', { 
+      completed: updatedTaskData.completed, 
+      completedBy: updatedTaskData.completedBy 
+    });
+    
+    console.log('DEBUG: Task completion status updated successfully in main task document');
     res.status(200).json({ 
       message: 'Task completion status updated successfully',
-      completed: completed,
+      completed: updatedTaskData.completed,
+      completedBy: updatedTaskData.completedBy,
+      completedByName: completedByDisplayName,
       taskId: taskId,
       userId: userId
     });
@@ -1965,8 +2629,145 @@ if (require.main === module) {
     }
   }
 
-  app.listen(PORT, async () => {
+  // Create HTTP server and WebSocket server
+  const server = app.listen(PORT, async () => {
     console.log(`Server is running on port ${PORT}`);
     await checkAndRunMigration();
   });
+
+  // Initialize WebSocket server
+  const wss = new WebSocketServer({ server });
+
+  // Store connected clients
+  const clients = new Map(); // Map: userId -> Set of WebSocket connections
+
+  wss.on('connection', (ws, req) => {
+    console.log('New WebSocket connection established');
+    
+    // Authenticate connection with token from query parameter
+    const urlParams = new URLSearchParams(req.url.split('?')[1]);
+    const token = urlParams.get('token');
+    
+    if (!token) {
+      console.log('WebSocket connection rejected: No token provided');
+      ws.close(4001, 'Authentication token required');
+      return;
+    }
+    
+    // Verify token
+    admin.auth().verifyIdToken(token)
+      .then(decodedToken => {
+        const userId = decodedToken.uid;
+        console.log(`WebSocket authenticated for user: ${userId}`);
+        
+        // Add this connection to the user's connections
+        if (!clients.has(userId)) {
+          clients.set(userId, new Set());
+        }
+        clients.get(userId).add(ws);
+        
+        // Store user ID on the WebSocket connection for easy access
+        ws.userId = userId;
+        
+        ws.on('message', (message) => {
+          try {
+            const data = JSON.parse(message);
+            console.log(`Received message from user ${userId}:`, data.type);
+            
+            // Handle different message types
+            switch (data.type) {
+              case 'subscribe_shared_task':
+                // Client wants to subscribe to updates for a shared task
+                ws.subscribedTasks = ws.subscribedTasks || new Set();
+                ws.subscribedTasks.add(data.taskId);
+                console.log(`User ${userId} subscribed to shared task: ${data.taskId}`);
+                break;
+              case 'unsubscribe_shared_task':
+                // Client wants to unsubscribe from a shared task
+                if (ws.subscribedTasks) {
+                  ws.subscribedTasks.delete(data.taskId);
+                  console.log(`User ${userId} unsubscribed from shared task: ${data.taskId}`);
+                }
+                break;
+              default:
+                console.log(`Unknown message type: ${data.type}`);
+            }
+          } catch (error) {
+            console.error('Error parsing WebSocket message:', error);
+          }
+        });
+        
+        ws.on('close', () => {
+          console.log(`WebSocket connection closed for user: ${userId}`);
+          
+          // Remove this connection from the user's connections
+          if (clients.has(userId)) {
+            clients.get(userId).delete(ws);
+            if (clients.get(userId).size === 0) {
+              clients.delete(userId);
+            }
+          }
+        });
+        
+        ws.on('error', (error) => {
+          console.error('WebSocket error:', error);
+        });
+        
+        // Send welcome message
+        ws.send(JSON.stringify({ type: 'welcome', message: 'Connected to HabitHearts WebSocket server' }));
+      })
+      .catch(error => {
+        console.log('WebSocket authentication failed:', error);
+        ws.close(4002, 'Invalid authentication token');
+      });
+  });
+
+  // Function to broadcast task updates to all subscribed clients
+  broadcastTaskUpdate = function(taskId, updateData) {
+    console.log(`Broadcasting task update for task ${taskId} to subscribed clients`);
+    
+    // Get the shared task document to find all users who should receive the update
+    db.collection('shared_tasks').doc(taskId).get()
+      .then(taskDoc => {
+        if (!taskDoc.exists) {
+          console.log(`Shared task ${taskId} not found`);
+          return;
+        }
+        
+        const taskData = taskDoc.data();
+        const usersToNotify = [taskData.ownerId, ...(taskData.linkedUserIds || [])];
+        
+        console.log(`Notifying users: ${usersToNotify.join(', ')}`);
+        
+        // For each user who should receive the update
+        for (const userId of usersToNotify) {
+          if (clients.has(userId)) {
+            const userConnections = clients.get(userId);
+            
+            // For each of the user's connections
+            for (const connection of userConnections) {
+              // Check if this connection is subscribed to this task
+              if (connection.subscribedTasks && connection.subscribedTasks.has(taskId)) {
+                try {
+                  connection.send(JSON.stringify({
+                    type: 'task_update',
+                    taskId: taskId,
+                    ...updateData
+                  }));
+                  console.log(`Sent task update to user ${userId} connection`);
+                } catch (error) {
+                  console.error(`Error sending message to user ${userId}:`, error);
+                }
+              } else {
+                console.log(`User ${userId} connection not subscribed to task ${taskId}`);
+              }
+            }
+          }
+        }
+      })
+      .catch(error => {
+        console.error('Error broadcasting task update:', error);
+      });
+  };
+
 }

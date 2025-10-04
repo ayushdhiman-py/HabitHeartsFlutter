@@ -57,7 +57,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void _showAddTaskModal() {
     showModalBottomSheet(
       context: context,
-      transitionAnimationController: AnimationController(vsync: this, duration: const Duration(milliseconds: 150)),
+      transitionAnimationController: AnimationController(vsync: this, duration: Duration.zero),
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
@@ -176,17 +176,36 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       : _TaskList(
                           tasks: tasksProvider.tasks,
                           onTaskToggle: (task) async {
-                            print('DEBUG: Task toggle called for task ${task.id}');
-                            print('DEBUG: Original task completed: ${task.completed}');
-                            final toggledTask = task.copyWith(completed: !task.completed, updatedAt: DateTime.now());
-                            print('DEBUG: Toggled task completed: ${toggledTask.completed}');
-                            print('DEBUG: Task text: "${toggledTask.text}"');
-                            await tasksProvider.updateTask(toggledTask);
+                            final currentUserId = authProvider.user?.uid;
+                            final isOwner = task.createdBy == currentUserId;
+
+                            // Toggle completion status
+                            final newCompletedStatus = !task.completed;
+
+                            Task updatedTask;
+                            if (task.isShared && !isOwner) {
+                              // Linked user is toggling the task
+                              updatedTask = task.copyWith(
+                                completed: newCompletedStatus,
+                                completedBy: newCompletedStatus ? currentUserId : null,
+                                isCompletedByLinkedUser: newCompletedStatus,
+                              );
+                            } else {
+                              // Owner is toggling the task
+                              updatedTask = task.copyWith(
+                                completed: newCompletedStatus,
+                                completedBy: newCompletedStatus ? currentUserId : null,
+                                // If owner completes it, it's not by a linked user
+                                isCompletedByLinkedUser: false,
+                              );
+                            }
+
+                            await tasksProvider.updateTask(updatedTask);
                           },
                           onTaskEdit: (task) {
                             showModalBottomSheet(
                               context: context,
-                              transitionAnimationController: AnimationController(vsync: this, duration: const Duration(milliseconds: 150)),
+                              transitionAnimationController: AnimationController(vsync: this, duration: Duration.zero),
                               isScrollControlled: true,
                               shape: const RoundedRectangleBorder(
                                 borderRadius: BorderRadius.vertical(top: Radius.circular(25)),

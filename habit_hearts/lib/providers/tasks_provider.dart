@@ -145,7 +145,7 @@ class TasksProvider with ChangeNotifier {
         print('DEBUG: Task isShared: ${task.isShared}, Updated isShared: ${updatedTask.isShared}');
         print('DEBUG: Completed changed: ${updatedTask.completed != task.completed}');
         
-        // Check if this is a legitimate completion toggle (only completed field changed)
+        // Check if this is a legitimate completion toggle (only completion and completion-related fields changed)
         final textUnchanged = updatedTask.text == task.text;
         final descriptionUnchanged = updatedTask.description == task.description || 
             (updatedTask.description == null && task.description == null) ||
@@ -156,31 +156,53 @@ class TasksProvider with ChangeNotifier {
         final emojiUnchanged = updatedTask.emoji == task.emoji;
         final isSharedUnchanged = updatedTask.isShared == task.isShared;
         final completedChanged = updatedTask.completed != task.completed;
-        final onlyCompletionChanged = textUnchanged && descriptionUnchanged && dueDateUnchanged && 
-            startTimeUnchanged && endTimeUnchanged && emojiUnchanged && isSharedUnchanged && completedChanged;
+        final completedByChanged = updatedTask.completedBy != task.completedBy;
+        final isCompletedByLinkedUserChanged = updatedTask.isCompletedByLinkedUser != task.isCompletedByLinkedUser;
         
-        print('DEBUG: Text unchanged: $textUnchanged');
-        print('DEBUG: Description unchanged: $descriptionUnchanged');
+        // For completion toggle, the main requirement is that essential task fields (text, description, dates, etc.) don't change
+        // The completion and completion-related fields can change as needed for the toggle operation
+        final onlyNonEssentialFieldsChanged = textUnchanged && descriptionUnchanged && dueDateUnchanged && 
+            startTimeUnchanged && endTimeUnchanged && emojiUnchanged && isSharedUnchanged;
+        
+        // Since this is a completion toggle operation, completion should definitely change
+        final completionChanged = updatedTask.completed != task.completed;
+        final onlyCompletionRelatedFieldsChanged = onlyNonEssentialFieldsChanged && completionChanged;
+
+        print('DEBUG: Text unchanged: $textUnchanged (original: "${task.text}", updated: "${updatedTask.text}")');
+        print('DEBUG: Description unchanged: $descriptionUnchanged (original: "${task.description}", updated: "${updatedTask.description}")');
         print('DEBUG: Due date unchanged: $dueDateUnchanged');
         print('DEBUG: Start time unchanged: $startTimeUnchanged');
         print('DEBUG: End time unchanged: $endTimeUnchanged');
         print('DEBUG: Emoji unchanged: $emojiUnchanged');
         print('DEBUG: isShared unchanged: $isSharedUnchanged');
-        print('DEBUG: Completed changed: $completedChanged');
-        print('DEBUG: Only completion changed: $onlyCompletionChanged');
+        print('DEBUG: Completed changed: $completedChanged (original: ${task.completed}, updated: ${updatedTask.completed})');
+        print('DEBUG: CompletedBy changed: $completedByChanged (original: ${task.completedBy}, updated: ${updatedTask.completedBy})');
+        print('DEBUG: IsCompletedByLinkedUser changed: $isCompletedByLinkedUserChanged');
+        print('DEBUG: Only non-essential fields unchanged: ${textUnchanged && descriptionUnchanged && dueDateUnchanged && startTimeUnchanged && endTimeUnchanged && emojiUnchanged && isSharedUnchanged}');
+        print('DEBUG: Completion changed: $completionChanged');
+        print('DEBUG: Only completion-related fields changed: $onlyCompletionRelatedFieldsChanged');
         
-        if (!onlyCompletionChanged) {
+        if (!onlyCompletionRelatedFieldsChanged) {
           print('Linked members can only mark shared tasks as complete/incomplete. Task ${updatedTask.id}');
+          print('DEBUG: Validation failed - essential task field changed or completion did not change');
           return null;
         }
         
-        // Use the new toggle endpoint for completion toggling by linked members
-        print('DEBUG: Using toggle endpoint for linked member completion update');
-        final result = await ApiService.toggleTaskCompletionForUser(_userId!, updatedTask.id, updatedTask.completed);
+        // Determine if this is an old format shared task or new format shared task
+        // For now, try the new endpoint first, and fall back to old endpoint if it fails
+        print('DEBUG: Using shared tasks toggle endpoint for linked member completion update, task ID: ${task.id}');
+        final result = await ApiService.toggleSharedTaskCompletion(task.id, updatedTask.completed);
+        
         if (result != null) {
-          print('DEBUG: Toggle endpoint success');
-          // Update the local task immediately for instant UI feedback
-          _tasks[taskIndex] = updatedTask;
+          print('DEBUG: New format shared task toggle endpoint success');
+          // Update the local task with the server response (which includes who completed it)
+          final updatedTaskFromServer = task.copyWith(
+            completed: updatedTask.completed,
+            completedBy: result['completedBy'],
+            completedByName: result['completedByName'],
+            isCompletedByLinkedUser: result['completedBy'] != task.createdBy,
+          );
+          _tasks[taskIndex] = updatedTaskFromServer;
           _sortTasks(); // Sort by date/time with completed tasks at the end
           notifyListeners();
           
@@ -190,10 +212,34 @@ class TasksProvider with ChangeNotifier {
             loadTasksForDate(_selectedDate);
           });
           
-          return updatedTask;
+          return updatedTaskFromServer;
         } else {
-          print('DEBUG: Toggle endpoint failed');
-          return null;
+          // Try the old endpoint for old format shared tasks
+          print('DEBUG: New format toggle failed, trying old format endpoint');
+          final oldResult = await ApiService.toggleTaskCompletionForUser(task.createdBy, updatedTask.id, updatedTask.completed);
+          if (oldResult != null) {
+            print('DEBUG: Old format shared task toggle endpoint success');
+            // Update the local task with the server response
+            final updatedTaskFromServer = task.copyWith(
+              completed: updatedTask.completed,
+              completedBy: oldResult['completedBy'],
+              completedByName: oldResult['completedByName'], // Use the name if available from old endpoint
+              isCompletedByLinkedUser: oldResult['completedBy'] != task.createdBy,
+            );
+            _tasks[taskIndex] = updatedTaskFromServer;
+            _sortTasks(); // Sort by date/time with completed tasks at the end
+            notifyListeners();
+            
+            // Reload tasks in the background to ensure data consistency
+            Future.delayed(Duration(milliseconds: 100), () {
+              loadTasksForDate(_selectedDate);
+            });
+            
+            return updatedTaskFromServer;
+          } else {
+            print('DEBUG: Both toggle endpoints failed');
+            return null;
+          }
         }
       } else {
         // Owner can edit anything, non-shared tasks can be edited by owner

@@ -4,6 +4,9 @@ class Task {
   final String? description;
   final DateTime? dueDate;
   final bool completed;
+  final String? completedBy; // ID of the user who completed the task
+  final String? completedByName; // Name of the user who completed the task
+  final bool isCompletedByLinkedUser;
   final String createdBy;
   final String creatorName;
   final DateTime createdAt;
@@ -29,6 +32,9 @@ class Task {
     this.startTime,
     this.endTime,
     this.isShared = false, // By default, it's not shared
+    this.completedBy,
+    this.completedByName,
+    this.isCompletedByLinkedUser = false,
   });
 
   Map<String, dynamic> toJson() {
@@ -47,6 +53,9 @@ class Task {
       'startTime': startTime,
       'endTime': endTime,
       'isShared': isShared,
+      'completedBy': completedBy,
+      'completedByName': completedByName,
+      'isCompletedByLinkedUser': isCompletedByLinkedUser,
     };
   }
 
@@ -66,6 +75,9 @@ class Task {
       startTime: json['startTime'],
       endTime: json['endTime'],
       isShared: json['isShared'] ?? false,
+      completedBy: json['completedBy'],
+      completedByName: json['completedByName'],
+      isCompletedByLinkedUser: json['isCompletedByLinkedUser'] ?? false,
     );
   }
 
@@ -84,6 +96,9 @@ class Task {
     String? startTime,
     String? endTime,
     bool? isShared,
+    String? completedBy,
+    String? completedByName,
+    bool? isCompletedByLinkedUser,
   }) {
     return Task(
       id: id ?? this.id,
@@ -100,6 +115,10 @@ class Task {
       startTime: startTime ?? this.startTime,
       endTime: endTime ?? this.endTime,
       isShared: isShared ?? this.isShared,
+      completedBy: completedBy ?? this.completedBy,
+      completedByName: completedByName ?? this.completedByName,
+      isCompletedByLinkedUser:
+          isCompletedByLinkedUser ?? this.isCompletedByLinkedUser,
     );
   }
 }

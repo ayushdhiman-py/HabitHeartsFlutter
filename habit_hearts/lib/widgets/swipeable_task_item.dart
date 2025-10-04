@@ -45,11 +45,22 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
   }
 
   void _handleToggle() {
-    // Start animation
+    // Allow toggling only if the task is not completed by a linked user or if the current user is the one who completed it
+    if (widget.task.isShared &&
+        widget.task.isCompletedByLinkedUser &&
+        widget.task.completedBy != widget.currentUserId) {
+      // If the task was completed by a linked user, only that user can untoggle it.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This task was completed by your partner.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
     _animationController.forward().then((_) {
-      // Reset animation
       _animationController.reverse();
-      // Call the toggle function
       widget.onToggle(widget.task);
     });
   }
@@ -164,18 +175,22 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
                       ],
                     ),
                     Visibility(
-                      visible: widget.task.creatorName.isNotEmpty && widget.task.creatorName != 'You',
+                      visible: widget.task.isShared,
                       child: Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
-                          'by ${widget.task.creatorName}',
+                          widget.task.completed && widget.task.isCompletedByLinkedUser
+                              ? 'Completed by partner'
+                              : 'Shared with partner',
                           style: TextStyle(
                             fontSize: 11,
-                            color: Theme.of(context).brightness == Brightness.dark 
-                                ? AppColors.darkSecondaryTextColor 
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? AppColors.darkSecondaryTextColor
                                 : AppColors.secondaryTextColor,
                             fontStyle: FontStyle.italic,
                           ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
                       ),
                     ),
