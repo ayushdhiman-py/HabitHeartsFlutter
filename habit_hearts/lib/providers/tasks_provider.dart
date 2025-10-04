@@ -11,6 +11,8 @@ class TasksProvider with ChangeNotifier {
   String? _userId; // To store the current user's ID
   HabitHeartsAuthProvider? _authProvider;
   final TaskService _taskService = TaskService();
+  // Map to track ongoing toggle operations to prevent duplicate requests
+  final Map<String, bool> _toggleOperations = {};
 
   DateTime get selectedDate => _selectedDate;
   List<Task> get tasks => _tasks;
@@ -182,64 +184,90 @@ class TasksProvider with ChangeNotifier {
         print('DEBUG: Completion changed: $completionChanged');
         print('DEBUG: Only completion-related fields changed: $onlyCompletionRelatedFieldsChanged');
         
-        if (!onlyCompletionRelatedFieldsChanged) {
-          print('Linked members can only mark shared tasks as complete/incomplete. Task ${updatedTask.id}');
-          print('DEBUG: Validation failed - essential task field changed or completion did not change');
-          return null;
+        // Check if a toggle operation is already in progress for this task
+        if (_toggleOperations[task.id] == true) {
+          print('DEBUG: Toggle operation already in progress for task ${task.id}, ignoring duplicate request');
+          return task; // Return current state, don't process duplicate
         }
         
-        // Determine if this is an old format shared task or new format shared task
-        // For now, try the new endpoint first, and fall back to old endpoint if it fails
-        print('DEBUG: Using shared tasks toggle endpoint for linked member completion update, task ID: ${task.id}');
-        final result = await ApiService.toggleSharedTaskCompletion(task.id, updatedTask.completed);
+        // Optimistically update the UI immediately for responsiveness
+        _toggleOperations[task.id] = true;
+        final originalTask = _tasks[taskIndex];
+        final optimisticTask = originalTask.copyWith(
+          completed: updatedTask.completed,
+          completedBy: _userId, // Set to current user initially
+          completedByName: _authProvider?.habitHeartsUser?.displayName ?? 'You', // Set to current user's name
+          isCompletedByLinkedUser: true,
+        );
+        _tasks[taskIndex] = optimisticTask;
+        _sortTasks();
+        notifyListeners();
         
-        if (result != null) {
-          print('DEBUG: New format shared task toggle endpoint success');
-          // Update the local task with the server response (which includes who completed it)
-          final updatedTaskFromServer = task.copyWith(
-            completed: updatedTask.completed,
-            completedBy: result['completedBy'],
-            completedByName: result['completedByName'],
-            isCompletedByLinkedUser: result['completedBy'] != task.createdBy,
-          );
-          _tasks[taskIndex] = updatedTaskFromServer;
-          _sortTasks(); // Sort by date/time with completed tasks at the end
-          notifyListeners();
+        try {
+          // Try the new endpoint first (new format shared tasks)
+          print('DEBUG: Using shared tasks toggle endpoint for linked member completion update, task ID: ${task.id}');
+          final result = await ApiService.toggleSharedTaskCompletion(task.id, updatedTask.completed);
           
-          // Reload tasks in the background to ensure data consistency
-          // Use a delayed reload to give the optimistic update time to be shown
-          Future.delayed(Duration(milliseconds: 100), () {
-            loadTasksForDate(_selectedDate);
-          });
-          
-          return updatedTaskFromServer;
-        } else {
-          // Try the old endpoint for old format shared tasks
-          print('DEBUG: New format toggle failed, trying old format endpoint');
-          final oldResult = await ApiService.toggleTaskCompletionForUser(task.createdBy, updatedTask.id, updatedTask.completed);
-          if (oldResult != null) {
-            print('DEBUG: Old format shared task toggle endpoint success');
-            // Update the local task with the server response
-            final updatedTaskFromServer = task.copyWith(
+          if (result != null) {
+            print('DEBUG: New format shared task toggle endpoint success');
+            // Update with actual server response
+            final updatedTaskFromServer = originalTask.copyWith(
               completed: updatedTask.completed,
-              completedBy: oldResult['completedBy'],
-              completedByName: oldResult['completedByName'], // Use the name if available from old endpoint
-              isCompletedByLinkedUser: oldResult['completedBy'] != task.createdBy,
+              completedBy: result['completedBy'],
+              completedByName: result['completedByName'],
+              isCompletedByLinkedUser: result['completedBy'] != originalTask.createdBy,
             );
-            _tasks[taskIndex] = updatedTaskFromServer;
-            _sortTasks(); // Sort by date/time with completed tasks at the end
-            notifyListeners();
-            
-            // Reload tasks in the background to ensure data consistency
-            Future.delayed(Duration(milliseconds: 100), () {
-              loadTasksForDate(_selectedDate);
-            });
-            
+            final serverTaskIndex = _tasks.indexWhere((t) => t.id == updatedTaskFromServer.id);
+            if (serverTaskIndex != -1) {
+              _tasks[serverTaskIndex] = updatedTaskFromServer;
+              _sortTasks();
+              notifyListeners();
+            }
             return updatedTaskFromServer;
           } else {
-            print('DEBUG: Both toggle endpoints failed');
-            return null;
+            // Fallback to old endpoint
+            print('DEBUG: New format toggle failed, trying old format endpoint');
+            final oldResult = await ApiService.toggleTaskCompletionForUser(task.createdBy, updatedTask.id, updatedTask.completed);
+            if (oldResult != null) {
+              print('DEBUG: Old format shared task toggle endpoint success');
+              // Update with actual server response
+              final updatedTaskFromServer = originalTask.copyWith(
+                completed: updatedTask.completed,
+                completedBy: oldResult['completedBy'],
+                completedByName: oldResult['completedByName'],
+                isCompletedByLinkedUser: oldResult['completedBy'] != originalTask.createdBy,
+              );
+              final serverTaskIndex = _tasks.indexWhere((t) => t.id == updatedTaskFromServer.id);
+              if (serverTaskIndex != -1) {
+                _tasks[serverTaskIndex] = updatedTaskFromServer;
+                _sortTasks();
+                notifyListeners();
+              }
+              return updatedTaskFromServer;
+            } else {
+              print('DEBUG: Both toggle endpoints failed, reverting optimistic update');
+              // Revert optimistic update on failure
+              final revertTaskIndex = _tasks.indexWhere((t) => t.id == originalTask.id);
+              if (revertTaskIndex != -1) {
+                _tasks[revertTaskIndex] = originalTask;
+                _sortTasks();
+                notifyListeners();
+              }
+              return null;
+            }
           }
+        } catch (e) {
+          print('Error updating shared task completion: $e');
+          // Revert optimistic update on exception
+          final revertTaskIndex = _tasks.indexWhere((t) => t.id == originalTask.id);
+          if (revertTaskIndex != -1) {
+            _tasks[revertTaskIndex] = originalTask;
+            _sortTasks();
+            notifyListeners();
+          }
+          return null;
+        } finally {
+          _toggleOperations[task.id] = false;
         }
       } else {
         // Owner can edit anything, non-shared tasks can be edited by owner
