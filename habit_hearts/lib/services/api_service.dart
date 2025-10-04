@@ -188,19 +188,15 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>?> toggleTaskCompletionForUser(String userId, String taskId, bool completed, {DateTime? date}) async {
-    print('DEBUG: toggleTaskCompletionForUser called with - userId: $userId, taskId: $taskId, completed: $completed, date: $date');
-    print('DEBUG: Request URL: ${baseUrl}/api/user/$userId/task/$taskId/toggle');
     
     try {
       final headers = await _getHeaders();
-      print('DEBUG: Request headers: $headers');
       final Map<String, dynamic> requestBody = {
         'completed': completed,
       };
       if (date != null) {
         requestBody['date'] = date.toIso8601String();
       }
-      print('DEBUG: Request body: $requestBody');
 
       final response = await http.post(
         Uri.parse('$baseUrl/api/user/$userId/task/$taskId/toggle'),
@@ -208,18 +204,14 @@ class ApiService {
         body: json.encode(requestBody),
       );
       
-      print('DEBUG: Response status: ${response.statusCode}');
-      print('DEBUG: Response body: ${response.body}');
       
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
-        print('DEBUG: Response data: $responseData');
         
         // Clear the task cache for the current user to ensure updated user-specific completion status is fetched
         // The userId parameter refers to the user whose task completion is being updated
         _cache.removeWhere((key, value) => key.startsWith('tasks_$userId'));
         _cacheTimestamps.removeWhere((key, value) => key.startsWith('tasks_$userId'));
-        print('DEBUG: Cache cleared for user: $userId');
         
         return responseData;
       } else if (response.statusCode == 401 || response.statusCode == 403) {
@@ -306,15 +298,6 @@ class ApiService {
     try {
       final headers = await _getHeaders();
       final requestBody = json.encode(task.toJson());
-      
-      // Log the request for debugging
-      print('DEBUG: Sending task update request to API');
-      print('DEBUG: Task ID: ${task.id}');
-      print('DEBUG: Task text: ${task.text}');
-      print('DEBUG: Task completed: ${task.completed}');
-      print('DEBUG: Task createdBy: ${task.createdBy}');
-      print('DEBUG: Task isShared: ${task.isShared}');
-      print('DEBUG: Request body: $requestBody');
       
       final response = await http.put(
         Uri.parse('$baseUrl$tasksEndpoint/${task.id}'),
@@ -610,16 +593,12 @@ class ApiService {
   
   // New endpoint for toggling goal progress using bit-based approach
   static Future<Map<String, dynamic>?> toggleSharedTaskCompletion(String taskId, bool completed) async {
-    print('DEBUG: toggleSharedTaskCompletion called with - taskId: $taskId, completed: $completed');
-    print('DEBUG: Request URL: ${baseUrl}/api/tasks/$taskId/toggle-shared-completion');
     
     try {
       final headers = await _getHeaders();
-      print('DEBUG: Request headers: $headers');
       final Map<String, dynamic> requestBody = {
         'completed': completed,
       };
-      print('DEBUG: Request body: $requestBody');
 
       final response = await http.post(
         Uri.parse('$baseUrl/api/tasks/$taskId/toggle-shared-completion'),
@@ -627,18 +606,14 @@ class ApiService {
         body: json.encode(requestBody),
       );
       
-      print('DEBUG: Response status: ${response.statusCode}');
-      print('DEBUG: Response body: ${response.body}');
       
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
-        print('DEBUG: Response data: $responseData');
         
         // Clear the task cache for all users affected by this shared task
         // We don't know who created the task, so we clear all task caches
         _cache.removeWhere((key, value) => key.startsWith('tasks_'));
         _cacheTimestamps.removeWhere((key, value) => key.startsWith('tasks_'));
-        print('DEBUG: Task cache cleared');
         
         return responseData;
       } else if (response.statusCode == 401 || response.statusCode == 403) {

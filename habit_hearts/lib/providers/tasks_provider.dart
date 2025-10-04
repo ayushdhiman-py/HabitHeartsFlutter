@@ -128,193 +128,108 @@ class TasksProvider with ChangeNotifier {
     }
   }
 
+  Future<void> toggleTaskCompletion(String taskId) async {
+    if (_userId == null) return;
+
+    final taskIndex = _tasks.indexWhere((t) => t.id == taskId);
+    if (taskIndex == -1) {
+      print('Task not found: $taskId');
+      return;
+    }
+
+    final originalTask = _tasks[taskIndex];
+    final isOwner = originalTask.createdBy == _userId;
+    final intendedCompletionState = !originalTask.completed;
+
+    // Permission check for shared tasks
+    if (originalTask.isShared && !isOwner && originalTask.completed && originalTask.completedBy != _userId) {
+      print('User does not have permission to untoggle task $taskId');
+      // Optionally, show a snackbar to the user here
+      return;
+    }
+
+    // Optimistically update the UI
+    final optimisticTask = originalTask.copyWith(
+      completed: intendedCompletionState,
+      completedBy: intendedCompletionState ? _userId : null,
+      completedByName: intendedCompletionState ? (_authProvider?.habitHeartsUser?.displayName ?? 'You') : null,
+      isCompletedByLinkedUser: intendedCompletionState ? !isOwner : false,
+    );
+    _tasks[taskIndex] = optimisticTask;
+    _sortTasks();
+    notifyListeners();
+
+    try {
+      // Send the update to the backend
+      final result = await ApiService.toggleSharedTaskCompletion(taskId, intendedCompletionState);
+
+      if (result == null) {
+        // If the API call fails, revert the optimistic update
+        _tasks[taskIndex] = originalTask;
+        _sortTasks();
+        notifyListeners();
+        print('Failed to toggle task, reverted UI.');
+      } else {
+        // If the API call succeeds, update the task with the definitive data from the server
+        final updatedTaskFromServer = originalTask.copyWith(
+          completed: result['completed'],
+          completedBy: result['completedBy'],
+          completedByName: result['completedByName'],
+          isCompletedByLinkedUser: result['completedBy'] != originalTask.createdBy,
+        );
+        final serverTaskIndex = _tasks.indexWhere((t) => t.id == updatedTaskFromServer.id);
+        if (serverTaskIndex != -1) {
+          _tasks[serverTaskIndex] = updatedTaskFromServer;
+        }
+        _sortTasks();
+        notifyListeners();
+      }
+    } catch (e) {
+      // If the API call throws an error, revert the optimistic update
+      _tasks[taskIndex] = originalTask;
+      _sortTasks();
+      notifyListeners();
+      print('Error toggling task, reverted UI: $e');
+    }
+  }
+
   Future<Task?> updateTask(Task updatedTask) async {
     if (_userId == null) return null;
 
-    // Check if the current user has permission to update this task
     final taskIndex = _tasks.indexWhere((t) => t.id == updatedTask.id);
-    if (taskIndex != -1) {
-      final task = _tasks[taskIndex];
-      final isOwner = task.createdBy == _userId;
-      
-      // For shared tasks, linked members can only toggle completion, not edit other fields
-      if (task.isShared && !isOwner) {
-        // Log the update attempt for debugging
-        print('DEBUG: Shared task update attempt by linked member ${_userId}');
-        print('DEBUG: Task ID: ${task.id}');
-        print('DEBUG: Original task - text: "${task.text}", completed: ${task.completed}, createdBy: ${task.createdBy}');
-        print('DEBUG: Updated task - text: "${updatedTask.text}", completed: ${updatedTask.completed}, createdBy: ${updatedTask.createdBy}');
-        print('DEBUG: Task isShared: ${task.isShared}, Updated isShared: ${updatedTask.isShared}');
-        print('DEBUG: Completed changed: ${updatedTask.completed != task.completed}');
-        
-        // Check if this is a legitimate completion toggle (only completion and completion-related fields changed)
-        final textUnchanged = updatedTask.text == task.text;
-        final descriptionUnchanged = updatedTask.description == task.description || 
-            (updatedTask.description == null && task.description == null) ||
-            (updatedTask.description == task.description);
-        final dueDateUnchanged = updatedTask.dueDate == task.dueDate;
-        final startTimeUnchanged = updatedTask.startTime == task.startTime;
-        final endTimeUnchanged = updatedTask.endTime == task.endTime;
-        final emojiUnchanged = updatedTask.emoji == task.emoji;
-        final isSharedUnchanged = updatedTask.isShared == task.isShared;
-        final completedChanged = updatedTask.completed != task.completed;
-        final completedByChanged = updatedTask.completedBy != task.completedBy;
-        final isCompletedByLinkedUserChanged = updatedTask.isCompletedByLinkedUser != task.isCompletedByLinkedUser;
-        
-        // For completion toggle, the main requirement is that essential task fields (text, description, dates, etc.) don't change
-        // The completion and completion-related fields can change as needed for the toggle operation
-        final onlyNonEssentialFieldsChanged = textUnchanged && descriptionUnchanged && dueDateUnchanged && 
-            startTimeUnchanged && endTimeUnchanged && emojiUnchanged && isSharedUnchanged;
-        
-        // Since this is a completion toggle operation, completion should definitely change
-        final completionChanged = updatedTask.completed != task.completed;
-        final onlyCompletionRelatedFieldsChanged = onlyNonEssentialFieldsChanged && completionChanged;
-
-        print('DEBUG: Text unchanged: $textUnchanged (original: "${task.text}", updated: "${updatedTask.text}")');
-        print('DEBUG: Description unchanged: $descriptionUnchanged (original: "${task.description}", updated: "${updatedTask.description}")');
-        print('DEBUG: Due date unchanged: $dueDateUnchanged');
-        print('DEBUG: Start time unchanged: $startTimeUnchanged');
-        print('DEBUG: End time unchanged: $endTimeUnchanged');
-        print('DEBUG: Emoji unchanged: $emojiUnchanged');
-        print('DEBUG: isShared unchanged: $isSharedUnchanged');
-        print('DEBUG: Completed changed: $completedChanged (original: ${task.completed}, updated: ${updatedTask.completed})');
-        print('DEBUG: CompletedBy changed: $completedByChanged (original: ${task.completedBy}, updated: ${updatedTask.completedBy})');
-        print('DEBUG: IsCompletedByLinkedUser changed: $isCompletedByLinkedUserChanged');
-        print('DEBUG: Only non-essential fields unchanged: ${textUnchanged && descriptionUnchanged && dueDateUnchanged && startTimeUnchanged && endTimeUnchanged && emojiUnchanged && isSharedUnchanged}');
-        print('DEBUG: Completion changed: $completionChanged');
-        print('DEBUG: Only completion-related fields changed: $onlyCompletionRelatedFieldsChanged');
-        
-        // Check if a toggle operation is already in progress for this task
-        if (_toggleOperations[task.id] == true) {
-          print('DEBUG: Toggle operation already in progress for task ${task.id}, ignoring duplicate request');
-          return task; // Return current state, don't process duplicate
-        }
-        
-        // Optimistically update the UI immediately for responsiveness
-        _toggleOperations[task.id] = true;
-        final originalTask = _tasks[taskIndex];
-        final optimisticTask = originalTask.copyWith(
-          completed: updatedTask.completed,
-          completedBy: _userId, // Set to current user initially
-          completedByName: _authProvider?.habitHeartsUser?.displayName ?? 'You', // Set to current user's name
-          isCompletedByLinkedUser: true,
-        );
-        _tasks[taskIndex] = optimisticTask;
-        _sortTasks();
-        notifyListeners();
-        
-        try {
-          // Try the new endpoint first (new format shared tasks)
-          print('DEBUG: Using shared tasks toggle endpoint for linked member completion update, task ID: ${task.id}');
-          final result = await ApiService.toggleSharedTaskCompletion(task.id, updatedTask.completed);
-          
-          if (result != null) {
-            print('DEBUG: New format shared task toggle endpoint success');
-            // Update with actual server response
-            final updatedTaskFromServer = originalTask.copyWith(
-              completed: updatedTask.completed,
-              completedBy: result['completedBy'],
-              completedByName: result['completedByName'],
-              isCompletedByLinkedUser: result['completedBy'] != originalTask.createdBy,
-            );
-            final serverTaskIndex = _tasks.indexWhere((t) => t.id == updatedTaskFromServer.id);
-            if (serverTaskIndex != -1) {
-              _tasks[serverTaskIndex] = updatedTaskFromServer;
-              _sortTasks();
-              notifyListeners();
-            }
-            return updatedTaskFromServer;
-          } else {
-            // Fallback to old endpoint
-            print('DEBUG: New format toggle failed, trying old format endpoint');
-            final oldResult = await ApiService.toggleTaskCompletionForUser(task.createdBy, updatedTask.id, updatedTask.completed);
-            if (oldResult != null) {
-              print('DEBUG: Old format shared task toggle endpoint success');
-              // Update with actual server response
-              final updatedTaskFromServer = originalTask.copyWith(
-                completed: updatedTask.completed,
-                completedBy: oldResult['completedBy'],
-                completedByName: oldResult['completedByName'],
-                isCompletedByLinkedUser: oldResult['completedBy'] != originalTask.createdBy,
-              );
-              final serverTaskIndex = _tasks.indexWhere((t) => t.id == updatedTaskFromServer.id);
-              if (serverTaskIndex != -1) {
-                _tasks[serverTaskIndex] = updatedTaskFromServer;
-                _sortTasks();
-                notifyListeners();
-              }
-              return updatedTaskFromServer;
-            } else {
-              print('DEBUG: Both toggle endpoints failed, reverting optimistic update');
-              // Revert optimistic update on failure
-              final revertTaskIndex = _tasks.indexWhere((t) => t.id == originalTask.id);
-              if (revertTaskIndex != -1) {
-                _tasks[revertTaskIndex] = originalTask;
-                _sortTasks();
-                notifyListeners();
-              }
-              return null;
-            }
-          }
-        } catch (e) {
-          print('Error updating shared task completion: $e');
-          // Revert optimistic update on exception
-          final revertTaskIndex = _tasks.indexWhere((t) => t.id == originalTask.id);
-          if (revertTaskIndex != -1) {
-            _tasks[revertTaskIndex] = originalTask;
-            _sortTasks();
-            notifyListeners();
-          }
-          return null;
-        } finally {
-          _toggleOperations[task.id] = false;
-        }
-      } else {
-        // Owner can edit anything, non-shared tasks can be edited by owner
-        final canEdit = isOwner || !task.isShared;
-        if (!canEdit) {
-          print('User does not have permission to update task ${updatedTask.id}');
-          return null;
-        }
-      }
+    if (taskIndex == -1) {
+      print('Task not found for update: ${updatedTask.id}');
+      return null;
     }
 
-    final originalTaskIndex = _tasks.indexWhere((t) => t.id == updatedTask.id);
-    Task? originalTask;
+    final originalTask = _tasks[taskIndex];
+    final isOwner = originalTask.createdBy == _userId;
 
-    if (originalTaskIndex != -1) {
-      originalTask = _tasks[originalTaskIndex];
-      // Optimistically update the UI
-      _tasks[originalTaskIndex] = updatedTask;
-      _sortTasks(); // Sort by date/time with completed tasks at the end
-      notifyListeners();
+    if (!isOwner) {
+      print('User does not have permission to update task ${updatedTask.id}');
+      return null;
     }
+    
+    _tasks[taskIndex] = updatedTask;
+    _sortTasks();
+    notifyListeners();
 
     try {
       final result = await ApiService.updateTask(updatedTask);
-      if (result == null && originalTask != null) {
-        // Revert the change if the API call fails
-        if (originalTaskIndex != -1) {
-          _tasks[originalTaskIndex] = originalTask;
-          _sortTasks(); // Sort by date/time with completed tasks at the end
-          notifyListeners();
-        }
+      if (result == null) {
+        _tasks[taskIndex] = originalTask;
         print('Error updating task: API call failed, reverted UI.');
-      } else if (result != null && originalTaskIndex != -1) {
-        // If API call succeeds, ensure the list is updated with the actual result (e.g., if backend modified it)
-        _tasks[originalTaskIndex] = result;
-        _sortTasks(); // Sort by date/time with completed tasks at the end
-        notifyListeners();
+      } else {
+        _tasks[taskIndex] = result;
       }
+      _sortTasks();
+      notifyListeners();
       return result;
     } catch (e) {
       print('Error updating task in provider: $e');
-      // Revert the change on error
-      if (originalTask != null && originalTaskIndex != -1) {
-        _tasks[originalTaskIndex] = originalTask;
-        _tasks.sort((a, b) => (a.startTime ?? '').compareTo(b.startTime ?? '')); // Sort by start time
-        notifyListeners();
-      }
+      _tasks[taskIndex] = originalTask;
+      _sortTasks();
+      notifyListeners();
       return null;
     }
   }

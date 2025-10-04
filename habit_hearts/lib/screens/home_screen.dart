@@ -175,32 +175,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ? const _TaskListSkeleton._()
                       : _TaskList(
                           tasks: tasksProvider.tasks,
-                          onTaskToggle: (task) async {
-                            final currentUserId = authProvider.user?.uid;
-                            final isOwner = task.createdBy == currentUserId;
-
-                            // Toggle completion status
-                            final newCompletedStatus = !task.completed;
-
-                            Task updatedTask;
-                            if (task.isShared && !isOwner) {
-                              // Linked user is toggling the task
-                              updatedTask = task.copyWith(
-                                completed: newCompletedStatus,
-                                completedBy: newCompletedStatus ? currentUserId : null,
-                                isCompletedByLinkedUser: newCompletedStatus,
-                              );
-                            } else {
-                              // Owner is toggling the task
-                              updatedTask = task.copyWith(
-                                completed: newCompletedStatus,
-                                completedBy: newCompletedStatus ? currentUserId : null,
-                                // If owner completes it, it's not by a linked user
-                                isCompletedByLinkedUser: false,
-                              );
-                            }
-
-                            await tasksProvider.updateTask(updatedTask);
+                          onTaskToggle: (task) {
+                            tasksProvider.toggleTaskCompletion(task.id);
                           },
                           onTaskEdit: (task) {
                             showModalBottomSheet(
@@ -611,6 +587,7 @@ class _TaskList extends StatelessWidget {
       itemCount: tasks.length,
       itemBuilder: (context, index) {
         return SwipeableTaskItem(
+          key: ValueKey(tasks[index].id),
           task: tasks[index],
           onToggle: onTaskToggle,
           onEdit: onTaskEdit,
