@@ -569,6 +569,14 @@ app.get('/api/tasks/:userId/:date', authenticateToken, async (req, res) => {
       }
     });
     
+    // Fetch the authenticated user's task completion data to include per-user completion status
+    const authUserDoc = await db.collection('users').doc(req.user.uid).get();
+    let authUserTaskCompletion = {};
+    if (authUserDoc.exists) {
+      const authUserData = authUserDoc.data();
+      authUserTaskCompletion = authUserData.taskCompletion || {};
+    }
+    
     const mappedTasks = tasks
       .map(doc => {
         const data = doc.data();
@@ -606,6 +614,32 @@ app.get('/api/tasks/:userId/:date', authenticateToken, async (req, res) => {
           }
         }
         
+        // Check if this is a shared task and get the current user's completion status
+        let userSpecificCompleted = data.completed; // Default to original completed status
+        if (data.isShared && authUserTaskCompletion[doc.id]) {
+          // Get the task date to check completion status for that specific date
+          let taskDate = null;
+          if (data.dueDate) {
+            if (typeof data.dueDate.toDate === 'function') {
+              taskDate = data.dueDate.toDate();
+            } else if (typeof data.dueDate === 'number') {
+              taskDate = new Date(data.dueDate);
+            } else if (data.dueDate instanceof Date) {
+              taskDate = data.dueDate;
+            }
+          } else {
+            // If no due date, use today's date
+            taskDate = new Date();
+          }
+          
+          const dateKey = `${taskDate.getFullYear()}-${(taskDate.getMonth() + 1).toString().padStart(2, '0')}-${taskDate.getDate().toString().padStart(2, '0')}`;
+          
+          // If there's specific completion data for this user for this task on this date, use that
+          if (authUserTaskCompletion[doc.id][dateKey] !== undefined) {
+            userSpecificCompleted = authUserTaskCompletion[doc.id][dateKey];
+          }
+        }
+        
         // Remove the original 'id' field from the data to avoid conflict with the document ID
         const { id, ...dataWithoutId } = data;
         
@@ -618,6 +652,7 @@ app.get('/api/tasks/:userId/:date', authenticateToken, async (req, res) => {
           id: doc.id,
           ...dataWithoutId,
           creatorName, // Add the creator name
+          completed: userSpecificCompleted, // Use user-specific completion status for shared tasks
           createdAt,
           updatedAt,
           dueDate
@@ -1796,7 +1831,142 @@ async function checkAndRunMigration() {
   }
 }
 
-app.listen(PORT, async () => {
-  console.log(`Server is running on port ${PORT}`);
-  await checkAndRunMigration();
+// Toggle task completion endpoint for linked users
+app.post('/api/user/:userId/task/:taskId/toggle', async (req, res) => {
+  try {
+    const { userId, taskId } = req.params;
+    const { completed } = req.body;
+    
+    // Verify the user is authenticated
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+    
+    if (!token) {
+      return res.status(401).json({ message: 'Access token required' });
+    }
+    
+    let decodedToken;
+    try {
+      decodedToken = await admin.auth().verifyIdToken(token);
+    } catch (error) {
+      console.error('Token verification error:', error);
+      return res.status(403).json({ message: 'Invalid or expired token' });
+    }
+    
+    // Check if the authenticated user is trying to update their own status or is linked
+    const requestUserId = decodedToken.uid;
+    
+    // Allow the user to update their own status, or if they're linked to the target user
+    if (requestUserId !== userId) {
+      // Check if the users are linked
+      const currentUserDoc = await db.collection('users').doc(requestUserId).get();
+      if (!currentUserDoc.exists) {
+        return res.status(404).json({ message: 'Current user not found' });
+      }
+      
+      const currentUserData = currentUserDoc.data();
+      const linkedUsers = currentUserData.linkedUsers || [];
+      
+      if (!linkedUsers.includes(userId)) {
+        return res.status(403).json({ message: 'Unauthorized to update task for this user' });
+      }
+    }
+    
+    // Get the task to verify it exists and is shared
+    const taskDoc = await db.collection('tasks').doc(taskId).get();
+    if (!taskDoc.exists) {
+      return res.status(404).json({ message: 'Task not found' });
+    }
+    
+    const taskData = taskDoc.data();
+    
+    // Verify that this is a shared task
+    if (!taskData.isShared) {
+      return res.status(403).json({ message: 'Can only toggle completion for shared tasks' });
+    }
+    
+    // Update the task completion status for the user
+    // This would require a data structure to store user-specific task completion status
+    
+    // Get user document
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (!userDoc.exists) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const userData = userDoc.data();
+    let taskCompletionData = userData.taskCompletion || {};
+    
+    // Initialize task completion data if it doesn't exist
+    if (!taskCompletionData[taskId]) {
+      taskCompletionData[taskId] = {};
+    }
+    
+    // Record the completion status for today
+    const today = new Date();
+    const dateKey = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
+    taskCompletionData[taskId][dateKey] = completed;
+    
+    // Update user document
+    await db.collection('users').doc(userId).update({
+      taskCompletion: taskCompletionData,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    
+    res.status(200).json({ 
+      message: 'Task completion status updated successfully',
+      completed: completed,
+      taskId: taskId,
+      userId: userId
+    });
+    
+  } catch (error) {
+    console.error('Error toggling task completion:', error);
+    res.status(500).json({ message: 'Error toggling task completion', error: error.message });
+  }
 });
+
+// Start the server (only add this once, at the very end)
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+
+  // Function to check if migration is needed and run it
+  async function checkAndRunMigration() {
+    try {
+      console.log('Checking if migration is needed...');
+
+      // Check if any user still has old format (no goalProgress field or empty)
+      const usersSnapshot = await db.collection('users').limit(1).get();
+      if (usersSnapshot.empty) {
+        console.log('No users found, no migration needed');
+        return;
+      }
+
+      // Check first user to see if migration is needed
+      const firstUser = usersSnapshot.docs[0];
+      const userData = firstUser.data();
+
+      // If user doesn't have goalProgress field or it's empty, migration might be needed
+      if (!userData.goalProgress || Object.keys(userData.goalProgress).length === 0) {
+        // Check if there are any old goalProgress documents
+        const oldProgressSnapshot = await db.collection('goalProgress').limit(1).get();
+        if (!oldProgressSnapshot.empty) {
+          console.log('Old goalProgress documents found, migration needed');
+          // Note: In production, you might want to run this manually via API
+          // For now, we'll just log that it's needed
+        } else {
+          console.log('No old goalProgress documents found, no migration needed');
+        }
+      } else {
+        console.log('Users already have new format goalProgress, no migration needed');
+      }
+    } catch (error) {
+      console.error('Error checking migration status:', error);
+    }
+  }
+
+  app.listen(PORT, async () => {
+    console.log(`Server is running on port ${PORT}`);
+    await checkAndRunMigration();
+  });
+}

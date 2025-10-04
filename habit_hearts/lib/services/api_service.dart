@@ -7,7 +7,15 @@ import '../models/goal.dart';
 import '../models/calendar_event.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://10.168.124.41:3000';
+  // Using your IPv4 address for physical phone testing
+  static String _baseUrl = 'http://10.168.124.41:3000'; // Your local network IP for phone testing
+  
+  // Allow dynamic base URL configuration
+  static set baseUrl(String url) {
+    _baseUrl = url;
+  }
+  
+  static String get baseUrl => _baseUrl;
   static const String usersEndpoint = '/api/users';
   static const String tasksEndpoint = '/api/tasks';
   static const String goalsEndpoint = '/api/goals';
@@ -179,6 +187,42 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>?> toggleTaskCompletionForUser(String userId, String taskId, bool completed, {DateTime? date}) async {
+    try {
+      final headers = await _getHeaders();
+      final Map<String, dynamic> requestBody = {
+        'completed': completed,
+      };
+      if (date != null) {
+        requestBody['date'] = date.toIso8601String();
+      }
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/user/$userId/task/$taskId/toggle'),
+        headers: headers,
+        body: json.encode(requestBody),
+      );
+      
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        
+        // Clear the task cache for the current user to ensure updated user-specific completion status is fetched
+        // The userId parameter refers to the user whose task completion is being updated
+        _cache.removeWhere((key, value) => key.startsWith('tasks_$userId'));
+        _cacheTimestamps.removeWhere((key, value) => key.startsWith('tasks_$userId'));
+        
+        return responseData;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Unauthorized - token might be invalid/expired
+        print('Authentication error: ${response.statusCode} - ${response.body}');
+      }
+      return null;
+    } catch (e) {
+      print('Error toggling task completion for user: $e');
+      return null;
+    }
+  }
+
   // Task endpoints
   static Future<List<Task>> getTasksForDate(String userId, DateTime date) async {
     final dateString = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
@@ -247,6 +291,16 @@ class ApiService {
     try {
       final headers = await _getHeaders();
       final requestBody = json.encode(task.toJson());
+      
+      // Log the request for debugging
+      print('DEBUG: Sending task update request to API');
+      print('DEBUG: Task ID: ${task.id}');
+      print('DEBUG: Task text: ${task.text}');
+      print('DEBUG: Task completed: ${task.completed}');
+      print('DEBUG: Task createdBy: ${task.createdBy}');
+      print('DEBUG: Task isShared: ${task.isShared}');
+      print('DEBUG: Request body: $requestBody');
+      
       final response = await http.put(
         Uri.parse('$baseUrl$tasksEndpoint/${task.id}'),
         headers: headers,

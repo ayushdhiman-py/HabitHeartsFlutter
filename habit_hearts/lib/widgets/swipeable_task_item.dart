@@ -7,6 +7,7 @@ class SwipeableTaskItem extends StatefulWidget {
   final Function(Task) onToggle;
   final Function(Task) onEdit;
   final Function(Task) onDelete;
+  final String? currentUserId; // Add current user ID to check ownership
 
   const SwipeableTaskItem({
     super.key,
@@ -14,6 +15,7 @@ class SwipeableTaskItem extends StatefulWidget {
     required this.onToggle,
     required this.onEdit,
     required this.onDelete,
+    this.currentUserId, // Optional current user ID
   });
 
   @override
@@ -199,39 +201,47 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
                         style: const TextStyle(fontSize: 16),
                       ),
                     const SizedBox(width: 8),
-                    SizedBox(
-                      width: 20, // Reduced from 24 to 20
-                      height: 20, // Reduced from 24 to 20
-                      child: IconButton(
-                        onPressed: () => widget.onEdit(widget.task),
-                        icon: Icon(
-                          Icons.edit_outlined,
-                          size: 18, // Reduced from 20 to 18
-                          color: Theme.of(context).brightness == Brightness.dark 
-                              ? AppColors.darkTextColor 
-                              : AppColors.textColor,
+                    // Show edit button only for task owners or non-shared tasks
+                    if (widget.currentUserId != null && 
+                        (widget.task.createdBy == widget.currentUserId || !widget.task.isShared))
+                      SizedBox(
+                        width: 20, // Reduced from 24 to 20
+                        height: 20, // Reduced from 24 to 20
+                        child: IconButton(
+                          onPressed: () => widget.onEdit(widget.task),
+                          icon: Icon(
+                            Icons.edit_outlined,
+                            size: 18, // Reduced from 20 to 18
+                            color: Theme.of(context).brightness == Brightness.dark 
+                                ? AppColors.darkTextColor 
+                                : AppColors.textColor,
+                          ),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          splashRadius: 20,
                         ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        splashRadius: 20,
                       ),
-                    ),
-                    const SizedBox(width: 6), // Reduced from 8 to 6
-                    SizedBox(
-                      width: 20, // Reduced from 24 to 20
-                      height: 20, // Reduced from 24 to 20
-                      child: IconButton(
-                        onPressed: () => _confirmDelete(context),
-                        icon: Icon(
-                          Icons.delete_outlined,
-                          size: 18, // Reduced from 20 to 18
-                          color: AppColors.coralRed,
+                    if (widget.currentUserId != null && 
+                        (widget.task.createdBy == widget.currentUserId || !widget.task.isShared))
+                      const SizedBox(width: 6), // Reduced from 8 to 6
+                    // Show delete button only for task owners
+                    if (widget.currentUserId != null && 
+                        widget.task.createdBy == widget.currentUserId)
+                      SizedBox(
+                        width: 20, // Reduced from 24 to 20
+                        height: 20, // Reduced from 24 to 20
+                        child: IconButton(
+                          onPressed: () => _confirmDelete(context),
+                          icon: Icon(
+                            Icons.delete_outlined,
+                            size: 18, // Reduced from 20 to 18
+                            color: AppColors.coralRed,
+                          ),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          splashRadius: 20,
                         ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        splashRadius: 20,
                       ),
-                    ),
                   ],
                 ),
               ),

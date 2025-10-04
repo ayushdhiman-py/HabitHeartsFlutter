@@ -135,24 +135,31 @@ class CalendarProvider with ChangeNotifier {
       if (habitHeartsUser != null) {
         allUserIds.addAll(habitHeartsUser.linkedUsers);
       }
-      final List<CalendarEvent> allEvents = [];
+      List<CalendarEvent> allEvents = [];
 
       // Load events for current user (all events for self)
       final myUserId = user!.uid;
       final myEvents = await ApiService.getCalendarEvents(myUserId, startDate, endDate);
       allEvents.addAll(myEvents);
       
-      // Load only shared events from linked users
-      if (habitHeartsUser != null) {
-        for (String linkedId in habitHeartsUser.linkedUsers) {
+      // Load only shared events from linked users using parallel requests
+      if (habitHeartsUser != null && habitHeartsUser.linkedUsers.isNotEmpty) {
+        final linkedUserIds = habitHeartsUser.linkedUsers;
+        final linkedUserEventsFutures = linkedUserIds.map((linkedId) => 
+          ApiService.getCalendarEvents(linkedId, startDate, endDate)
+        ).toList();
+        
+        final allLinkedEventsResults = await Future.wait(linkedUserEventsFutures, eagerError: false);
+        
+        for (int i = 0; i < linkedUserIds.length; i++) {
           try {
-            final linkedUserEvents = await ApiService.getCalendarEvents(linkedId, startDate, endDate);
+            final linkedUserEvents = allLinkedEventsResults[i];
             // Filter out events that are already in the current user's events to prevent duplicates
             final sharedEvents = linkedUserEvents.where((event) => event.isShared && 
                 !allEvents.any((existingEvent) => existingEvent.id == event.id));
             allEvents.addAll(sharedEvents);
           } catch (e) {
-            print('Error loading events for user $linkedId: $e');
+            print('Error loading events for user ${linkedUserIds[i]}: $e');
           }
         }
       }

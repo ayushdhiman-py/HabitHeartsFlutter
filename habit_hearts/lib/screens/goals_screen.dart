@@ -405,7 +405,7 @@ class _AddGoalModalState extends State<_AddGoalModal> {
       'text': _goalController.text.trim(),
       'description': _descriptionController.text.trim(),
       'emoji': _selectedEmoji,
-      'startDate': _isHabit ? null : _selectedStartDate,
+      'startDate': _isHabit ? _selectedStartDate ?? DateTime.now() : _selectedStartDate, // For habits, use selected date or current date
       'endDate': _isHabit ? null : _selectedEndDate,
       'isHabit': _isHabit,
       'isShared': _isShared,
@@ -765,7 +765,7 @@ class _EditGoalModalState extends State<_EditGoalModal> {
       text: _goalController.text.trim(),
       description: _descriptionController.text.trim(),
       emoji: _selectedEmoji,
-      startDate: _selectedStartDate,
+      startDate: _selectedStartDate, // Preserve the start date always
       endDate: _selectedEndDate,
       clearEndDate: _isHabit,
       isHabit: _isHabit,

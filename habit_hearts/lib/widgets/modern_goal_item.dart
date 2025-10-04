@@ -151,7 +151,7 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                       ],
                                     ),
                                     Visibility(
-                                      visible: widget.goal.creatorName.isNotEmpty && widget.goal.creatorName != 'You',
+                                      visible: widget.goal.creatorName.isNotEmpty,
                                       child: Padding(
                                         padding: const EdgeInsets.only(top: 2),
                                         child: Text(
@@ -267,7 +267,7 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                       ],
                                     ),
                                     Visibility(
-                                      visible: widget.goal.creatorName.isNotEmpty && widget.goal.creatorName != 'You',
+                                      visible: widget.goal.creatorName.isNotEmpty,
                                       child: Padding(
                                         padding: const EdgeInsets.only(top: 2),
                                         child: Text(

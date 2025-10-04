@@ -53,7 +53,7 @@ class _GoalHeatmapState extends State<GoalHeatmap> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Show creator name below the goal text in the heatmap
-          if (widget.goal.creatorName.isNotEmpty && widget.goal.creatorName != 'You')
+          if (widget.goal.creatorName.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(
@@ -81,17 +81,22 @@ class _GoalHeatmapState extends State<GoalHeatmap> {
   }
 
   Widget _buildCalendarGrid() {
-    // Get the days within the goal's date range if available
+    // For habits that had a start date when they were goals, we should show the range from that start date to now
+    // For date-range goals, show the date range view
     List<DateTime> days;
-    if (goal.startDate != null && goal.endDate != null) {
-      days = _getGoalRangeDays(goal.startDate!, goal.endDate!);
-    } else {
-      // Fallback to default calendar view if no date range is set
+    if (widget.goal.isHabit && widget.goal.startDate != null) {
+      // For habits that had a start date, show from that start date to now
+      days = _getGoalRangeDays(widget.goal.startDate!, DateTime.now());
+    } else if (widget.goal.isHabit || widget.goal.startDate == null || widget.goal.endDate == null) {
+      // For habits without a previous start date or goals without date ranges, show the current month view
       days = _getCalendarDays(DateTime.now());
+    } else {
+      // For goals with specific date ranges, show only those dates
+      days = _getGoalRangeDays(widget.goal.startDate!, widget.goal.endDate!);
     }
     
-    final darkerShade = HSLColor.fromColor(baseColor).withLightness(0.7).toColor();
-    final darkestShade = HSLColor.fromColor(baseColor).withLightness(0.4).toColor();
+    final darkerShade = HSLColor.fromColor(widget.baseColor).withLightness(0.7).toColor();
+    final darkestShade = HSLColor.fromColor(widget.baseColor).withLightness(0.4).toColor();
 
     return GridView.builder(
       shrinkWrap: true,
@@ -106,9 +111,19 @@ class _GoalHeatmapState extends State<GoalHeatmap> {
         final day = days[index];
         final isCompleted = _isDayCompleted(day);
         
-        // Check if the day falls within the goal's date range
+        // For habits with start date, check if day is within the habit's range
+        // For date-range goals, check if day is within the goal's range
         bool isWithinGoalRange = true;
-        if (widget.goal.startDate != null && widget.goal.endDate != null) {
+        if (widget.goal.isHabit || widget.goal.startDate == null || widget.goal.endDate == null) {
+          // For habits, only highlight days that are in the past or today (not future days to avoid confusion)
+          // If the habit has a start date, limit to between start date and today
+          if (widget.goal.isHabit && widget.goal.startDate != null) {
+            isWithinGoalRange = !day.isAfter(DateTime.now()) && !day.isBefore(widget.goal.startDate!);
+          } else {
+            isWithinGoalRange = !day.isAfter(DateTime.now());
+          }
+        } else {
+          // For date-range goals, check if the day falls within the goal's date range
           isWithinGoalRange = day.isAfter(widget.goal.startDate!.subtract(const Duration(days: 1))) && 
                               day.isBefore(widget.goal.endDate!.add(const Duration(days: 1)));
         }
@@ -130,14 +145,15 @@ class _GoalHeatmapState extends State<GoalHeatmap> {
             borderRadius: BorderRadius.circular(4),
           ),
           child: Center(
-            child: Text(
+            child: day.year != 1900 ? // Check if it's a placeholder date
+            Text(
               '${day.day}',
               style: TextStyle(
-                color: isCompleted || day.month == DateTime.now().month ? Colors.white : Colors.grey[500],
+                color: isCompleted || (day.month == DateTime.now().month && day.year == DateTime.now().year) ? Colors.white : Colors.grey[500],
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
               ),
-            ),
+            ) : null, // Don't show text for placeholder dates
           ),
         );
       },
@@ -158,12 +174,11 @@ class _GoalHeatmapState extends State<GoalHeatmap> {
     
     // If needed, we can add padding days to make it look like a calendar grid
     // We'll calculate leading days (before the start date) to align to weekday
-    int startDayOfWeek = startDate.weekday % 7; // Sunday = 0, Monday = 1, etc.
-    if (startDayOfWeek == 0) startDayOfWeek = 7; // Sunday should be 7 in our calculation
+    int startDayOfWeek = (startDate.weekday % 7); // Sunday = 0, Monday = 1, etc.
     
     // Add leading empty days for alignment
     List<DateTime> paddedDays = [];
-    for (int i = 0; i < startDayOfWeek - 1; i++) { // -1 because Monday is weekday 1
+    for (int i = 0; i < startDayOfWeek; i++) {
       paddedDays.add(DateTime(1900, 1, 1)); // Use a placeholder date for empty cells
     }
     paddedDays.addAll(days);

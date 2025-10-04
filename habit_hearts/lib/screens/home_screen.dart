@@ -176,7 +176,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       : _TaskList(
                           tasks: tasksProvider.tasks,
                           onTaskToggle: (task) async {
-                            await tasksProvider.updateTask(task.copyWith(completed: !task.completed, updatedAt: DateTime.now()));
+                            print('DEBUG: Task toggle called for task ${task.id}');
+                            print('DEBUG: Original task completed: ${task.completed}');
+                            final toggledTask = task.copyWith(completed: !task.completed, updatedAt: DateTime.now());
+                            print('DEBUG: Toggled task completed: ${toggledTask.completed}');
+                            print('DEBUG: Task text: "${toggledTask.text}"');
+                            await tasksProvider.updateTask(toggledTask);
                           },
                           onTaskEdit: (task) {
                             showModalBottomSheet(
@@ -213,6 +218,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               }
                             }
                           },
+                          currentUserId: authProvider.user?.uid, // Pass current user ID for ownership check
                         ),
                   
                   const SizedBox(height: 10), // Add consistent spacing after tasks
@@ -519,12 +525,14 @@ class _TaskList extends StatelessWidget {
   final Function(Task) onTaskToggle;
   final Function(Task) onTaskEdit;
   final Function(Task) onTaskDelete;
+  final String? currentUserId; // Add current user ID for ownership check
 
   const _TaskList({
     required this.tasks,
     required this.onTaskToggle,
     required this.onTaskEdit,
     required this.onTaskDelete,
+    this.currentUserId, // Optional current user ID
   });
 
   @override
@@ -588,6 +596,7 @@ class _TaskList extends StatelessWidget {
           onToggle: onTaskToggle,
           onEdit: onTaskEdit,
           onDelete: onTaskDelete,
+          currentUserId: currentUserId, // Use current user ID passed to _TaskList
         );
       },
     );

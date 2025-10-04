@@ -1,10 +1,59 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 
+// Cache entry for horoscope data
+class _HoroscopeCacheEntry {
+  final String horoscope;
+  final int expiry; // Expiry time in milliseconds since epoch
+  
+  _HoroscopeCacheEntry(this.horoscope, this.expiry);
+}
+
 class HoroscopeService {
-  // Using a free horoscope API - multiple fallbacks for reliability
+  // Cache for horoscope responses to avoid repeated API calls
+  static final Map<String, _HoroscopeCacheEntry> _cache = {};
+  
   static Future<String> getHoroscope(String zodiacSign) async {
-    // Primary API: Ohmanda (free, no key required)
+    // Check cache first
+    final cacheKey = '${zodiacSign}_${DateTime.now().day}';
+    final cachedEntry = _cache[cacheKey];
+    if (cachedEntry != null && 
+        DateTime.now().millisecondsSinceEpoch < cachedEntry.expiry) {
+      return cachedEntry.horoscope;
+    }
+    
+    // Try all APIs in parallel to get the fastest response
+    return _getHoroscopeWithTimeout(zodiacSign);
+  }
+  
+  static Future<String> _getHoroscopeWithTimeout(String zodiacSign) async {
+    final timeout = Duration(seconds: 5); // 5 second timeout
+    
+    // Start all API requests in parallel
+    final futures = <Future<String>>[
+      _fetchPrimaryHoroscope(zodiacSign),
+      _fetchSecondaryHoroscope(zodiacSign),
+    ];
+    
+    // Race all API calls with a timeout
+    final raceFuture = Future.any([
+      ...futures,
+      Future.delayed(timeout).then((_) async => 
+          _generateTimeBasedHoroscope(zodiacSign))
+    ]);
+    
+    final result = await raceFuture;
+    
+    // Cache the result for the rest of the day
+    final cacheKey = '${zodiacSign}_${DateTime.now().day}';
+    final expiry = DateTime.now().add(Duration(hours: 24)).millisecondsSinceEpoch; // Cache for 24 hours
+    _cache[cacheKey] = _HoroscopeCacheEntry(result, expiry);
+    
+    return result;
+  }
+  
+  static Future<String> _fetchPrimaryHoroscope(String zodiacSign) async {
     try {
       final response = await http.get(
         Uri.parse('https://ohmanda.com/api/horoscope/${zodiacSign.toLowerCase()}'),
@@ -21,10 +70,12 @@ class HoroscopeService {
         }
       }
     } catch (e) {
-      print('Primary horoscope API failed: $e');
+      // Don't log error, let other APIs try
     }
+    throw Exception('Primary horoscope API failed');
+  }
 
-    // Secondary API: Another free option (requires different format)
+  static Future<String> _fetchSecondaryHoroscope(String zodiacSign) async {
     try {
       // Try the aztro API - a known free horoscope API
       final response = await http.post(
@@ -42,11 +93,9 @@ class HoroscopeService {
         }
       }
     } catch (e) {
-      print('Secondary horoscope API failed: $e');
+      // Don't log error, let other APIs try
     }
-
-    // If both APIs fail, generate a reliable horoscope based on time
-    return _generateTimeBasedHoroscope(zodiacSign);
+    throw Exception('Secondary horoscope API failed');
   }
 
   // Generate a time-based horoscope that changes daily

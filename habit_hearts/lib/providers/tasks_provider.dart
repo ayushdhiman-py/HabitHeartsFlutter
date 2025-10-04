@@ -40,28 +40,48 @@ class TasksProvider with ChangeNotifier {
     try {
       print('Loading tasks for date: $date, user: $_userId');
       
-      // Load tasks for current user
+      // Prepare list of users to fetch tasks for
+      List<String> allUserIds = [_userId!]; // Start with current user
+      if (_authProvider != null && _authProvider!.habitHeartsUser != null) {
+        // Add linked users for shared tasks
+        allUserIds.addAll(_authProvider!.habitHeartsUser!.linkedUsers);
+      }
+      
+      // Make a single batch request for all users' tasks if backend supports it
       List<Task> allTasks = [];
-      final myTasks = await ApiService.getTasksForDate(_userId!, date);
+      List<Task> myTasks = [];
+      
+      // First get current user's tasks
+      myTasks = await ApiService.getTasksForDate(_userId!, date);
       allTasks.addAll(myTasks);
       
-      // Load shared tasks from linked users
-      if (_authProvider != null && _authProvider!.habitHeartsUser != null) {
-        for (String linkedId in _authProvider!.habitHeartsUser!.linkedUsers) {
+      // Then get tasks for linked users if any exist
+      if (_authProvider != null && _authProvider!.habitHeartsUser != null && 
+          _authProvider!.habitHeartsUser!.linkedUsers.isNotEmpty) {
+        
+        // Use parallel requests for linked users to improve performance
+        final linkedUserIds = _authProvider!.habitHeartsUser!.linkedUsers;
+        final linkedUserTasksFutures = linkedUserIds.map((linkedId) => 
+          ApiService.getTasksForDate(linkedId, date)
+        ).toList();
+        
+        final allLinkedTasksResults = await Future.wait(linkedUserTasksFutures, eagerError: false);
+        
+        for (int i = 0; i < linkedUserIds.length; i++) {
           try {
-            final linkedUserTasks = await ApiService.getTasksForDate(linkedId, date);
+            final linkedUserTasks = allLinkedTasksResults[i];
             // Filter out tasks that are already in the current user's tasks to prevent duplicates
             final sharedTasks = linkedUserTasks.where((task) => task.isShared && 
                 !allTasks.any((existingTask) => existingTask.id == task.id));
             allTasks.addAll(sharedTasks);
           } catch (e) {
-            print('Error loading tasks for user $linkedId: $e');
+            print('Error loading tasks for user ${linkedUserIds[i]}: $e');
           }
         }
       }
       
       print('Loaded ${allTasks.length} total tasks (${myTasks.length} my tasks, ${allTasks.length - myTasks.length} linked shared tasks)');
-      // Remove duplicates by ID to avoid showing the same event multiple times
+      // Remove duplicates by ID to avoid showing the same task multiple times
       _tasks = _removeDuplicateTasks(allTasks);
       _sortTasks(); // Sort by date/time with completed tasks at the end
     } catch (e) {
@@ -114,11 +134,74 @@ class TasksProvider with ChangeNotifier {
     if (taskIndex != -1) {
       final task = _tasks[taskIndex];
       final isOwner = task.createdBy == _userId;
-      final canEdit = isOwner || task.isShared; // Owner or shared tasks can be edited
       
-      if (!canEdit) {
-        print('User does not have permission to update task ${updatedTask.id}');
-        return null;
+      // For shared tasks, linked members can only toggle completion, not edit other fields
+      if (task.isShared && !isOwner) {
+        // Log the update attempt for debugging
+        print('DEBUG: Shared task update attempt by linked member ${_userId}');
+        print('DEBUG: Task ID: ${task.id}');
+        print('DEBUG: Original task - text: "${task.text}", completed: ${task.completed}, createdBy: ${task.createdBy}');
+        print('DEBUG: Updated task - text: "${updatedTask.text}", completed: ${updatedTask.completed}, createdBy: ${updatedTask.createdBy}');
+        print('DEBUG: Task isShared: ${task.isShared}, Updated isShared: ${updatedTask.isShared}');
+        print('DEBUG: Completed changed: ${updatedTask.completed != task.completed}');
+        
+        // Check if this is a legitimate completion toggle (only completed field changed)
+        final textUnchanged = updatedTask.text == task.text;
+        final descriptionUnchanged = updatedTask.description == task.description || 
+            (updatedTask.description == null && task.description == null) ||
+            (updatedTask.description == task.description);
+        final dueDateUnchanged = updatedTask.dueDate == task.dueDate;
+        final startTimeUnchanged = updatedTask.startTime == task.startTime;
+        final endTimeUnchanged = updatedTask.endTime == task.endTime;
+        final emojiUnchanged = updatedTask.emoji == task.emoji;
+        final isSharedUnchanged = updatedTask.isShared == task.isShared;
+        final completedChanged = updatedTask.completed != task.completed;
+        final onlyCompletionChanged = textUnchanged && descriptionUnchanged && dueDateUnchanged && 
+            startTimeUnchanged && endTimeUnchanged && emojiUnchanged && isSharedUnchanged && completedChanged;
+        
+        print('DEBUG: Text unchanged: $textUnchanged');
+        print('DEBUG: Description unchanged: $descriptionUnchanged');
+        print('DEBUG: Due date unchanged: $dueDateUnchanged');
+        print('DEBUG: Start time unchanged: $startTimeUnchanged');
+        print('DEBUG: End time unchanged: $endTimeUnchanged');
+        print('DEBUG: Emoji unchanged: $emojiUnchanged');
+        print('DEBUG: isShared unchanged: $isSharedUnchanged');
+        print('DEBUG: Completed changed: $completedChanged');
+        print('DEBUG: Only completion changed: $onlyCompletionChanged');
+        
+        if (!onlyCompletionChanged) {
+          print('Linked members can only mark shared tasks as complete/incomplete. Task ${updatedTask.id}');
+          return null;
+        }
+        
+        // Use the new toggle endpoint for completion toggling by linked members
+        print('DEBUG: Using toggle endpoint for linked member completion update');
+        final result = await ApiService.toggleTaskCompletionForUser(_userId!, updatedTask.id, updatedTask.completed);
+        if (result != null) {
+          print('DEBUG: Toggle endpoint success');
+          // Update the local task immediately for instant UI feedback
+          _tasks[taskIndex] = updatedTask;
+          _sortTasks(); // Sort by date/time with completed tasks at the end
+          notifyListeners();
+          
+          // Reload tasks in the background to ensure data consistency
+          // Use a delayed reload to give the optimistic update time to be shown
+          Future.delayed(Duration(milliseconds: 100), () {
+            loadTasksForDate(_selectedDate);
+          });
+          
+          return updatedTask;
+        } else {
+          print('DEBUG: Toggle endpoint failed');
+          return null;
+        }
+      } else {
+        // Owner can edit anything, non-shared tasks can be edited by owner
+        final canEdit = isOwner || !task.isShared;
+        if (!canEdit) {
+          print('User does not have permission to update task ${updatedTask.id}');
+          return null;
+        }
       }
     }
 
@@ -174,10 +257,12 @@ class TasksProvider with ChangeNotifier {
     
     final task = _tasks[taskIndex];
     final isOwner = task.createdBy == _userId;
-    final canDelete = isOwner || task.isShared; // Owner or shared tasks can be deleted
+    
+    // Only owners can delete tasks, linked members cannot delete shared tasks
+    final canDelete = isOwner;
     
     if (!canDelete) {
-      print('User does not have permission to delete task $taskId');
+      print('Only task owners can delete tasks. Task $taskId');
       return false;
     }
 

@@ -99,8 +99,8 @@ class Goal {
       updatedAt: updatedAt ?? this.updatedAt,
       status: status ?? this.status,
       emoji: emoji ?? this.emoji,
-      startDate: clearStartDate ? null : startDate ?? this.startDate,
-      endDate: clearEndDate ? null : endDate ?? this.endDate,
+      startDate: clearStartDate ? null : (startDate != null ? startDate : this.startDate),
+      endDate: clearEndDate ? null : (endDate != null ? endDate : this.endDate),
       isHabit: isHabit ?? this.isHabit,
       isShared: isShared ?? this.isShared,
     );

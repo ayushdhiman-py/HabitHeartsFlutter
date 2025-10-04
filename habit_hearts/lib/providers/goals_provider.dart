@@ -55,28 +55,36 @@ class GoalsProvider with ChangeNotifier {
       final user = _authProvider!.user;
       if (user == null) return;
 
-      final List<Goal> allGoals = [];
+      List<Goal> allGoals = [];
 
       // Get the current user's goals (all of them)
+      List<Goal> myGoals = [];
       try {
-        final myGoals = await ApiService.getGoals(user.uid);
+        myGoals = await ApiService.getGoals(user.uid);
         allGoals.addAll(myGoals);
       } catch (e) {
         print('Error loading goals for user ${user.uid}: $e');
       }
 
-      // Get linked users' shared goals
+      // Get linked users' shared goals using parallel requests to improve performance
       final habitHeartsUser = _authProvider?.habitHeartsUser;
-      if (habitHeartsUser != null) {
-        for (String linkedId in habitHeartsUser.linkedUsers) {
+      if (habitHeartsUser != null && habitHeartsUser.linkedUsers.isNotEmpty) {
+        final linkedUserIds = habitHeartsUser.linkedUsers;
+        final linkedUserGoalsFutures = linkedUserIds.map((linkedId) => 
+          ApiService.getGoals(linkedId)
+        ).toList();
+        
+        final allLinkedGoalsResults = await Future.wait(linkedUserGoalsFutures, eagerError: false);
+        
+        for (int i = 0; i < linkedUserIds.length; i++) {
           try {
-            final linkedUserGoals = await ApiService.getGoals(linkedId);
+            final linkedUserGoals = allLinkedGoalsResults[i];
             // Filter out goals that are already in the current user's goals to prevent duplicates
             final sharedGoals = linkedUserGoals.where((goal) => goal.isShared && 
                 !allGoals.any((existingGoal) => existingGoal.id == goal.id));
             allGoals.addAll(sharedGoals);
           } catch (e) {
-            print('Error loading goals for user $linkedId: $e');
+            print('Error loading goals for user ${linkedUserIds[i]}: $e');
           }
         }
       }
@@ -90,7 +98,39 @@ class GoalsProvider with ChangeNotifier {
         _longestStreaks.clear();
 
         userData.goalProgress.forEach((goalId, progressSummary) {
-          _userGoalProgress[goalId] = Map<String, String>.from(progressSummary.monthlyData);
+          // Validate and fix bit string lengths for each month
+          Map<String, String> validatedMonthlyData = {};
+          progressSummary.monthlyData.forEach((yearMonth, bitString) {
+            // Extract year and month from the yearMonth string (format: "YYYY-MM")
+            final parts = yearMonth.split('-');
+            if (parts.length == 2) {
+              try {
+                final year = int.parse(parts[0]);
+                final month = int.parse(parts[1]);
+                
+                // Calculate how many days are in this month
+                final daysInMonth = DateTime(year, month + 1, 0).day;
+                
+                // Ensure the bit string has the correct length
+                String validatedBitString = bitString;
+                if (validatedBitString.length < daysInMonth) {
+                  validatedBitString = validatedBitString.padRight(daysInMonth, '0');
+                } else if (validatedBitString.length > daysInMonth) {
+                  validatedBitString = validatedBitString.substring(0, daysInMonth);
+                }
+                
+                validatedMonthlyData[yearMonth] = validatedBitString;
+              } catch (e) {
+                // If parsing fails, use the original bitString
+                validatedMonthlyData[yearMonth] = bitString;
+              }
+            } else {
+              // If yearMonth format is unexpected, use the original bitString
+              validatedMonthlyData[yearMonth] = bitString;
+            }
+          });
+          
+          _userGoalProgress[goalId] = validatedMonthlyData;
           _currentStreaks[goalId] = progressSummary.currentStreak;
           _longestStreaks[goalId] = progressSummary.longestStreak;
         });
@@ -329,6 +369,9 @@ class GoalsProvider with ChangeNotifier {
     final yearMonth = '${date.year}-${date.month.toString().padLeft(2, '0')}';
     final day = date.day;
 
+    // Calculate number of days in this month for proper bit string length
+    final daysInMonth = DateTime(date.year, date.month + 1, 0).day;
+
     // Create a deep copy of the progress data to modify
     final updatedProgress = Map<String, Map<String, String>>.from(
       _userGoalProgress.map(
@@ -343,15 +386,19 @@ class GoalsProvider with ChangeNotifier {
 
     // Initialize the month entry if it doesn't exist
     if (!updatedProgress[goalId]!.containsKey(yearMonth)) {
-      updatedProgress[goalId]![yearMonth] = '';
+      // For new months, initialize with the correct number of days (all set to '0')
+      updatedProgress[goalId]![yearMonth] = '0' * daysInMonth;
     }
 
     // Get the current bit string for the month
     String bitString = updatedProgress[goalId]![yearMonth]!;
 
-    // Ensure the bit string is long enough for the current day
-    if (bitString.length < day) {
-      bitString = bitString.padRight(day, '0');
+    // Ensure the bit string has the correct length for this month
+    if (bitString.length < daysInMonth) {
+      bitString = bitString.padRight(daysInMonth, '0');
+    } else if (bitString.length > daysInMonth) {
+      // Truncate if longer than the days in the month
+      bitString = bitString.substring(0, daysInMonth);
     }
 
     // Update the bit for the current day
