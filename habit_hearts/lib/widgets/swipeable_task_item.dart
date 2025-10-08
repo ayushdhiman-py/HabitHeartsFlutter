@@ -142,16 +142,25 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Icon(
-                      widget.task.completed ? Icons.check_box : Icons.check_box_outline_blank,
-                      color: widget.task.completed
-                          ? AppColors.vibrantGreen
-                          : (Theme.of(context).brightness == Brightness.dark
-                              ? AppColors.darkSecondaryTextColor
-                              : AppColors.secondaryTextColor),
-                      size: 24, // Updated size to match goals
-                    ),
-                    const SizedBox(width: 12),
+                    // Display emoji at the beginning instead of checkbox
+                    if (widget.task.emoji != null)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Text(
+                          widget.task.emoji!,
+                          style: const TextStyle(fontSize: 20),
+                        ),
+                      ),
+                    // If no emoji, show a default target emoji
+                    if (widget.task.emoji == null)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Text(
+                          '🎯', // Default target emoji
+                          style: const TextStyle(fontSize: 20),
+                        ),
+                      ),
+                    const SizedBox(width: 8), // Additional spacing
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -162,29 +171,25 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
                               Expanded(
                                 child: Row(
                                   children: [
-                                    Text(
-                                      widget.task.text,
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        decoration: widget.task.completed ? TextDecoration.lineThrough : null,
-                                        color: widget.task.completed
-                                            ? (Theme.of(context).brightness == Brightness.dark
-                                                ? AppColors.darkSecondaryTextColor
-                                                : AppColors.secondaryTextColor)
-                                            : (Theme.of(context).brightness == Brightness.dark
-                                                ? AppColors.darkTextColor
-                                                : AppColors.textColor),
-                                        fontWeight: widget.task.completed ? FontWeight.normal : FontWeight.w600,
+                                    Expanded(
+                                      child: Text(
+                                        widget.task.text,
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          decoration: widget.task.completed ? TextDecoration.lineThrough : null,
+                                          color: widget.task.completed
+                                              ? (Theme.of(context).brightness == Brightness.dark
+                                                  ? AppColors.darkSecondaryTextColor
+                                                  : AppColors.secondaryTextColor)
+                                              : (Theme.of(context).brightness == Brightness.dark
+                                                  ? AppColors.darkTextColor
+                                                  : AppColors.textColor),
+                                          fontWeight: widget.task.completed ? FontWeight.normal : FontWeight.w600,
+                                        ),
+                                        softWrap: true, // This ensures text wraps to the next line when needed
                                       ),
                                     ),
-                                    if (widget.task.emoji != null)
-                                      Padding(
-                                        padding: const EdgeInsets.only(left: 8),
-                                        child: Text(
-                                          widget.task.emoji!,
-                                          style: const TextStyle(fontSize: 16),
-                                        ),
-                                      ),
+
                                     if (widget.task.time != null)
                                       Padding(
                                         padding: const EdgeInsets.only(left: 4),
@@ -204,6 +209,21 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
                               ),
                             ],
                           ),
+                          if (widget.task.description != null && widget.task.description!.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                widget.task.description!,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Theme.of(context).brightness == Brightness.dark
+                                      ? AppColors.darkSecondaryTextColor
+                                      : AppColors.secondaryTextColor,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
                           Padding(
                             padding: const EdgeInsets.only(top: 2),
                             child: Text(
@@ -227,6 +247,27 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        // Checkbox now appears before the edit button
+                        if (widget.task.completed)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Icon(
+                              Icons.check_circle,
+                              color: AppColors.vibrantGreen,
+                              size: 20,
+                            ),
+                          )
+                        else
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Icon(
+                              Icons.radio_button_unchecked,
+                              color: (Theme.of(context).brightness == Brightness.dark
+                                  ? AppColors.darkSecondaryTextColor
+                                  : AppColors.secondaryTextColor),
+                              size: 20,
+                            ),
+                          ),
                         if (widget.currentUserId != null &&
                             (widget.task.createdBy == widget.currentUserId || !widget.task.isShared))
                           SizedBox(

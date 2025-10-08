@@ -626,7 +626,7 @@ class _EditTaskModalState extends State<_EditTaskModal> {
     super.initState();
     _taskController = TextEditingController(text: widget.task.text);
     _descriptionController = TextEditingController(text: widget.task.description);
-    _selectedEmoji = widget.task.emoji;
+    _selectedEmoji = widget.task.emoji ?? '🎯'; // Default to target emoji if none selected
     _selectedDate = widget.task.dueDate ?? DateTime.now();
     _isShared = widget.task.isShared; // Initialize from the task's current isShared value
     
@@ -1592,6 +1592,7 @@ class _AddTaskModalState extends State<_AddTaskModal> {
   void initState() {
     super.initState();
     _selectedDate = widget.selectedDate;
+    _selectedEmoji = '🎯'; // Default to target emoji
   }
 
   @override
