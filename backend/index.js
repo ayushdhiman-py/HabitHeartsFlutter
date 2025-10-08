@@ -278,6 +278,9 @@ app.post('/api/users', authenticateToken, async (req, res) => {
       }
     }
     
+    // Check if user already exists to handle creation vs update appropriately
+    const existingUserDoc = await db.collection('users').doc(sanitizedUserData.uid).get();
+    
     // Convert milliseconds to Firestore Timestamps
     if (sanitizedUserData.createdAt) {
       sanitizedUserData.createdAt = admin.firestore.Timestamp.fromMillis(sanitizedUserData.createdAt);
@@ -286,7 +289,34 @@ app.post('/api/users', authenticateToken, async (req, res) => {
       sanitizedUserData.updatedAt = admin.firestore.Timestamp.fromMillis(sanitizedUserData.updatedAt);
     }
     
-    await db.collection('users').doc(sanitizedUserData.uid).set(sanitizedUserData);
+    // If user already exists, protect the unique code and createdAt from being changed
+    if (existingUserDoc.exists) {
+      // For existing users, protect the unique code by removing it from update
+      const updateData = { ...sanitizedUserData };
+      if (updateData.uniqueCode !== undefined) {
+        // If uniqueCode exists in update data but user already exists, remove it to protect it
+        delete updateData.uniqueCode;
+      }
+      if (updateData.createdAt !== undefined) {
+        // If createdAt exists in update data but user already exists, remove it to protect original creation time
+        delete updateData.createdAt;
+      }
+      // Set updatedAt if not already set
+      if (!updateData.updatedAt) {
+        updateData.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+      }
+      await db.collection('users').doc(sanitizedUserData.uid).set(updateData, { merge: true });
+    } else {
+      // For new users, allow setting everything including uniqueCode and createdAt
+      // If no createdAt provided, set it to current timestamp
+      if (!sanitizedUserData.createdAt) {
+        sanitizedUserData.createdAt = admin.firestore.FieldValue.serverTimestamp();
+      }
+      if (!sanitizedUserData.updatedAt) {
+        sanitizedUserData.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+      }
+      await db.collection('users').doc(sanitizedUserData.uid).set(sanitizedUserData);
+    }
     res.status(201).json({ message: 'User created successfully' });
   } catch (error) {
     console.error('Error creating user:', error);
@@ -303,8 +333,8 @@ app.put('/api/users/:uid', authenticateToken, async (req, res) => {
     
     const userData = req.body;
     
-    // Sanitize input - don't allow updating uid
-    const allowedFields = ['displayName', 'email', 'photoURL', 'uniqueCode', 'linkedUsers', 'createdAt', 'updatedAt', 'zodiacSign'];
+    // Sanitize input - don't allow updating uid and uniqueCode (unique code should never change after creation)
+    const allowedFields = ['displayName', 'email', 'photoURL', 'linkedUsers', 'updatedAt', 'zodiacSign'];
     const sanitizedUserData = {};
     for (const field of allowedFields) {
       if (userData[field] !== undefined) {
@@ -764,7 +794,7 @@ app.post('/api/tasks', authenticateToken, async (req, res) => {
     }
     
     // Sanitize input
-    const allowedFields = ['text', 'description', 'dueDate', 'completed', 'createdBy', 'creatorName', 'status', 'emoji', 'startTime', 'endTime', 'isShared', 'createdAt', 'updatedAt'];
+    const allowedFields = ['text', 'description', 'dueDate', 'completed', 'createdBy', 'creatorName', 'status', 'emoji', 'time', 'isShared', 'createdAt', 'updatedAt'];
     const sanitizedTaskData = {};
     for (const field of allowedFields) {
       if (taskData[field] !== undefined) {
@@ -834,8 +864,7 @@ app.post('/api/tasks', authenticateToken, async (req, res) => {
       updatedAt: taskUpdatedAt,
       status: sanitizedTaskData.status,
       emoji: sanitizedTaskData.emoji,
-      startTime: sanitizedTaskData.startTime,
-      endTime: sanitizedTaskData.endTime
+      time: sanitizedTaskData.time
     });
   } catch (error) {
     console.error('Error creating task:', error);
@@ -863,7 +892,7 @@ app.put('/api/tasks/:id', authenticateToken, async (req, res) => {
     }
     
     // Sanitize input
-    const allowedFields = ['text', 'description', 'dueDate', 'completed', 'creatorName', 'status', 'emoji', 'startTime', 'endTime', 'isShared', 'updatedAt'];
+    const allowedFields = ['text', 'description', 'dueDate', 'completed', 'creatorName', 'status', 'emoji', 'time', 'isShared', 'updatedAt'];
     const sanitizedTaskData = {};
     for (const field of allowedFields) {
       if (taskData[field] !== undefined) {
@@ -970,7 +999,7 @@ app.post('/api/shared-tasks', authenticateToken, async (req, res) => {
     const ownerName = userData.displayName || req.user.uid;
     
     // Sanitize input - extract task-specific data
-    const allowedTaskFields = ['text', 'description', 'dueDate', 'status', 'emoji', 'startTime', 'endTime'];
+    const allowedTaskFields = ['text', 'description', 'dueDate', 'status', 'emoji', 'time'];
     const allowedSharedTaskFields = ['isShared', 'completed', 'createdAt', 'updatedAt'];
     
     const taskSpecificData = {};
@@ -1060,7 +1089,7 @@ app.put('/api/shared-tasks/:id', authenticateToken, async (req, res) => {
     }
     
     // Sanitize input - only allow updating task data fields, not shared-specific fields
-    const allowedTaskFields = ['text', 'description', 'dueDate', 'status', 'emoji', 'startTime', 'endTime'];
+    const allowedTaskFields = ['text', 'description', 'dueDate', 'status', 'emoji', 'time'];
     
     const updateData = {};
     for (const field of allowedTaskFields) {

@@ -275,16 +275,16 @@ class TasksProvider with ChangeNotifier {
       if (!a.completed && b.completed) return -1;
       
       // If both have the same completion status, sort by time
-      // If both have start times, compare start times
-      if (a.startTime != null && b.startTime != null) {
-        return a.startTime!.compareTo(b.startTime!);
+      // If both have time, compare times
+      if (a.time != null && b.time != null) {
+        return a.time!.compareTo(b.time!);
       }
       
-      // If only one has a start time, prioritize tasks with start times
-      if (a.startTime != null && b.startTime == null) return -1;
-      if (a.startTime == null && b.startTime != null) return 1;
+      // If only one has a time, prioritize tasks with time
+      if (a.time != null && b.time == null) return -1;
+      if (a.time == null && b.time != null) return 1;
       
-      // If neither has start time, just sort by text
+      // If neither has time, just sort by text
       return a.text.compareTo(b.text);
     });
   }

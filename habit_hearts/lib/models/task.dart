@@ -13,8 +13,7 @@ class Task {
   final DateTime updatedAt;
   final String status;
   final String? emoji;
-  final String? startTime;
-  final String? endTime;
+  final String? time;
   final bool isShared; // New field for sharing
 
   Task({
@@ -29,8 +28,7 @@ class Task {
     required this.updatedAt,
     required this.status,
     this.emoji,
-    this.startTime,
-    this.endTime,
+    this.time,
     this.isShared = false, // By default, it's not shared
     this.completedBy,
     this.completedByName,
@@ -50,8 +48,7 @@ class Task {
       'updatedAt': updatedAt.millisecondsSinceEpoch,
       'status': status,
       'emoji': emoji,
-      'startTime': startTime,
-      'endTime': endTime,
+      'time': time,
       'isShared': isShared,
       'completedBy': completedBy,
       'completedByName': completedByName,
@@ -72,8 +69,7 @@ class Task {
       updatedAt: DateTime.fromMillisecondsSinceEpoch(json['updatedAt']),
       status: json['status'],
       emoji: json['emoji'],
-      startTime: json['startTime'],
-      endTime: json['endTime'],
+      time: json['time'],
       isShared: json['isShared'] ?? false,
       completedBy: json['completedBy'],
       completedByName: json['completedByName'],
@@ -93,8 +89,7 @@ class Task {
     DateTime? updatedAt,
     String? status,
     String? emoji,
-    String? startTime,
-    String? endTime,
+    String? time,
     bool? isShared,
     String? completedBy,
     String? completedByName,
@@ -112,8 +107,7 @@ class Task {
       updatedAt: updatedAt ?? this.updatedAt,
       status: status ?? this.status,
       emoji: emoji ?? this.emoji,
-      startTime: startTime ?? this.startTime,
-      endTime: endTime ?? this.endTime,
+      time: time ?? this.time,
       isShared: isShared ?? this.isShared,
       completedBy: completedBy ?? this.completedBy,
       completedByName: completedByName ?? this.completedByName,

@@ -31,77 +31,41 @@ class HabitHeartsAuthProvider with ChangeNotifier {
   
   // Load user document from Firestore
   Future<void> _loadUserDocument(String uid) async {
+    if (_user == null) return;
+
     try {
       habit_hearts_user.User? user = await _userService.getUser(uid);
       if (user != null) {
         // User document exists, use it
         _habitHeartsUser = user;
-        print('HabitHeartsAuthProvider - Loaded user document for $uid with zodiac sign: ${user.zodiacSign}');
+        print(
+            'HabitHeartsAuthProvider - Loaded user document for $uid with unique code: ${user.uniqueCode}');
       } else {
-        print('HabitHeartsAuthProvider - No user document found for $uid, creating new one');
         // User document doesn't exist, create it
-        await _createUserDocument();
+        print(
+            'HabitHeartsAuthProvider - No user document found for $uid, creating new one');
+        String newUniqueCode = _userService.generateUniqueCode();
+        habit_hearts_user.User newUser = habit_hearts_user.User(
+          uid: _user!.uid,
+          email: _user!.email,
+          displayName: _user!.displayName,
+          photoURL: _user!.photoURL,
+          uniqueCode: newUniqueCode,
+          linkedUsers: [],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+          status: 'active',
+          subscription: 'free',
+          zodiacSign: null,
+        );
+        await _userService.setUser(newUser);
+        _habitHeartsUser = newUser;
+        print(
+            'HabitHeartsAuthProvider - Created new user document for $uid with unique code: $newUniqueCode');
       }
       notifyListeners();
     } catch (e) {
-      print('Error loading user document: $e');
-      // Don't create a new document if there was an error accessing the existing one
-      // This prevents creating duplicate documents due to network or permission errors
-    }
-  }
-  
-  // Create user document
-  Future<void> _createUserDocument() async {
-    if (_user == null) return;
-    
-    try {
-      // Check if a user document already exists by trying to fetch it first
-      habit_hearts_user.User? existingUser = await _userService.getUser(_user!.uid);
-      
-      String uniqueCode;
-      String? zodiacSign;
-      
-      if (existingUser != null) {
-        // Use the existing unique code and zodiac sign if the user document exists
-        if (existingUser.uniqueCode.isNotEmpty) {
-          uniqueCode = existingUser.uniqueCode;
-          print('HabitHeartsAuthProvider - Using existing unique code for user ${_user!.uid}');
-        } else {
-          // Generate a new unique code if the existing user doesn't have one
-          uniqueCode = _userService.generateUniqueCode();
-          print('HabitHeartsAuthProvider - Generated new unique code for user ${_user!.uid}');
-        }
-        
-        // Use the existing zodiac sign if the user has one
-        zodiacSign = existingUser.zodiacSign;
-        print('HabitHeartsAuthProvider - Using existing zodiac sign for user ${_user!.uid}: $zodiacSign');
-      } else {
-        // Generate new values for a completely new user
-        uniqueCode = _userService.generateUniqueCode();
-        zodiacSign = null;
-        print('HabitHeartsAuthProvider - Generated new unique code and zodiac sign (null) for new user ${_user!.uid}');
-      }
-      
-      habit_hearts_user.User newUser = habit_hearts_user.User(
-        uid: _user!.uid,
-        email: _user!.email,
-        displayName: _user!.displayName,
-        photoURL: _user!.photoURL,
-        uniqueCode: uniqueCode,
-        linkedUsers: existingUser?.linkedUsers ?? [],
-        createdAt: existingUser?.createdAt ?? DateTime.now(),
-        updatedAt: DateTime.now(),
-        status: existingUser?.status ?? 'active',
-        subscription: existingUser?.subscription ?? 'free',
-        zodiacSign: zodiacSign,
-      );
-      
-      await _userService.setUser(newUser);
-      _habitHeartsUser = newUser;
-      print('HabitHeartsAuthProvider - Created/Updated user document for ${_user!.uid} with unique code: $uniqueCode and zodiac sign: $zodiacSign');
-      notifyListeners();
-    } catch (e) {
-      print('Error creating user document: $e');
+      print('Error loading or creating user document: $e');
     }
   }
   

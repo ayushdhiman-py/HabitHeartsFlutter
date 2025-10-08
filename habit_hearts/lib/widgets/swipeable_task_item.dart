@@ -92,14 +92,14 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
 
   String _getTaskCreatorText() {
     String creatorText = widget.currentUserId == widget.task.createdBy
-        ? 'by You'
+        ? 'by you'
         : 'by ${widget.task.creatorName}';
 
     if (widget.task.completed && widget.task.completedBy != null) {
       String completerName = widget.currentUserId == widget.task.completedBy
-          ? 'You'
-          : (widget.task.completedByName ?? "Unknown");
-      return '$creatorText, Completed by $completerName';
+          ? 'you'
+          : (widget.task.completedByName ?? "unknown");
+      return '$creatorText, completed by $completerName';
     }
 
     return creatorText;
@@ -114,12 +114,12 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
           scale: _scaleAnimation.value,
           child: Container(
             width: double.infinity,
-            margin: const EdgeInsets.symmetric(vertical: 2),
+            margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 4), // Updated margin to match goals
             decoration: BoxDecoration(
               color: Theme.of(context).brightness == Brightness.dark
                   ? AppColors.darkCardBackground
                   : AppColors.lightCardBackground,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16), // Updated border radius to match goals
               border: Border.all(
                 color: Theme.of(context).brightness == Brightness.dark
                     ? AppColors.darkBorderColor
@@ -135,143 +135,161 @@ class _SwipeableTaskItemState extends State<SwipeableTaskItem> with SingleTicker
                 ),
               ],
             ),
-            child: ListTile(
+            child: GestureDetector( // Use GestureDetector instead of ListTile for consistency
               onTap: _handleToggle,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-              visualDensity: const VisualDensity(horizontal: 0, vertical: -2),
-              leading: Icon(
-                widget.task.completed ? Icons.check_box : Icons.check_box_outline_blank,
-                color: widget.task.completed
-                    ? AppColors.vibrantGreen
-                    : (Theme.of(context).brightness == Brightness.dark
-                        ? AppColors.darkSecondaryTextColor
-                        : AppColors.secondaryTextColor),
-                size: 20,
-              ),
-              title: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          widget.task.text,
-                          style: TextStyle(
-                            fontSize: 15,
-                            decoration: widget.task.completed ? TextDecoration.lineThrough : null,
-                            color: widget.task.completed
-                                ? (Theme.of(context).brightness == Brightness.dark
-                                    ? AppColors.darkSecondaryTextColor
-                                    : AppColors.secondaryTextColor)
-                                : (Theme.of(context).brightness == Brightness.dark
-                                    ? AppColors.darkTextColor
-                                    : AppColors.textColor),
-                            fontWeight: widget.task.completed ? FontWeight.normal : FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Visibility(
-                    visible: widget.task.isShared,
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        _getTaskCreatorText(),
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Theme.of(context).brightness == Brightness.dark
+              child: Padding(
+                padding: const EdgeInsets.all(16), // Updated padding to match goals
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Icon(
+                      widget.task.completed ? Icons.check_box : Icons.check_box_outline_blank,
+                      color: widget.task.completed
+                          ? AppColors.vibrantGreen
+                          : (Theme.of(context).brightness == Brightness.dark
                               ? AppColors.darkSecondaryTextColor
-                              : AppColors.secondaryTextColor,
-                          fontStyle: FontStyle.italic,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
+                              : AppColors.secondaryTextColor),
+                      size: 24, // Updated size to match goals
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Row(
+                                  children: [
+                                    Text(
+                                      widget.task.text,
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        decoration: widget.task.completed ? TextDecoration.lineThrough : null,
+                                        color: widget.task.completed
+                                            ? (Theme.of(context).brightness == Brightness.dark
+                                                ? AppColors.darkSecondaryTextColor
+                                                : AppColors.secondaryTextColor)
+                                            : (Theme.of(context).brightness == Brightness.dark
+                                                ? AppColors.darkTextColor
+                                                : AppColors.textColor),
+                                        fontWeight: widget.task.completed ? FontWeight.normal : FontWeight.w600,
+                                      ),
+                                    ),
+                                    if (widget.task.emoji != null)
+                                      Padding(
+                                        padding: const EdgeInsets.only(left: 8),
+                                        child: Text(
+                                          widget.task.emoji!,
+                                          style: const TextStyle(fontSize: 16),
+                                        ),
+                                      ),
+                                    if (widget.task.time != null)
+                                      Padding(
+                                        padding: const EdgeInsets.only(left: 4),
+                                        child: Text(
+                                          ' @ ${widget.task.time!}',
+                                          style: TextStyle(
+                                            fontSize: 15,
+                                            color: Theme.of(context).brightness == Brightness.dark
+                                                ? AppColors.darkSecondaryTextColor
+                                                : AppColors.secondaryTextColor,
+                                            fontWeight: widget.task.completed ? FontWeight.normal : FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              _getTaskCreatorText(),
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Theme.of(context).brightness == Brightness.dark
+                                    ? AppColors.darkSecondaryTextColor
+                                    : AppColors.secondaryTextColor,
+                                fontStyle: FontStyle.italic,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                          ),
+
+                        ],
                       ),
                     ),
-                  ),
-                ],
-              ),
-              subtitle: widget.task.startTime != null || widget.task.endTime != null
-                  ? Text(
-                      '${widget.task.startTime ?? ''} - ${widget.task.endTime ?? ''}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Theme.of(context).brightness == Brightness.dark
-                            ? AppColors.darkSecondaryTextColor
-                            : AppColors.secondaryTextColor,
-                      ),
-                    )
-                  : null,
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (widget.task.emoji != null)
-                    Text(
-                      widget.task.emoji!,
-                      style: const TextStyle(fontSize: 16),
+                    const SizedBox(width: 12),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (widget.currentUserId != null &&
+                            (widget.task.createdBy == widget.currentUserId || !widget.task.isShared))
+                          SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: IconButton(
+                              onPressed: () => widget.onEdit(widget.task),
+                              icon: Icon(
+                                Icons.edit_outlined,
+                                size: 20,
+                                color: Theme.of(context).brightness == Brightness.dark
+                                    ? AppColors.darkTextColor
+                                    : AppColors.textColor,
+                              ),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              splashRadius: 20,
+                            ),
+                          ),
+                        if (widget.currentUserId != null &&
+                            (widget.task.createdBy == widget.currentUserId || !widget.task.isShared))
+                          const SizedBox(width: 8),
+                        if (widget.currentUserId != null &&
+                            widget.task.createdBy == widget.currentUserId)
+                          SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: IconButton(
+                              onPressed: () => _confirmDelete(context),
+                              icon: Icon(
+                                Icons.delete_outlined,
+                                size: 20,
+                                color: AppColors.coralRed,
+                              ),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              splashRadius: 20,
+                            ),
+                          ),
+                        if (widget.currentUserId != null &&
+                            widget.task.createdBy == widget.currentUserId &&
+                            widget.task.isShared) // Only show sharing icon for shared tasks
+                          const SizedBox(width: 8),
+                        if (widget.currentUserId != null &&
+                            widget.task.createdBy == widget.currentUserId &&
+                            widget.task.isShared) // Only show sharing icon for shared tasks
+                          Container(
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).primaryColor.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.group,
+                              size: 14,
+                              color: Theme.of(context).primaryColor,
+                            ),
+                          ),
+                      ],
                     ),
-                  const SizedBox(width: 8),
-                  if (widget.currentUserId != null &&
-                      (widget.task.createdBy == widget.currentUserId || !widget.task.isShared))
-                    SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: IconButton(
-                        onPressed: () => widget.onEdit(widget.task),
-                        icon: Icon(
-                          Icons.edit_outlined,
-                          size: 18,
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? AppColors.darkTextColor
-                              : AppColors.textColor,
-                        ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        splashRadius: 20,
-                      ),
-                    ),
-                  if (widget.currentUserId != null &&
-                      (widget.task.createdBy == widget.currentUserId || !widget.task.isShared))
-                    const SizedBox(width: 6),
-                  if (widget.currentUserId != null &&
-                      widget.task.createdBy == widget.currentUserId)
-                    SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: IconButton(
-                        onPressed: () => _confirmDelete(context),
-                        icon: Icon(
-                          Icons.delete_outlined,
-                          size: 18,
-                          color: AppColors.coralRed,
-                        ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        splashRadius: 20,
-                      ),
-                    ),
-                  if (widget.currentUserId != null &&
-                      widget.task.createdBy == widget.currentUserId)
-                    const SizedBox(width: 6),
-                  if (widget.currentUserId != null &&
-                      widget.task.createdBy == widget.currentUserId)
-                    SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: IconButton(
-                        onPressed: () => widget.onEdit(widget.task),
-                        icon: Icon(
-                          widget.task.isShared ? Icons.group : Icons.share_outlined,
-                          size: 20,
-                          color: Theme.of(context).primaryColor,
-                        ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        splashRadius: 22,
-                      ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

@@ -48,16 +48,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadPartnerDetails() async {
-    final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
-    
+    final authProvider =
+        Provider.of<HabitHeartsAuthProvider>(context, listen: false);
+
     if (authProvider.habitHeartsUser?.linkedUsers.isNotEmpty == true) {
       setState(() {
         _isLoadingPartnerDetails = true;
         _partnerDetailsError = null;
       });
-      
+
       try {
-        final partnerDetails = await ApiService.getBatchUsers(authProvider.habitHeartsUser!.linkedUsers);
+        final partnerDetails = await ApiService.getBatchUsers(
+            authProvider.habitHeartsUser!.linkedUsers);
         if (mounted) {
           setState(() {
             _partnerDetails = partnerDetails;
@@ -88,7 +90,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context,
       listen: false,
     );
-    
+
     setState(() {
       _isLinking = true;
       _linkError = null;
@@ -97,10 +99,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       await authProvider.linkWithPartner(_partnerCodeController.text);
       _partnerCodeController.clear();
-      
+
       // Reload partner details after linking
       await _loadPartnerDetails();
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Successfully linked with partner')),
       );
@@ -120,20 +122,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context,
       listen: false,
     );
-    
+
     try {
       await authProvider.unlinkFromPartner(partnerUid);
-      
+
       // Reload partner details after unlinking
       await _loadPartnerDetails();
-      
+
       // Clear the partner details for the unlinked partner
       setState(() {
         _partnerDetails.remove(partnerUid);
         _isLoadingPartnerDetails = false;
         _partnerDetailsError = null;
       });
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Successfully unlinked from partner')),
       );
@@ -149,132 +151,251 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final authProvider = Provider.of<HabitHeartsAuthProvider>(context);
     final themeProvider = Provider.of<ThemeProvider>(context);
     final darkModeProvider = Provider.of<DarkModeProvider>(context);
-    
+
     return Scaffold(
       appBar: _ThemedAppBar(title: 'Profile'),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // User Profile Section
-              if (authProvider.user != null) ...[
-                Center(
-                  child: Column(
-                    children: [
-                      CircleAvatar(
-                        radius: 40,
-                        backgroundImage: authProvider.user?.photoURL != null
-                            ? NetworkImage(authProvider.user!.photoURL!)
-                            : null,
-                        child: authProvider.user?.photoURL == null
-                            ? const Icon(Icons.person, size: 40)
-                            : null,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        authProvider.user?.displayName ?? 'User',
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        authProvider.user?.email ?? '',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontSize: 14,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-              ],
-              
-              // Link with Partner Section
-
-              // Unique Code Section
-              if (authProvider.habitHeartsUser != null) ...[
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(10.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      body: GestureDetector(
+        onTap: () {
+          FocusScope.of(context).unfocus();
+        },
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // User Profile Section
+                if (authProvider.user != null) ...[
+                  Center(
+                    child: Column(
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Your Unique Code',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: darkModeProvider.isDarkMode 
-                                      ? Colors.white 
-                                      : Colors.black87,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Share this code with your partner to link accounts',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ],
-                          ),
+                        CircleAvatar(
+                          radius: 40,
+                          backgroundImage: authProvider.user?.photoURL != null
+                              ? NetworkImage(authProvider.user!.photoURL!)
+                              : null,
+                          child: authProvider.user?.photoURL == null
+                              ? const Icon(Icons.person, size: 40)
+                              : null,
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: themeProvider.selectedColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: themeProvider.selectedColor.withOpacity(0.3),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                authProvider.habitHeartsUser!.uniqueCode,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                  color: themeProvider.selectedColor,
-                                ),
-                              ),
-                              IconButton(
-                                icon: Icon(
-                                  Icons.copy,
-                                  size: 16,
-                                  color: themeProvider.selectedColor,
-                                ),
-                                onPressed: () {
-                                  _copyToClipboard(
-                                    authProvider.habitHeartsUser!.uniqueCode,
-                                  );
-                                },
-                                padding: const EdgeInsets.all(2.0),
-                                constraints: const BoxConstraints(
-                                  minWidth: 20,
-                                  minHeight: 20,
-                                ),
-                              ),
-                            ],
-                          ),
+                        const SizedBox(height: 8),
+                        Text(
+                          authProvider.user?.displayName ?? 'User',
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          authProvider.user?.email ?? '',
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    fontSize: 14,
+                                    color: Colors.grey,
+                                  ),
                         ),
                       ],
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
-              ],
+                  const SizedBox(height: 20),
+                ],
 
-              // Link with Partner Section
-              if (authProvider.habitHeartsUser?.linkedUsers.isEmpty == true) ...[
+                // Link with Partner Section
+
+                // Unique Code Section
+                if (authProvider.habitHeartsUser != null) ...[
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(10.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Your Unique Code',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: darkModeProvider.isDarkMode
+                                        ? Colors.white
+                                        : Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Share this code with your partner to link accounts',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 6),
+                            decoration: BoxDecoration(
+                              color:
+                                  themeProvider.selectedColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: themeProvider.selectedColor
+                                    .withOpacity(0.3),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  authProvider.habitHeartsUser!.uniqueCode,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: themeProvider.selectedColor,
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: Icon(
+                                    Icons.copy,
+                                    size: 16,
+                                    color: themeProvider.selectedColor,
+                                  ),
+                                  onPressed: () {
+                                    _copyToClipboard(
+                                      authProvider.habitHeartsUser!.uniqueCode,
+                                    );
+                                  },
+                                  padding: const EdgeInsets.all(
+                                      4.0), // Reduced padding to minimize gap
+                                  constraints: const BoxConstraints(
+                                    minWidth: 20,
+                                    minHeight: 20,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                // Link with Partner Section
+                if (authProvider.habitHeartsUser?.linkedUsers.isEmpty ==
+                    true) ...[
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(10.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Link with Partner',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: darkModeProvider.isDarkMode
+                                  ? Colors.white
+                                  : Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Consumer<DarkModeProvider>(
+                            builder: (context, darkModeProvider, child) {
+                              return TextField(
+                                controller: _partnerCodeController,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: darkModeProvider.isDarkMode
+                                      ? Colors.white
+                                      : Colors.black,
+                                ),
+                                decoration: InputDecoration(
+                                  labelText: 'Partner\'s Code',
+                                  labelStyle: TextStyle(
+                                    fontSize: 12,
+                                    color: darkModeProvider.isDarkMode
+                                        ? Colors.grey[300]
+                                        : Colors.grey[700],
+                                  ),
+                                  border: const OutlineInputBorder(),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderSide: BorderSide(
+                                      color: darkModeProvider.isDarkMode
+                                          ? Colors.grey[600]!
+                                          : Colors.grey[400]!,
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderSide: BorderSide(
+                                      color: themeProvider.selectedColor,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  suffixIcon: _isLinking
+                                      ? const Padding(
+                                          padding: EdgeInsets.all(6.0),
+                                          child: SizedBox(
+                                            width: 16,
+                                            height: 16,
+                                            child: CircularProgressIndicator(
+                                                strokeWidth: 1.5),
+                                          ),
+                                        )
+                                      : null,
+                                  errorText: _linkError,
+                                  errorStyle: TextStyle(
+                                    fontSize: 11,
+                                    color: darkModeProvider.isDarkMode
+                                        ? Colors.redAccent
+                                        : Colors.red,
+                                  ),
+                                ),
+                                enabled: !_isLinking,
+                                cursorColor: themeProvider.selectedColor,
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: _isLinking ? null : _linkWithPartner,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: themeProvider.selectedColor,
+                                foregroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 10),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                              ),
+                              child: const Text(
+                                'Link Accounts',
+                                style: TextStyle(fontSize: 14),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'One free partner. Subscribe for more.',
+                            style: TextStyle(
+                              color: Colors.grey,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                // Theme Selection Section
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(10.0),
@@ -282,405 +403,319 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Link with Partner',
+                          'Theme Color',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: darkModeProvider.isDarkMode 
-                                ? Colors.white 
+                            color: darkModeProvider.isDarkMode
+                                ? Colors.white
                                 : Colors.black87,
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        Consumer<DarkModeProvider>(
-                          builder: (context, darkModeProvider, child) {
-                            return TextField(
-                              controller: _partnerCodeController,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: darkModeProvider.isDarkMode ? Colors.white : Colors.black,
-                              ),
-                              decoration: InputDecoration(
-                                labelText: 'Partner\'s Code',
-                                labelStyle: TextStyle(
-                                  fontSize: 12,
-                                  color: darkModeProvider.isDarkMode ? Colors.grey[300] : Colors.grey[700],
-                                ),
-                                border: const OutlineInputBorder(),
-                                enabledBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: darkModeProvider.isDarkMode ? Colors.grey[600]! : Colors.grey[400]!,
-                                  ),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: themeProvider.selectedColor,
-                                    width: 1.5,
-                                  ),
-                                ),
-                                suffixIcon: _isLinking
-                                    ? const Padding(
-                                        padding: EdgeInsets.all(6.0),
-                                        child: SizedBox(
-                                          width: 16,
-                                          height: 16,
-                                          child: CircularProgressIndicator(strokeWidth: 1.5),
-                                        ),
-                                      )
-                                    : null,
-                                errorText: _linkError,
-                                errorStyle: TextStyle(
-                                  fontSize: 11,
-                                  color: darkModeProvider.isDarkMode ? Colors.redAccent : Colors.red,
-                                ),
-                              ),
-                              enabled: !_isLinking,
-                              cursorColor: themeProvider.selectedColor,
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: _isLinking ? null : _linkWithPartner,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: themeProvider.selectedColor,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                            ),
-                            child: const Text(
-                              'Link Accounts',
-                              style: TextStyle(fontSize: 14),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 4),
                         const Text(
-                          'One free partner. Subscribe for more.',
+                          'Select your favorite theme',
                           style: TextStyle(
                             color: Colors.grey,
                             fontSize: 11,
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
-              
-              // Theme Selection Section
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(10.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Theme Color',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: darkModeProvider.isDarkMode 
-                              ? Colors.white 
-                              : Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Select your favorite theme',
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 11,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        height: 40,
-                        child: ListView(
-                          scrollDirection: Axis.horizontal,
-                          children: [
-                            // Solid colors using the simpler approach
-                            for (Color color in ThemeProvider.availableColors)
-                              Padding(
-                                padding: const EdgeInsets.only(right: 6),
-                                child: GestureDetector(
-                                  onTap: () {
-                                    themeProvider.updateTheme(color);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Theme updated to ${AppColors.getColorName(color)}',
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          height: 40,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            children: [
+                              // Solid colors using the simpler approach
+                              for (Color color in ThemeProvider.availableColors)
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 6),
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      themeProvider.updateTheme(color);
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Theme updated to ${AppColors.getColorName(color)}',
+                                          ),
+                                          duration: const Duration(seconds: 1),
                                         ),
-                                        duration: const Duration(seconds: 1),
+                                      );
+                                    },
+                                    child: Container(
+                                      width: 32,
+                                      height: 32,
+                                      decoration: BoxDecoration(
+                                        color: color,
+                                        shape: BoxShape.circle,
+                                        border:
+                                            color == themeProvider.selectedColor
+                                                ? Border.all(
+                                                    color: Colors.white,
+                                                    width: 1.5,
+                                                  )
+                                                : null,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color:
+                                                Colors.black.withOpacity(0.1),
+                                            blurRadius: 2,
+                                            offset: const Offset(0, 1),
+                                          ),
+                                        ],
                                       ),
-                                    );
-                                  },
-                                  child: Container(
-                                    width: 32,
-                                    height: 32,
-                                    decoration: BoxDecoration(
-                                      color: color,
-                                      shape: BoxShape.circle,
-                                      border: color == themeProvider.selectedColor
-                                          ? Border.all(
-                                              color: Colors.white,
-                                              width: 1.5,
-                                            )
-                                          : null,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.1),
-                                          blurRadius: 2,
-                                          offset: const Offset(0, 1),
-                                        ),
-                                      ],
                                     ),
                                   ),
                                 ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              
-              // Horoscope Section (only if user profile exists)
-              if (authProvider.habitHeartsUser != null) ...[
-                Consumer2<HabitHeartsAuthProvider, HoroscopeProvider>(
-                  builder: (context, authProvider, horoscopeProvider, child) {
-                    // Debug logs to see what's happening
-                    final userProfileZodiacSign = authProvider.habitHeartsUser?.zodiacSign;
-                    final currentHoroscopeZodiacSign = horoscopeProvider.userZodiacSign;
-                    
-                    print('ProfileScreen - User zodiac: $userProfileZodiacSign, Horoscope provider zodiac: $currentHoroscopeZodiacSign');
-                    
-                    // Update the horoscope provider if the user's zodiac sign has changed
-                    // This should be done in a post-frame callback to avoid setState during build
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (userProfileZodiacSign != null && 
-                          currentHoroscopeZodiacSign != userProfileZodiacSign) {
-                        print('ProfileScreen - Syncing zodiac sign: $userProfileZodiacSign');
-                        horoscopeProvider.userZodiacSign = userProfileZodiacSign;
-                        // Don't fetch horoscope here to avoid auto-refresh - only refresh when user clicks refresh button
-                      } else if (userProfileZodiacSign == null) {
-                        print('ProfileScreen - No user zodiac sign found in profile');
-                      } else if (currentHoroscopeZodiacSign == userProfileZodiacSign) {
-                        print('ProfileScreen - Zodiac signs match, no sync needed');
-                      }
-                    });
-                    
-                    return HoroscopeWidget();
-                  },
-                ),
-                const SizedBox(height: 12),
-              ],
-              
-              // Linked Partners Section
-              if (authProvider.habitHeartsUser?.linkedUsers.isNotEmpty == true) ...[
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Linked Partners',
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontSize: 18,
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'You are currently linked with the following partners (only one partner can be linked at a time):',
-                          style: TextStyle(
-                            color: Colors.grey,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'To link with a different partner, please unlink first.',
-                          style: TextStyle(
-                            color: Colors.grey,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-              
-              const SizedBox(height: 8),
-                        // Display linked partners with their details
-                        if (_isLoadingPartnerDetails) ...[
-                          const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(12.0),
-                              child: Text(
-                                'Loading partner details...',
-                                style: TextStyle(fontSize: 14),
-                              ),
-                            ),
-                          ),
-                        ] else if (_partnerDetailsError != null) ...[
-                          Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: Text(
-                                'Error: $_partnerDetailsError',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: AppColors.coralRed,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ] else
-                          for (String partnerId in authProvider.habitHeartsUser!.linkedUsers)
-                            Container(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey.shade300),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: ListTile(
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 4,
-                                ),
-                                leading: CircleAvatar(
-                                  radius: 20,
-                                  backgroundColor: themeProvider.selectedColor,
-                                  backgroundImage: _partnerDetails.containsKey(partnerId) && 
-                                      _partnerDetails[partnerId]!.photoURL != null
-                                      ? NetworkImage(_partnerDetails[partnerId]!.photoURL!)
-                                      : null,
-                                  child: (_partnerDetails.containsKey(partnerId) && 
-                                          _partnerDetails[partnerId]!.photoURL == null) || 
-                                        !_partnerDetails.containsKey(partnerId)
-                                      ? const Icon(
-                                          Icons.person,
-                                          size: 20,
-                                          color: Colors.white,
-                                        )
-                                      : null,
-                                ),
-                                title: Text(
-                                  _partnerDetails.containsKey(partnerId) 
-                                    ? _partnerDetails[partnerId]!.displayName ?? 'Partner'
-                                    : 'Partner',
-                                  style: const TextStyle(fontSize: 14),
-                                ),
-                                subtitle: _partnerDetails.containsKey(partnerId)
-                                  ? Text(
-                                      _partnerDetails[partnerId]!.email ?? '',
-                                      style: const TextStyle(fontSize: 12),
-                                    )
-                                  : null,
-                                trailing: IconButton(
-                                  icon: const Icon(
-                                    Icons.link_off,
-                                    size: 20,
-                                    color: AppColors.coralRed,
-                                  ),
-                                  onPressed: () => _unlinkFromPartner(partnerId),
-                                  padding: EdgeInsets.zero,
-                                ),
-                              ),
-                            ),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 15),
-              ],
-              
-              // Sign Out Button
-              Center(
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (BuildContext context) {
-                          return AlertDialog(
-                            title: const Text('Sign Out'),
-                            content: const Text(
-                                'Are you sure you want to sign out?'),
-                            actions: [
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.of(context).pop();
-                                },
-                                child: const Text('Cancel'),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.of(context).pop();
-                                  authProvider.signOut();
-                                },
+                const SizedBox(height: 12),
+
+                // Horoscope Section (only if user profile exists)
+                if (authProvider.habitHeartsUser != null) ...[
+                  Consumer2<HabitHeartsAuthProvider, HoroscopeProvider>(
+                    builder: (context, authProvider, horoscopeProvider, child) {
+                      // Debug logs to see what's happening
+                      final userProfileZodiacSign =
+                          authProvider.habitHeartsUser?.zodiacSign;
+                      final currentHoroscopeZodiacSign =
+                          horoscopeProvider.userZodiacSign;
+
+                      print(
+                          'ProfileScreen - User zodiac: $userProfileZodiacSign, Horoscope provider zodiac: $currentHoroscopeZodiacSign');
+
+                      // Update the horoscope provider if the user's zodiac sign has changed
+                      // This should be done in a post-frame callback to avoid setState during build
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (userProfileZodiacSign != null &&
+                            currentHoroscopeZodiacSign !=
+                                userProfileZodiacSign) {
+                          print(
+                              'ProfileScreen - Syncing zodiac sign: $userProfileZodiacSign');
+                          horoscopeProvider.userZodiacSign =
+                              userProfileZodiacSign;
+                          // Don't fetch horoscope here to avoid auto-refresh - only refresh when user clicks refresh button
+                        } else if (userProfileZodiacSign == null) {
+                          print(
+                              'ProfileScreen - No user zodiac sign found in profile');
+                        } else if (currentHoroscopeZodiacSign ==
+                            userProfileZodiacSign) {
+                          print(
+                              'ProfileScreen - Zodiac signs match, no sync needed');
+                        }
+                      });
+
+                      return HoroscopeWidget();
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                // Linked Partners Section
+                if (authProvider.habitHeartsUser?.linkedUsers.isNotEmpty ==
+                    true) ...[
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Linked Partners',
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineSmall
+                                ?.copyWith(
+                                  fontSize: 18,
+                                ),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'You are currently linked with the following partners (only one partner can be linked at a time):',
+                            style: TextStyle(
+                              color: Colors.grey,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'To link with a different partner, please unlink first.',
+                            style: TextStyle(
+                              color: Colors.grey,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          // Display linked partners with their details
+                          if (_isLoadingPartnerDetails) ...[
+                            const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(12.0),
                                 child: Text(
-                                  'Sign Out',
-                                  style: TextStyle(color: Colors.red.shade600),
+                                  'Loading partner details...',
+                                  style: TextStyle(fontSize: 14),
                                 ),
                               ),
-                            ],
-                          );
-                        },
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red.shade600,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(double.infinity, 40),
-                      padding: const EdgeInsets.symmetric(vertical: 6),
+                            ),
+                          ] else if (_partnerDetailsError != null) ...[
+                            Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(12.0),
+                                child: Text(
+                                  'Error: $_partnerDetailsError',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: AppColors.coralRed,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ] else
+                            for (String partnerId
+                                in authProvider.habitHeartsUser!.linkedUsers)
+                              Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                decoration: BoxDecoration(
+                                  border:
+                                      Border.all(color: Colors.grey.shade300),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 4,
+                                  ),
+                                  leading: CircleAvatar(
+                                    radius: 20,
+                                    backgroundColor:
+                                        themeProvider.selectedColor,
+                                    backgroundImage: _partnerDetails
+                                                .containsKey(partnerId) &&
+                                            _partnerDetails[partnerId]!
+                                                    .photoURL !=
+                                                null
+                                        ? NetworkImage(
+                                            _partnerDetails[partnerId]!
+                                                .photoURL!)
+                                        : null,
+                                    child: (_partnerDetails
+                                                    .containsKey(partnerId) &&
+                                                _partnerDetails[partnerId]!
+                                                        .photoURL ==
+                                                    null) ||
+                                            !_partnerDetails
+                                                .containsKey(partnerId)
+                                        ? const Icon(
+                                            Icons.person,
+                                            size: 20,
+                                            color: Colors.white,
+                                          )
+                                        : null,
+                                  ),
+                                  title: Text(
+                                    _partnerDetails.containsKey(partnerId)
+                                        ? _partnerDetails[partnerId]!
+                                                .displayName ??
+                                            'Partner'
+                                        : 'Partner',
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+                                  subtitle: _partnerDetails
+                                          .containsKey(partnerId)
+                                      ? Text(
+                                          _partnerDetails[partnerId]!.email ??
+                                              '',
+                                          style: const TextStyle(fontSize: 12),
+                                        )
+                                      : null,
+                                  trailing: IconButton(
+                                    icon: const Icon(
+                                      Icons.link_off,
+                                      size: 20,
+                                      color: AppColors.coralRed,
+                                    ),
+                                    onPressed: () =>
+                                        _unlinkFromPartner(partnerId),
+                                    padding: EdgeInsets.zero,
+                                  ),
+                                ),
+                              ),
+                        ],
+                      ),
                     ),
-                    child: const Text(
-                      'Sign Out',
-                      style: TextStyle(fontSize: 14),
+                  ),
+                  const SizedBox(height: 15),
+                ],
+
+                // Sign Out Button
+                Center(
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (BuildContext context) {
+                            return AlertDialog(
+                              title: const Text('Sign Out'),
+                              content: const Text(
+                                  'Are you sure you want to sign out?'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).pop();
+                                  },
+                                  child: const Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).pop();
+                                    authProvider.signOut();
+                                  },
+                                  child: Text(
+                                    'Sign Out',
+                                    style:
+                                        TextStyle(color: Colors.red.shade600),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red.shade600,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 40),
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                      ),
+                      child: const Text(
+                        'Sign Out',
+                        style: TextStyle(fontSize: 14),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
-    );
-  }
-  
-    String _getColorName(Color color) {
-    return AppColors.getColorName(color);
-  }
-  
-  Color _getDarkerShade(Color color) {
-    // Calculate a darker shade by reducing brightness
-    final hsv = HSVColor.fromColor(color);
-    final darker = hsv.withValue((hsv.value * 0.7).clamp(0.0, 1.0));
-    return darker.toColor();
-  }
-  
-  Gradient _getThemeGradient(Color baseColor) {
-    // Return a simple gradient with the base color and its lighter shade for a subtle effect
-    return LinearGradient(
-      colors: [baseColor.withOpacity(0.3), baseColor.withOpacity(0.1)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
     );
   }
 }
 
 class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
-  
+
   const _ThemedAppBar({required this.title});
-  
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
@@ -688,41 +723,48 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
     return Consumer<DarkModeProvider>(
       builder: (context, darkModeProvider, child) {
         return AppBar(
-          systemOverlayStyle: darkModeProvider.isDarkMode 
-              ? SystemUiOverlayStyle.light 
+          systemOverlayStyle: darkModeProvider.isDarkMode
+              ? SystemUiOverlayStyle.light
               : SystemUiOverlayStyle.dark,
           title: Consumer<HabitHeartsAuthProvider>(
             builder: (context, authProvider, child) {
-                  String subscriptionText = 'Free';
-                  Color subscriptionColor = themeProvider.selectedColor;
-                  Color subscriptionBgColor = themeProvider.selectedColor.withOpacity(0.15);
-                  
-                  if (authProvider.habitHeartsUser != null) {
-                    String sub = authProvider.habitHeartsUser!.subscription.toLowerCase();
-                    switch (sub) {
-                      case 'premium':
-                        subscriptionText = 'Premium';
-                        subscriptionColor = const Color(0xFFFF9800); // Orange
-                        subscriptionBgColor = const Color(0xFFFF9800).withOpacity(0.2);
-                        break;
-                      case 'family':
-                        subscriptionText = 'Family';
-                        subscriptionColor = const Color(0xFF9C27B0); // Purple
-                        subscriptionBgColor = const Color(0xFF9C27B0).withOpacity(0.2);
-                        break;
-                      default:
-                        subscriptionText = 'Free';
-                        subscriptionColor = themeProvider.selectedColor;
-                        subscriptionBgColor = themeProvider.selectedColor.withOpacity(0.15);
-                    }
-                  }
-                  
+              String subscriptionText = 'Free';
+              Color subscriptionColor = themeProvider.selectedColor;
+              Color subscriptionBgColor =
+                  themeProvider.selectedColor.withOpacity(0.15);
+
+              if (authProvider.habitHeartsUser != null) {
+                String sub =
+                    authProvider.habitHeartsUser!.subscription.toLowerCase();
+                switch (sub) {
+                  case 'premium':
+                    subscriptionText = 'Premium';
+                    subscriptionColor = const Color(0xFFFF9800); // Orange
+                    subscriptionBgColor =
+                        const Color(0xFFFF9800).withOpacity(0.2);
+                    break;
+                  case 'family':
+                    subscriptionText = 'Family';
+                    subscriptionColor = const Color(0xFF9C27B0); // Purple
+                    subscriptionBgColor =
+                        const Color(0xFF9C27B0).withOpacity(0.2);
+                    break;
+                  default:
+                    subscriptionText = 'Free';
+                    subscriptionColor = themeProvider.selectedColor;
+                    subscriptionBgColor =
+                        themeProvider.selectedColor.withOpacity(0.15);
+                }
+              }
+
               return GestureDetector(
                 onTap: () {
-                  _showSubscriptionModal(context, themeProvider, darkModeProvider);
+                  _showSubscriptionModal(
+                      context, themeProvider, darkModeProvider);
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: subscriptionBgColor,
                     borderRadius: BorderRadius.circular(20),
@@ -772,27 +814,31 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
           actions: [
             IconButton(
               icon: Icon(
-                darkModeProvider.isDarkMode ? Icons.light_mode : Icons.dark_mode,
+                darkModeProvider.isDarkMode
+                    ? Icons.light_mode
+                    : Icons.dark_mode,
               ),
               onPressed: () {
                 darkModeProvider.toggleDarkMode();
               },
             ),
-
           ],
         );
       },
     );
   }
-  
-  void _showSubscriptionModal(BuildContext context, ThemeProvider themeProvider, DarkModeProvider darkModeProvider) {
+
+  void _showSubscriptionModal(BuildContext context, ThemeProvider themeProvider,
+      DarkModeProvider darkModeProvider) {
     // Get the user's current subscription
-    final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
+    final authProvider =
+        Provider.of<HabitHeartsAuthProvider>(context, listen: false);
     String currentSubscription = 'free';
     if (authProvider.habitHeartsUser != null) {
-      currentSubscription = authProvider.habitHeartsUser!.subscription.toLowerCase();
+      currentSubscription =
+          authProvider.habitHeartsUser!.subscription.toLowerCase();
     }
-    
+
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -801,12 +847,16 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
           backgroundColor: Colors.transparent,
           insetPadding: const EdgeInsets.all(20),
           child: Container(
-            width: MediaQuery.of(context).size.width * 0.95, // 95% of screen width
+            width:
+                MediaQuery.of(context).size.width * 0.95, // 95% of screen width
             constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.85, // 85% of screen height max
+              maxHeight: MediaQuery.of(context).size.height *
+                  0.85, // 85% of screen height max
             ),
             decoration: BoxDecoration(
-              color: darkModeProvider.isDarkMode ? AppColors.darkBackground : Colors.white,
+              color: darkModeProvider.isDarkMode
+                  ? AppColors.darkBackground
+                  : Colors.white,
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
@@ -866,10 +916,10 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
                       shrinkWrap: true,
                       children: [
                         _buildSubscriptionCard(
-                          context, 
-                          'Free Plan', 
-                          'Perfect for getting started', 
-                          '\$0/month', 
+                          context,
+                          'Free Plan',
+                          'Perfect for getting started',
+                          r'$0/month',
                           [
                             '1 fun game only from all the games 🎮',
                             '10 shared/unshared tasks/goals/events/habits 📋',
@@ -883,10 +933,10 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
                         ),
                         const SizedBox(height: 12),
                         _buildSubscriptionCard(
-                          context, 
-                          'Premium Plan', 
-                          'For dedicated habit builders', 
-                          '\$4.99/month', 
+                          context,
+                          'Premium Plan',
+                          'For dedicated habit builders',
+                          r'$4.99/month',
                           [
                             'All the games 🎮',
                             'All theme colors 🎨',
@@ -904,10 +954,10 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
                         ),
                         const SizedBox(height: 12),
                         _buildSubscriptionCard(
-                          context, 
-                          'Supreme Plan', 
-                          'For the ultimate experience', 
-                          '\$10.00/month', 
+                          context,
+                          'Supreme Plan',
+                          'For the ultimate experience',
+                          r'$10.00/month',
                           [
                             'All games 🎮',
                             'All theme colors 🎨',
@@ -947,7 +997,8 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
                     ),
                     child: const Text(
                       'Close',
-                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                      style:
+                          TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
                     ),
                   ),
                 ),
@@ -958,27 +1009,29 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
       },
     );
   }
-  
+
   Widget _buildSubscriptionCard(
     BuildContext context,
     String title,
     String subtitle,
     String price,
-    List<String> features,
-    {
-      bool isCurrent = false,
-      required ThemeProvider themeProvider,
-      required DarkModeProvider darkModeProvider,
-    }
-  ) {
-    Color cardBgColor = darkModeProvider.isDarkMode 
-      ? (isCurrent ? themeProvider.selectedColor.withOpacity(0.08) : Colors.grey[850]!) 
-      : (isCurrent ? themeProvider.selectedColor.withOpacity(0.05) : Colors.grey[50]!);
-    
-    Color borderColor = isCurrent 
-      ? themeProvider.selectedColor 
-      : (darkModeProvider.isDarkMode ? Colors.grey[700]! : Colors.grey[200]!);
-    
+    List<String> features, {
+    bool isCurrent = false,
+    required ThemeProvider themeProvider,
+    required DarkModeProvider darkModeProvider,
+  }) {
+    Color cardBgColor = darkModeProvider.isDarkMode
+        ? (isCurrent
+            ? themeProvider.selectedColor.withOpacity(0.08)
+            : Colors.grey[850]!)
+        : (isCurrent
+            ? themeProvider.selectedColor.withOpacity(0.05)
+            : Colors.grey[50]!);
+
+    Color borderColor = isCurrent
+        ? themeProvider.selectedColor
+        : (darkModeProvider.isDarkMode ? Colors.grey[700]! : Colors.grey[200]!);
+
     return Container(
       decoration: BoxDecoration(
         color: cardBgColor,
@@ -1012,9 +1065,11 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: isCurrent 
-                            ? themeProvider.selectedColor 
-                            : (darkModeProvider.isDarkMode ? Colors.white : Colors.black87),
+                          color: isCurrent
+                              ? themeProvider.selectedColor
+                              : (darkModeProvider.isDarkMode
+                                  ? Colors.white
+                                  : Colors.black87),
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -1022,22 +1077,25 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
                         subtitle,
                         style: TextStyle(
                           fontSize: 12,
-                          color: darkModeProvider.isDarkMode ? Colors.grey[400] : Colors.grey[600],
+                          color: darkModeProvider.isDarkMode
+                              ? Colors.grey[400]
+                              : Colors.grey[600],
                         ),
                       ),
                     ],
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: darkModeProvider.isDarkMode 
-                        ? Colors.grey[800] 
+                    color: darkModeProvider.isDarkMode
+                        ? Colors.grey[800]
                         : themeProvider.selectedColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: darkModeProvider.isDarkMode 
-                          ? Colors.grey[700]! 
+                      color: darkModeProvider.isDarkMode
+                          ? Colors.grey[700]!
                           : themeProvider.selectedColor.withOpacity(0.3),
                     ),
                   ),
@@ -1057,7 +1115,7 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
               // Split the feature into text and emoji
               String emoji = '';
               String text = feature;
-              
+
               // Find the emoji at the end (if it exists)
               if (feature.contains('🎮')) {
                 int index = feature.lastIndexOf('🎮');
@@ -1108,7 +1166,7 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
                 text = feature.substring(0, index).trim();
                 emoji = '📈';
               }
-              
+
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8.0),
                 child: Row(
@@ -1142,7 +1200,9 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
                               text,
                               style: TextStyle(
                                 fontSize: 13,
-                                color: darkModeProvider.isDarkMode ? Colors.white70 : Colors.black87,
+                                color: darkModeProvider.isDarkMode
+                                    ? Colors.white70
+                                    : Colors.black87,
                                 fontWeight: FontWeight.w500,
                                 height: 1.3,
                               ),
@@ -1169,30 +1229,33 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
             Container(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: isCurrent ? null : () {
-                  // Handle subscription selection
-                  _showPaymentConfirmationModal(context, title, themeProvider, darkModeProvider);
-                },
+                onPressed: isCurrent
+                    ? null
+                    : () {
+                        // Handle subscription selection
+                        _showPaymentConfirmationModal(
+                            context, title, themeProvider, darkModeProvider);
+                      },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isCurrent 
-                    ? (darkModeProvider.isDarkMode 
-                        ? themeProvider.selectedColor.withOpacity(0.1) 
-                        : Colors.grey[300])
-                    : themeProvider.selectedColor,
-                  foregroundColor: isCurrent 
-                    ? (darkModeProvider.isDarkMode 
-                        ? Colors.white60 
-                        : Colors.grey[500]) 
-                    : Colors.white,
+                  backgroundColor: isCurrent
+                      ? (darkModeProvider.isDarkMode
+                          ? themeProvider.selectedColor.withOpacity(0.1)
+                          : Colors.grey[300]!)
+                      : themeProvider.selectedColor,
+                  foregroundColor: isCurrent
+                      ? (darkModeProvider.isDarkMode
+                          ? Colors.white60
+                          : Colors.grey[500]!)
+                      : Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
-                    side: isCurrent 
-                      ? BorderSide(
-                          color: darkModeProvider.isDarkMode 
-                              ? Colors.grey[700]! 
-                              : Colors.grey[400]!)
-                      : BorderSide.none,
+                    side: isCurrent
+                        ? BorderSide(
+                            color: darkModeProvider.isDarkMode
+                                ? Colors.grey[700]!
+                                : Colors.grey[400]!)
+                        : BorderSide.none,
                   ),
                   elevation: isCurrent ? 0 : 2,
                   shadowColor: themeProvider.selectedColor.withOpacity(0.2),
@@ -1211,11 +1274,10 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
       ),
     );
   }
-  
+
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
-}
-  
+
   void _showPaymentConfirmationModal(
     BuildContext context,
     String planTitle,
@@ -1223,15 +1285,19 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
     DarkModeProvider darkModeProvider,
   ) {
     String price = planTitle == 'Premium Plan' ? '\$4.99' : '\$10.00';
-    String planEmoji = planTitle == 'Premium Plan' ? '⭐' : '👑'; // Star for Premium, crown for Supreme
-    
+    String planEmoji = planTitle == 'Premium Plan'
+        ? '⭐'
+        : '👑'; // Star for Premium, crown for Supreme
+
     Navigator.of(context).pop(); // Close the subscription modal first
-    
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return Dialog(
-          backgroundColor: darkModeProvider.isDarkMode ? AppColors.darkBackground : Colors.white,
+          backgroundColor: darkModeProvider.isDarkMode
+              ? AppColors.darkBackground
+              : Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -1251,7 +1317,9 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: darkModeProvider.isDarkMode ? Colors.white : Colors.black,
+                    color: darkModeProvider.isDarkMode
+                        ? Colors.white
+                        : Colors.black,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -1260,14 +1328,19 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14,
-                    color: darkModeProvider.isDarkMode ? Colors.grey[300] : Colors.grey[600],
+                    color: darkModeProvider.isDarkMode
+                        ? Colors.grey[300]
+                        : Colors.grey[600],
                   ),
                 ),
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    color: darkModeProvider.isDarkMode ? Colors.grey[800] : Colors.grey[100],
+                    color: darkModeProvider.isDarkMode
+                        ? Colors.grey[800]
+                        : Colors.grey[100],
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
@@ -1285,7 +1358,9 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
                         '/month',
                         style: TextStyle(
                           fontSize: 12,
-                          color: darkModeProvider.isDarkMode ? Colors.grey[400] : Colors.grey[600],
+                          color: darkModeProvider.isDarkMode
+                              ? Colors.grey[400]
+                              : Colors.grey[600],
                         ),
                       ),
                     ],
@@ -1297,15 +1372,16 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () {
-                          Navigator.of(context).pop(); // Close confirmation modal
+                          Navigator.of(context)
+                              .pop(); // Close confirmation modal
                         },
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: darkModeProvider.isDarkMode 
-                              ? Colors.white 
+                          foregroundColor: darkModeProvider.isDarkMode
+                              ? Colors.white
                               : Colors.black,
                           side: BorderSide(
-                            color: darkModeProvider.isDarkMode 
-                                ? Colors.grey[600]! 
+                            color: darkModeProvider.isDarkMode
+                                ? Colors.grey[600]!
                                 : Colors.grey[400]!,
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1324,8 +1400,9 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
                       child: ElevatedButton(
                         onPressed: () {
                           // In a real app, this would redirect to a payment processor
-                          Navigator.of(context).pop(); // Close confirmation modal
-                          
+                          Navigator.of(context)
+                              .pop(); // Close confirmation modal
+
                           // Show success message
                           final successSnackBar = SnackBar(
                             content: Text('🎉 ${planTitle} selected!'),
@@ -1341,7 +1418,8 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
                               onPressed: () {},
                             ),
                           );
-                          ScaffoldMessenger.of(context).showSnackBar(successSnackBar);
+                          ScaffoldMessenger.of(context)
+                              .showSnackBar(successSnackBar);
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: themeProvider.selectedColor,
@@ -1366,3 +1444,4 @@ class _ThemedAppBar extends StatelessWidget implements PreferredSizeWidget {
       },
     );
   }
+}

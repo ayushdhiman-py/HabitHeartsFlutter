@@ -57,7 +57,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void _showAddTaskModal() {
     showModalBottomSheet(
       context: context,
-      transitionAnimationController: AnimationController(vsync: this, duration: Duration.zero),
+      transitionAnimationController: AnimationController(vsync: this, duration: const Duration(milliseconds: 150)),
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
@@ -181,7 +181,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           onTaskEdit: (task) {
                             showModalBottomSheet(
                               context: context,
-                              transitionAnimationController: AnimationController(vsync: this, duration: Duration.zero),
+                              transitionAnimationController: AnimationController(vsync: this, duration: const Duration(milliseconds: 150)),
                               isScrollControlled: true,
                               shape: const RoundedRectangleBorder(
                                 borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
@@ -617,8 +617,7 @@ class _EditTaskModalState extends State<_EditTaskModal> {
   late TextEditingController _taskController;
   late TextEditingController _descriptionController;
   String? _selectedEmoji;
-  TimeOfDay? _startTime;
-  TimeOfDay? _endTime;
+  TimeOfDay? _taskTime;
   late DateTime _selectedDate;
   late bool _isShared;
 
@@ -631,17 +630,10 @@ class _EditTaskModalState extends State<_EditTaskModal> {
     _selectedDate = widget.task.dueDate ?? DateTime.now();
     _isShared = widget.task.isShared; // Initialize from the task's current isShared value
     
-    if (widget.task.startTime != null) {
-      final parts = widget.task.startTime!.split(':');
+    if (widget.task.time != null) {
+      final parts = widget.task.time!.split(':');
       if (parts.length == 2) {
-        _startTime = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
-      }
-    }
-    
-    if (widget.task.endTime != null) {
-      final parts = widget.task.endTime!.split(':');
-      if (parts.length == 2) {
-        _endTime = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+        _taskTime = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
       }
     }
   }
@@ -667,26 +659,14 @@ class _EditTaskModalState extends State<_EditTaskModal> {
     }
   }
 
-  Future<void> _selectStartTime(BuildContext context) async {
+  Future<void> _selectTime(BuildContext context) async {
     final TimeOfDay? picked = await showTimePicker(
       context: context,
-      initialTime: _startTime ?? TimeOfDay.now(),
+      initialTime: _taskTime ?? TimeOfDay.now(),
     );
     if (picked != null) {
       setState(() {
-        _startTime = picked;
-      });
-    }
-  }
-
-  Future<void> _selectEndTime(BuildContext context) async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: _endTime ?? TimeOfDay.now(),
-    );
-    if (picked != null) {
-      setState(() {
-        _endTime = picked;
+        _taskTime = picked;
       });
     }
   }
@@ -737,11 +717,8 @@ class _EditTaskModalState extends State<_EditTaskModal> {
       description: _descriptionController.text.trim(),
       emoji: _selectedEmoji,
       dueDate: _selectedDate,
-      startTime: _startTime != null
-          ? '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}'
-          : null,
-      endTime: _endTime != null
-          ? '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}'
+      time: _taskTime != null
+          ? '${_taskTime!.hour.toString().padLeft(2, '0')}:${_taskTime!.minute.toString().padLeft(2, '0')}'
           : null,
       updatedAt: DateTime.now(),
       isShared: _isShared,
@@ -856,7 +833,7 @@ class _EditTaskModalState extends State<_EditTaskModal> {
             children: [
               Expanded(
                 child: GestureDetector(
-                  onTap: () => _selectStartTime(context),
+                  onTap: () => _selectTime(context),
                   child: Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -868,34 +845,9 @@ class _EditTaskModalState extends State<_EditTaskModal> {
                         const Icon(Icons.access_time, size: 18),
                         const SizedBox(width: 8),
                         Text(
-                          _startTime != null
-                              ? '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}'
-                              : 'Start Time',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => _selectEndTime(context),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.access_time, size: 18),
-                        const SizedBox(width: 8),
-                        Text(
-                          _endTime != null
-                              ? '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}'
-                              : 'End Time',
+                          _taskTime != null
+                              ? '${_taskTime!.hour.toString().padLeft(2, '0')}:${_taskTime!.minute.toString().padLeft(2, '0')}'
+                              : 'Select Time',
                           style: const TextStyle(fontSize: 16),
                         ),
                       ],
@@ -1632,8 +1584,7 @@ class _AddTaskModalState extends State<_AddTaskModal> {
   final TextEditingController _taskController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   String? _selectedEmoji;
-  TimeOfDay? _startTime;
-  TimeOfDay? _endTime;
+  TimeOfDay? _taskTime;
   DateTime _selectedDate = DateTime.now();
   bool _isShared = false;
 
@@ -1664,26 +1615,14 @@ class _AddTaskModalState extends State<_AddTaskModal> {
     }
   }
 
-  Future<void> _selectStartTime(BuildContext context) async {
+  Future<void> _selectTime(BuildContext context) async {
     final TimeOfDay? picked = await showTimePicker(
       context: context,
-      initialTime: _startTime ?? TimeOfDay.now(),
+      initialTime: _taskTime ?? TimeOfDay.now(),
     );
     if (picked != null) {
       setState(() {
-        _startTime = picked;
-      });
-    }
-  }
-
-  Future<void> _selectEndTime(BuildContext context) async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: _endTime ?? TimeOfDay.now(),
-    );
-    if (picked != null) {
-      setState(() {
-        _endTime = picked;
+        _taskTime = picked;
       });
     }
   }
@@ -1744,11 +1683,8 @@ class _AddTaskModalState extends State<_AddTaskModal> {
         updatedAt: DateTime.now(),
         status: 'active',
         dueDate: _selectedDate,
-        startTime: _startTime != null
-            ? '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}'
-            : null,
-        endTime: _endTime != null
-            ? '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}'
+        time: _taskTime != null
+            ? '${_taskTime!.hour.toString().padLeft(2, '0')}:${_taskTime!.minute.toString().padLeft(2, '0')}'
             : null,
         emoji: _selectedEmoji,
         isShared: _isShared,
@@ -1886,7 +1822,7 @@ class _AddTaskModalState extends State<_AddTaskModal> {
             children: [
               Expanded(
                 child: GestureDetector(
-                  onTap: () => _selectStartTime(context),
+                  onTap: () => _selectTime(context),
                   child: Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -1898,34 +1834,9 @@ class _AddTaskModalState extends State<_AddTaskModal> {
                         const Icon(Icons.access_time, size: 18),
                         const SizedBox(width: 8),
                         Text(
-                          _startTime != null
-                              ? '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}'
-                              : 'Start Time',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => _selectEndTime(context),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.access_time, size: 18),
-                        const SizedBox(width: 8),
-                        Text(
-                          _endTime != null
-                              ? '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}'
-                              : 'End Time',
+                          _taskTime != null
+                              ? '${_taskTime!.hour.toString().padLeft(2, '0')}:${_taskTime!.minute.toString().padLeft(2, '0')}'
+                              : 'Select Time',
                           style: const TextStyle(fontSize: 16),
                         ),
                       ],
