@@ -1936,32 +1936,46 @@ app.post('/api/goals/:goalId/toggle-shared-completion', authenticateToken, async
     const { completed } = req.body; // true for done, false for not done
     const requestUserId = req.user.uid;
     
+    console.log(`DEBUG: Toggle shared goal completion called for goal ${goalId}, user: ${requestUserId}, completed: ${completed}`);
+    
     // Check if the goal document exists
     const goalDoc = await db.collection('goals').doc(goalId).get();
     if (!goalDoc.exists) {
+      console.log(`DEBUG: Goal ${goalId} not found`);
       return res.status(404).json({ message: 'Goal not found' });
     }
     
     const goalData = goalDoc.data();
+    console.log(`DEBUG: Goal data - Created by: ${goalData.createdBy}, isShared: ${goalData.isShared}`);
     
     // Check if this is a shared goal and if the requesting user has permission to complete it
     let hasPermission = false;
     if (goalData.createdBy === requestUserId) {
       // Goal owner can always toggle
       hasPermission = true;
+      console.log(`DEBUG: Requesting user is goal owner, permission granted`);
     } else if (goalData.isShared) {
       // For shared goals, check if requesting user is linked to the goal owner
       const goalOwnerDoc = await db.collection('users').doc(goalData.createdBy).get();
       if (goalOwnerDoc.exists) {
         const goalOwnerData = goalOwnerDoc.data();
         const goalOwnerLinkedUsers = goalOwnerData.linkedUsers || [];
+        console.log(`DEBUG: Goal owner linked users: ${goalOwnerLinkedUsers.join(', ')}`);
         if (goalOwnerLinkedUsers.includes(requestUserId)) {
           hasPermission = true;
+          console.log(`DEBUG: Requesting user is linked to goal owner, permission granted`);
+        } else {
+          console.log(`DEBUG: Requesting user is not linked to goal owner, permission denied`);
         }
+      } else {
+        console.log(`DEBUG: Goal owner document does not exist`);
       }
+    } else {
+      console.log(`DEBUG: Goal is not shared and requesting user is not the owner`);
     }
     
     if (!hasPermission) {
+      console.log(`DEBUG: Unauthorized access to toggle goal ${goalId}`);
       return res.status(403).json({ message: 'Unauthorized to toggle completion for this goal' });
     }
 
@@ -1981,6 +1995,7 @@ app.post('/api/goals/:goalId/toggle-shared-completion', authenticateToken, async
       }
     }
     
+    console.log(`DEBUG: Updating goal ${goalId} with data:`, updateData);
     await db.collection('goals').doc(goalId).update(updateData);
 
     // Also update the user-specific progress for streak tracking
@@ -1990,8 +2005,10 @@ app.post('/api/goals/:goalId/toggle-shared-completion', authenticateToken, async
     const day = today.getDate();
     const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
     
+    console.log(`DEBUG: Updating progress for user ${requestUserId} for date ${yearMonth}, day ${day}`);
     const userDoc = await db.collection('users').doc(requestUserId).get();
     if (!userDoc.exists) {
+      console.log(`DEBUG: User ${requestUserId} document does not exist`);
       return res.status(404).json({ message: 'User not found' });
     }
 
@@ -2000,6 +2017,7 @@ app.post('/api/goals/:goalId/toggle-shared-completion', authenticateToken, async
 
     // Initialize goal progress if it doesn't exist
     if (!goalProgress[goalId]) {
+      console.log(`DEBUG: Initializing goal progress for goal ${goalId}`);
       goalProgress[goalId] = {
         monthlyData: {},
         currentStreak: 0,
@@ -2010,12 +2028,15 @@ app.post('/api/goals/:goalId/toggle-shared-completion', authenticateToken, async
 
     // Get current bit string or initialize
     let bitString = goalProgress[goalId].monthlyData[yearMonth] || '0'.repeat(daysInMonth);
+    console.log(`DEBUG: Original bitString length: ${bitString.length}, daysInMonth: ${daysInMonth}`);
     
     // Ensure bit string has correct length
     if (bitString.length < daysInMonth) {
       bitString = bitString.padEnd(daysInMonth, '0');
+      console.log(`DEBUG: Padded bitString to length: ${bitString.length}`);
     } else if (bitString.length > daysInMonth) {
       bitString = bitString.substring(0, daysInMonth);
+      console.log(`DEBUG: Trimmed bitString to length: ${bitString.length}`);
     }
 
     // Update the specific day
@@ -2024,6 +2045,9 @@ app.post('/api/goals/:goalId/toggle-shared-completion', authenticateToken, async
       const bits = bitString.split('');
       bits[index] = completed ? '1' : '0';
       bitString = bits.join('');
+      console.log(`DEBUG: Updated bit at index ${index}, new bitString: ${bitString}`);
+    } else {
+      console.log(`DEBUG: Index ${index} is out of range for bitString of length ${bitString.length}`);
     }
 
     // Update monthly data
@@ -2031,11 +2055,21 @@ app.post('/api/goals/:goalId/toggle-shared-completion', authenticateToken, async
     goalProgress[goalId].lastUpdated = admin.firestore.FieldValue.serverTimestamp();
 
     // Recalculate streaks for the requesting user only
-    const streaks = calculateStreaks(goalProgress[goalId]);
-    goalProgress[goalId].currentStreak = streaks.currentStreak;
-    goalProgress[goalId].longestStreak = streaks.longestStreak;
+    try {
+      console.log(`DEBUG: Recalculating streaks for goal ${goalId}`);
+      const streaks = calculateStreaks(goalProgress[goalId]);
+      goalProgress[goalId].currentStreak = streaks.currentStreak;
+      goalProgress[goalId].longestStreak = streaks.longestStreak;
+      console.log(`DEBUG: Recalculated streaks - Current: ${streaks.currentStreak}, Longest: ${streaks.longestStreak}`);
+    } catch (streakError) {
+      console.error('Error calculating streaks:', streakError);
+      // Use existing values or defaults if calculation fails
+      goalProgress[goalId].currentStreak = goalProgress[goalId].currentStreak || 0;
+      goalProgress[goalId].longestStreak = goalProgress[goalId].longestStreak || 0;
+    }
 
     // Update user document
+    console.log(`DEBUG: Updating user document with new goal progress`);
     await db.collection('users').doc(requestUserId).update({
       goalProgress,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -2048,6 +2082,7 @@ app.post('/api/goals/:goalId/toggle-shared-completion', authenticateToken, async
       if (userRef.exists) {
         const userData = userRef.data();
         completedByDisplayName = userData.displayName || requestUserId;
+        console.log(`DEBUG: Completed by user: ${completedByDisplayName}`);
       }
     }
 
@@ -2055,18 +2090,20 @@ app.post('/api/goals/:goalId/toggle-shared-completion', authenticateToken, async
     const updatedGoalDoc = await db.collection('goals').doc(goalId).get();
     const updatedGoalData = updatedGoalDoc.data();
 
+    console.log(`DEBUG: Returning success response for goal ${goalId}`);
     res.status(200).json({ 
       message: 'Shared goal completion status updated successfully',
       completed: updatedGoalData.completed,
       completedBy: updatedGoalData.completedBy,
       completedByName: completedByDisplayName,
-      currentStreak: streaks.currentStreak,
-      longestStreak: streaks.longestStreak,
+      currentStreak: goalProgress[goalId].currentStreak,
+      longestStreak: goalProgress[goalId].longestStreak,
       goalId: goalId,
       userId: requestUserId
     });
   } catch (error) {
     console.error('Error toggling shared goal completion:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({ message: 'Error toggling shared goal completion', error: error.message });
   }
 });

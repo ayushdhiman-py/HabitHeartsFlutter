@@ -135,17 +135,23 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                       children: [
                                         Consumer<GoalsProvider>(
                                           builder: (context, goalsProvider, child) {
-                                            final isCurrentUserCompleted = goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now());
+                                            // For shared goals/habits, use the shared completion status
+                                            // For non-shared goals/habits, use individual progress for habits and shared status for goals
+                                            bool displayCompleted = widget.goal.isShared 
+                                                ? widget.goal.completed  // Use shared status for shared goals/habits
+                                                : (widget.goal.isHabit 
+                                                    ? goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now()) // Use individual progress for non-shared habits
+                                                    : widget.goal.completed); // Use shared status for non-shared goals
                                             
                                             return Flexible(
                                               child: Text(
                                                 widget.goal.text,
                                                 style: TextStyle(
-                                                  decoration: isCurrentUserCompleted ? TextDecoration.lineThrough : null,
-                                                  color: isCurrentUserCompleted
+                                                  decoration: displayCompleted ? TextDecoration.lineThrough : null,
+                                                  color: displayCompleted
                                                       ? (Theme.of(context).brightness == Brightness.dark ? AppColors.darkSecondaryTextColor : AppColors.secondaryTextColor)
                                                       : (Theme.of(context).brightness == Brightness.dark ? AppColors.darkTextColor : AppColors.textColor),
-                                                  fontWeight: isCurrentUserCompleted ? FontWeight.normal : FontWeight.w600,
+                                                  fontWeight: displayCompleted ? FontWeight.normal : FontWeight.w600,
                                                   fontSize: 16,
                                                 ),
                                                 overflow: TextOverflow.ellipsis,
@@ -315,17 +321,23 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                       children: [
                                         Consumer<GoalsProvider>(
                                           builder: (context, goalsProvider, child) {
-                                            final isCurrentUserCompleted = goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now());
+                                            // For shared goals/habits, use the shared completion status
+                                            // For non-shared goals/habits, use individual progress for habits and shared status for goals
+                                            bool displayCompleted = widget.goal.isShared 
+                                                ? widget.goal.completed  // Use shared status for shared goals/habits
+                                                : (widget.goal.isHabit 
+                                                    ? goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now()) // Use individual progress for non-shared habits
+                                                    : widget.goal.completed); // Use shared status for non-shared goals
                                             
                                             return Flexible(
                                               child: Text(
                                                 widget.goal.text,
                                                 style: TextStyle(
-                                                  decoration: isCurrentUserCompleted ? TextDecoration.lineThrough : null,
-                                                  color: isCurrentUserCompleted
+                                                  decoration: displayCompleted ? TextDecoration.lineThrough : null,
+                                                  color: displayCompleted
                                                       ? (Theme.of(context).brightness == Brightness.dark ? AppColors.darkSecondaryTextColor : AppColors.secondaryTextColor)
                                                       : (Theme.of(context).brightness == Brightness.dark ? AppColors.darkTextColor : AppColors.textColor),
-                                                  fontWeight: isCurrentUserCompleted ? FontWeight.normal : FontWeight.w600,
+                                                  fontWeight: displayCompleted ? FontWeight.normal : FontWeight.w600,
                                                   fontSize: 16,
                                                 ),
                                                 overflow: TextOverflow.ellipsis,
