@@ -437,23 +437,25 @@ class GoalsProvider with ChangeNotifier {
         return; // Don't perform the toggle
       }
 
-      // If user is owner and wants to update the goal status, allow it
-      // If user is linked user and goal is shared, update the shared completion status
-      if (updateGoalStatus && isOwner) {
-        // Owner can update the goal document
-        final originalCompletedStatus = goal.completed; // Store original status for rollback
-        final updatedGoal = goal.copyWith(completed: completed);
+      // Store original values for potential rollback
+      final originalCompletedStatus = goal.completed;
+      final originalGoal = goal;
 
-        // Optimistically update the UI
-        _goals[goalIndex] = updatedGoal;
-        notifyListeners();
+      // Optimistically update the UI for immediate feedback (like tasks do)
+      // For shared goals, we update the main completion status
+      final optimisticGoal = goal.copyWith(completed: completed);
+      _goals[goalIndex] = optimisticGoal;
+      notifyListeners();
 
-        try {
-          final result = await ApiService.updateGoal(updatedGoal);
+      try {
+        // If user is owner and wants to update the goal status, allow it
+        // If user is linked user and goal is shared, update the shared completion status
+        if (updateGoalStatus && isOwner) {
+          // Owner can update the goal document
+          final result = await ApiService.updateGoal(optimisticGoal);
           if (result == null) {
             // If API call fails, revert the UI
-            final revertGoal = goal.copyWith(completed: originalCompletedStatus);
-            _goals[goalIndex] = revertGoal;
+            _goals[goalIndex] = originalGoal;
             notifyListeners();
             print('Failed to update goal status, reverted UI.');
           } else {
@@ -461,51 +463,69 @@ class GoalsProvider with ChangeNotifier {
             // Use the current user's ID for progress tracking
             String progressUserId = userId; // Use current user's ID for their progress tracking
             await toggleGoalProgressForUser(progressUserId, goalId, completed);
+            notifyListeners(); // Ensure UI updates after progress update
           }
-        } catch (e) {
-          // If API call throws an error, revert the UI
-          final revertGoal = goal.copyWith(completed: originalCompletedStatus);
-          _goals[goalIndex] = revertGoal;
-          notifyListeners();
-          print('Error updating goal status, reverted UI: $e');
-        }
-      } else if (isSharedGoal && isLinkedUser) {
-        // For linked users of shared goals, use the shared completion endpoint
-        // This updates both the shared status and the individual streaks
-        print('Linked user $userId updating shared goal $goalId with completed: $completed');
-        final result = await ApiService.toggleSharedGoalCompletion(goalId, completed);
-        if (result != null) {
-          // Update local state with new data for proper UI display
-          if (result['currentStreak'] != null) {
-            _currentStreaks[goalId] = result['currentStreak'];
+        } else if (isSharedGoal && isLinkedUser) {
+          // For linked users of shared goals, use the shared completion endpoint
+          // This updates both the shared status and the individual streaks
+          print('Linked user $userId updating shared goal $goalId with completed: $completed');
+          final result = await ApiService.toggleSharedGoalCompletion(goalId, completed);
+          if (result != null) {
+            // Update local state with new streak data from the API
+            if (result['currentStreak'] != null) {
+              _currentStreaks[goalId] = result['currentStreak'];
+            }
+            if (result['longestStreak'] != null) {
+              _longestStreaks[goalId] = result['longestStreak'];
+            }
+            
+            // Update the goal's completion status based on the server response
+            // Make sure we're updating with the result from the API call
+            _goals[goalIndex] = _goals[goalIndex].copyWith(
+              completed: result['completed'] ?? completed  // Use result value, fallback to intended value
+            );
+            notifyListeners();
+            print('Successfully updated shared goal for linked user $userId, completed: ${result['completed']}');
+          } else {
+            // If API call fails, revert the optimistic update
+            _goals[goalIndex] = originalGoal;
+            notifyListeners();
+            print('Failed to update shared goal for linked user $userId, reverted UI.');
           }
-          if (result['longestStreak'] != null) {
-            _longestStreaks[goalId] = result['longestStreak'];
-          }
-          
-          // Force a reload of the goal's progress to ensure correct UI display
-          await loadGoals(); // This will refresh all data and UI
-          print('Successfully updated shared goal for linked user $userId and reloaded goals');
         } else {
-          print('Failed to update shared goal for linked user $userId');
+          // For non-shared goals or other progress-only updates, just update the progress
+          // Use the current user's ID for progress tracking, not the goal owner's ID
+          String progressUserId = userId; // Use the current user's ID for their own progress tracking
+          print('User $userId updating progress for goal $goalId with completed: $completed');
+          final success = await toggleGoalProgressForUser(progressUserId, goalId, completed);
+          if (success) {
+            // For non-shared and non-owner updates, we still want to optimistically keep the UI updated
+            // Update the goal display to reflect the current user's status for habits
+            // Update the goal's completion status based on user's individual progress for today
+            // But since the main goal status might be different from individual progress,
+            // we need to ensure the UI shows the correct status for habits vs goals
+            
+            // For habits, the UI shows completion based on isGoalCompletedForDate which checks individual progress
+            // For goals, the UI shows completion based on the goal.completed field
+            
+            // The optimistic update already handled the main display, so we just continue
+            notifyListeners();
+            print('Successfully updated progress for user $userId');
+          } else {
+            // If progress update fails, revert the optimistic update
+            _goals[goalIndex] = originalGoal;
+            notifyListeners();
+            print('Failed to update progress for user $userId, reverted UI.');
+          }
         }
-      } else {
-        // For non-shared goals or other progress-only updates, just update the progress
-        // Use the current user's ID for progress tracking, not the goal owner's ID
-        String progressUserId = userId; // Use the current user's ID for their own progress tracking
-        print('User $userId updating progress for goal $goalId with completed: $completed');
-        final success = await toggleGoalProgressForUser(progressUserId, goalId, completed);
-        if (success) {
-          // Force a reload of the goal's progress to ensure correct UI display
-          await loadGoals(); // This will refresh all data and UI
-          print('Successfully updated progress for user $userId and reloaded goals');
-        } else {
-          print('Failed to update progress for user $userId');
-        }
+      } catch (e) {
+        // If API call throws an error, revert the optimistic update
+        _goals[goalIndex] = originalGoal;
+        notifyListeners();
+        print('Error updating goal, reverted UI: $e');
       }
     } catch (e) {
       print('Error toggling goal progress: $e');
-      await loadGoals();
     }
   }
 

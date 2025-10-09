@@ -99,14 +99,20 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                         ? Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              // Checkbox - use current user's progress for shared goals, otherwise use overall completion
+                              // Checkbox - for shared goals/habits, use the shared completion status; otherwise use individual progress for habits and overall completion for goals
                               Consumer<GoalsProvider>(
                                 builder: (context, goalsProvider, child) {
-                                  final isCurrentUserCompleted = goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now());
+                                  // For shared goals/habits, use the shared completion status
+                                  // For non-shared goals/habits, use individual progress for habits and shared status for goals
+                                  bool displayCompleted = widget.goal.isShared 
+                                      ? widget.goal.completed  // Use shared status for shared goals/habits
+                                      : (widget.goal.isHabit 
+                                          ? goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now()) // Use individual progress for non-shared habits
+                                          : widget.goal.completed); // Use shared status for non-shared goals
                                   
                                   return Icon(
-                                    isCurrentUserCompleted ? Icons.check_box : Icons.check_box_outline_blank,
-                                    color: isCurrentUserCompleted ? AppColors.vibrantGreen : AppColors.secondaryTextColor,
+                                    displayCompleted ? Icons.check_box : Icons.check_box_outline_blank,
+                                    color: displayCompleted ? AppColors.vibrantGreen : AppColors.secondaryTextColor,
                                     size: 24,
                                   );
                                 },
@@ -274,14 +280,20 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                         : Row( // Full layout for goals with progress
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              // Checkbox - use current user's progress for shared goals, otherwise use overall completion
+                              // Checkbox - for shared goals/habits, use the shared completion status; otherwise use individual progress for habits and overall completion for goals
                               Consumer<GoalsProvider>(
                                 builder: (context, goalsProvider, child) {
-                                  final isCurrentUserCompleted = goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now());
+                                  // For shared goals/habits, use the shared completion status
+                                  // For non-shared goals/habits, use individual progress for habits and shared status for goals
+                                  bool displayCompleted = widget.goal.isShared 
+                                      ? widget.goal.completed  // Use shared status for shared goals/habits
+                                      : (widget.goal.isHabit 
+                                          ? goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now()) // Use individual progress for non-shared habits
+                                          : widget.goal.completed); // Use shared status for non-shared goals
                                   
                                   return Icon(
-                                    isCurrentUserCompleted ? Icons.check_box : Icons.check_box_outline_blank,
-                                    color: isCurrentUserCompleted ? AppColors.vibrantGreen : AppColors.secondaryTextColor,
+                                    displayCompleted ? Icons.check_box : Icons.check_box_outline_blank,
+                                    color: displayCompleted ? AppColors.vibrantGreen : AppColors.secondaryTextColor,
                                     size: 24,
                                   );
                                 },
