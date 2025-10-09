@@ -1930,7 +1930,7 @@ app.delete('/api/calendarEvents/:id', async (req, res) => {
 });
 
 // Toggle goal progress endpoint (NEW: Bit-based approach)
-app.post('/api/user/:userId/goal/:goalId/toggle', async (req, res) => {
+app.post('/api/user/:userId/goal/:goalId/toggle', authenticateToken, async (req, res) => {
   try {
     const { userId, goalId } = req.params;
     const { completed } = req.body; // true for done, false for not done
@@ -1938,6 +1938,41 @@ app.post('/api/user/:userId/goal/:goalId/toggle', async (req, res) => {
     const yearMonth = `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}`;
     const day = today.getDate();
     const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    
+    const authenticatedUserId = req.user.uid;
+
+    // Authorization check: user can only toggle their own progress or progress for linked users' shared goals
+    if (userId !== authenticatedUserId) {
+      // Check if the target user is linked to the authenticated user
+      const authUserDoc = await db.collection('users').doc(authenticatedUserId).get();
+      if (!authUserDoc.exists) {
+        return res.status(404).json({ message: 'Authenticated user not found' });
+      }
+      
+      const authUserData = authUserDoc.data();
+      const linkedUsers = authUserData.linkedUsers || [];
+      
+      // User can toggle progress for goals of linked users
+      if (!linkedUsers.includes(userId)) {
+        return res.status(403).json({ message: 'Unauthorized to toggle this goal progress' });
+      }
+      
+      // Additionally, verify that the goal being toggled is shared by checking if it exists in the linked user's goals
+      const goalDoc = await db.collection('goals').doc(goalId).get();
+      if (!goalDoc.exists) {
+        return res.status(404).json({ message: 'Goal not found' });
+      }
+      
+      const goalData = goalDoc.data();
+      if (goalData.createdBy !== userId) {
+        return res.status(403).json({ message: 'Goal does not belong to the specified user' });
+      }
+      
+      // Only allow toggling if the goal is shared
+      if (!goalData.isShared) {
+        return res.status(403).json({ message: 'Cannot toggle progress for non-shared goal' });
+      }
+    }
 
     // Get user document
     const userDoc = await db.collection('users').doc(userId).get();

@@ -183,14 +183,13 @@ class GoalsProvider with ChangeNotifier {
     _goals[index] = updatedGoal;
     notifyListeners();
 
-    // Check if the current user has permission to update this goal
+    // Check if the current user has permission to update this goal (only creator can update)
     final userId = _authProvider?.user?.uid;
     if (userId != null) {
       final goal = _goals[index];
       final isOwner = goal.createdBy == userId;
-      final canEdit = isOwner || goal.isShared; // Owner or shared goals can be edited
       
-      if (!canEdit) {
+      if (!isOwner) {
         print('User does not have permission to update goal ${updatedGoal.id}');
         // Revert the UI change
         _goals[index] = originalGoal;
@@ -232,11 +231,10 @@ class GoalsProvider with ChangeNotifier {
       
       final goal = _goals[goalIndex];
 
-      // Check if the current user has permission to delete this goal
+      // Check if the current user has permission to delete this goal (only creator can delete)
       final isOwner = goal.createdBy == userId;
-      final canDelete = isOwner || goal.isShared; // Owner or shared goals can be deleted
       
-      if (!canDelete) {
+      if (!isOwner) {
         print('User does not have permission to delete goal $goalId');
         return;
       }
@@ -416,16 +414,36 @@ class GoalsProvider with ChangeNotifier {
   // Optimistically toggle entire goal completion status (used by goal items)
   Future<void> optimisticallyToggleGoalProgress(String userId, String goalId, bool completed, {bool updateGoalStatus = true}) async {
     try {
-      if (updateGoalStatus) {
-        final goal = _goals.firstWhere((g) => g.id == goalId);
+      final goalIndex = _goals.indexWhere((g) => g.id == goalId);
+      if (goalIndex == -1) {
+        print('Goal $goalId not found');
+        return;
+      }
+      
+      final goal = _goals[goalIndex];
+      
+      // Check if the current user has permission to toggle this goal
+      final isOwner = goal.createdBy == userId;
+      final isLinkedUser = _authProvider?.habitHeartsUser?.linkedUsers.contains(goal.createdBy) == true;
+      final isSharedGoal = goal.isShared;
+      
+      // Allow toggle if user is the owner OR if it's a shared goal and the user is linked to the owner
+      final canToggle = isOwner || (isSharedGoal && isLinkedUser);
+      
+      if (!canToggle) {
+        print('User $userId does not have permission to toggle goal $goalId');
+        return; // Don't perform the toggle
+      }
+
+      // If user is owner and wants to update the goal status, allow it
+      // If user is linked user and goal is shared, only update progress, not the goal itself
+      if (updateGoalStatus && isOwner) {
+        // Owner can update the goal document
         final originalCompletedStatus = goal.completed; // Store original status for rollback
         final updatedGoal = goal.copyWith(completed: completed);
 
         // Optimistically update the UI
-        final index = _goals.indexWhere((g) => g.id == goalId);
-        if (index != -1) {
-          _goals[index] = updatedGoal;
-        }
+        _goals[goalIndex] = updatedGoal;
         notifyListeners();
 
         try {
@@ -433,28 +451,32 @@ class GoalsProvider with ChangeNotifier {
           if (result == null) {
             // If API call fails, revert the UI
             final revertGoal = goal.copyWith(completed: originalCompletedStatus);
-            if (index != -1) {
-              _goals[index] = revertGoal;
-            }
+            _goals[goalIndex] = revertGoal;
             notifyListeners();
             print('Failed to update goal status, reverted UI.');
           } else {
             // If goal status update is successful, also update goal progress for heatmap
-            await toggleGoalProgressForUser(userId, goalId, completed);
+            // Use the goal owner's ID for progress tracking
+            String progressUserId = isOwner ? userId : goal.createdBy;
+            await toggleGoalProgressForUser(progressUserId, goalId, completed);
           }
         } catch (e) {
           // If API call throws an error, revert the UI
           final revertGoal = goal.copyWith(completed: originalCompletedStatus);
-          if (index != -1) {
-            _goals[index] = revertGoal;
-          }
+          _goals[goalIndex] = revertGoal;
           notifyListeners();
           print('Error updating goal status, reverted UI: $e');
         }
       } else {
-        final success = await toggleGoalProgressForUser(userId, goalId, completed);
+        // For linked users or progress-only updates, just update the progress
+        // Use the goal owner's ID for progress tracking when updating someone else's goal
+        String progressUserId = isOwner ? userId : goal.createdBy;
+        final success = await toggleGoalProgressForUser(progressUserId, goalId, completed);
         if (success) {
-          await loadGoals();
+          // For linked users, we shouldn't change the main goal's completed status in the UI
+          // The main goal's status should remain as set by the owner
+          // Only reload if needed to sync with server state
+          // await loadGoals();
         }
       }
     } catch (e) {

@@ -4,20 +4,23 @@ import '../models/goal.dart';
 import '../theme/app_theme.dart';
 import '../providers/goals_provider.dart';
 import '../providers/habit_hearts_auth_provider.dart';
+
 import 'gradient_progress_bar.dart';
 
 class ModernGoalItem extends StatefulWidget {
   final Goal goal;
-  final Function(Goal) onEdit;
-  final Function(Goal) onDelete;
+  final Function(Goal)? onEdit;  // Make nullable
+  final Function(Goal)? onDelete;  // Make nullable
   final Function(String) onToggle;
+  final String? currentUserId; // Add current user ID parameter
 
   const ModernGoalItem({
     super.key,
     required this.goal,
-    required this.onEdit,
-    required this.onDelete,
+    this.onEdit,  // Update to be optional
+    this.onDelete,  // Update to be optional
     required this.onToggle,
+    this.currentUserId, // Add the new parameter
   });
 
   @override
@@ -154,15 +157,42 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                       visible: widget.goal.creatorName.isNotEmpty,
                                       child: Padding(
                                         padding: const EdgeInsets.only(top: 2),
-                                        child: Text(
-                                          'by ${widget.goal.creatorName}',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: Theme.of(context).brightness == Brightness.dark 
-                                                ? AppColors.darkSecondaryTextColor 
-                                                : AppColors.secondaryTextColor,
-                                            fontStyle: FontStyle.italic,
-                                          ),
+                                        child: Consumer<HabitHeartsAuthProvider>(
+                                          builder: (context, authProvider, child) {
+                                            String displayText;
+                                            final currentUserId = authProvider.user?.uid;
+                                            
+                                            // Check if the goal was created by the current user
+                                            if (widget.goal.createdBy == currentUserId) {
+                                              displayText = 'by you';
+                                            } else {
+                                              // Check if the goal was created by a linked user
+                                              final isLinkedUser = authProvider.habitHeartsUser?.linkedUsers.contains(widget.goal.createdBy) == true;
+                                              if (isLinkedUser) {
+                                                displayText = 'by ${widget.goal.creatorName}';
+                                              } else {
+                                                displayText = 'by ${widget.goal.creatorName}';
+                                              }
+                                            }
+                                            
+                                            // For completed goals, show completion status
+                                            // Note: The current system doesn't track who specifically completed the goal,
+                                            // so we show the completion status without attribution
+                                            if (widget.goal.completed) {
+                                              displayText = '$displayText • completed';
+                                            }
+                                            
+                                            return Text(
+                                              displayText,
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: Theme.of(context).brightness == Brightness.dark 
+                                                    ? AppColors.darkSecondaryTextColor 
+                                                    : AppColors.secondaryTextColor,
+                                                fontStyle: FontStyle.italic,
+                                              ),
+                                            );
+                                          },
                                         ),
                                       ),
                                     ),
@@ -170,43 +200,58 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                 ),
                               ),
                               // Action buttons - positioned directly adjacent
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  SizedBox(
-                                    width: 24,
-                                    height: 24,
-                                    child: IconButton(
-                                      onPressed: () => widget.onEdit(widget.goal),
-                                      icon: Icon(
-                                        Icons.edit_outlined,
-                                        size: 20,
-                                        color: Theme.of(context).brightness == Brightness.dark
-                                            ? AppColors.darkTextColor
-                                            : AppColors.textColor,
-                                      ),
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      splashRadius: 20,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8), // Increased gap
-                                  SizedBox(
-                                    width: 24,
-                                    height: 24,
-                                    child: IconButton(
-                                      onPressed: () => widget.onDelete(widget.goal),
-                                      icon: Icon(
-                                        Icons.delete_outlined,
-                                        size: 20,
-                                        color: AppColors.coralRed,
-                                      ),
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      splashRadius: 20,
-                                    ),
-                                  ),
-                                ],
+                              Builder(
+                                builder: (context) {
+                                  // Show edit/delete buttons only if the callbacks are provided and user is the owner
+                                  bool isOwner = widget.goal.createdBy == widget.currentUserId;
+                                  if (widget.onEdit != null && widget.onDelete != null && isOwner) {
+                                    return Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        SizedBox(
+                                          width: 24,
+                                          height: 24,
+                                          child: IconButton(
+                                            onPressed: () {
+                                              widget.onEdit?.call(widget.goal);
+                                            },
+                                            icon: Icon(
+                                              Icons.edit_outlined,
+                                              size: 20,
+                                              color: Theme.of(context).brightness == Brightness.dark
+                                                  ? AppColors.darkTextColor
+                                                  : AppColors.textColor,
+                                            ),
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(),
+                                            splashRadius: 20,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8), // Increased gap
+                                        SizedBox(
+                                          width: 24,
+                                          height: 24,
+                                          child: IconButton(
+                                            onPressed: () {
+                                              widget.onDelete?.call(widget.goal);
+                                            },
+                                            icon: Icon(
+                                              Icons.delete_outlined,
+                                              size: 20,
+                                              color: AppColors.coralRed,
+                                            ),
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(),
+                                            splashRadius: 20,
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  } else {
+                                    // For non-owner viewing shared goals or other scenarios, show no action buttons
+                                    return Container(); // Empty container
+                                  }
+                                },
                               ),
                             ],
                           )
@@ -270,15 +315,42 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                       visible: widget.goal.creatorName.isNotEmpty,
                                       child: Padding(
                                         padding: const EdgeInsets.only(top: 2),
-                                        child: Text(
-                                          'by ${widget.goal.creatorName}',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: Theme.of(context).brightness == Brightness.dark 
-                                                ? AppColors.darkSecondaryTextColor 
-                                                : AppColors.secondaryTextColor,
-                                            fontStyle: FontStyle.italic,
-                                          ),
+                                        child: Consumer<HabitHeartsAuthProvider>(
+                                          builder: (context, authProvider, child) {
+                                            String displayText;
+                                            final currentUserId = authProvider.user?.uid;
+                                            
+                                            // Check if the goal was created by the current user
+                                            if (widget.goal.createdBy == currentUserId) {
+                                              displayText = 'by you';
+                                            } else {
+                                              // Check if the goal was created by a linked user
+                                              final isLinkedUser = authProvider.habitHeartsUser?.linkedUsers.contains(widget.goal.createdBy) == true;
+                                              if (isLinkedUser) {
+                                                displayText = 'by ${widget.goal.creatorName}';
+                                              } else {
+                                                displayText = 'by ${widget.goal.creatorName}';
+                                              }
+                                            }
+                                            
+                                            // For completed goals, show completion status
+                                            // Note: The current system doesn't track who specifically completed the goal,
+                                            // so we show the completion status without attribution
+                                            if (widget.goal.completed) {
+                                              displayText = '$displayText • completed';
+                                            }
+                                            
+                                            return Text(
+                                              displayText,
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: Theme.of(context).brightness == Brightness.dark 
+                                                    ? AppColors.darkSecondaryTextColor 
+                                                    : AppColors.secondaryTextColor,
+                                                fontStyle: FontStyle.italic,
+                                              ),
+                                            );
+                                          },
                                         ),
                                       ),
                                     ),
@@ -286,43 +358,54 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                 ),
                               ),
                               // Action buttons
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  SizedBox(
-                                    width: 24,
-                                    height: 24,
-                                    child: IconButton(
-                                      onPressed: () => widget.onEdit(widget.goal),
-                                      icon: Icon(
-                                        Icons.edit_outlined,
-                                        size: 20,
-                                        color: Theme.of(context).brightness == Brightness.dark
-                                            ? AppColors.darkTextColor
-                                            : AppColors.textColor,
-                                      ),
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      splashRadius: 20,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8), // Increased gap
-                                  SizedBox(
-                                    width: 24,
-                                    height: 24,
-                                    child: IconButton(
-                                      onPressed: () => widget.onDelete(widget.goal),
-                                      icon: Icon(
-                                        Icons.delete_outlined,
-                                        size: 20,
-                                        color: AppColors.coralRed,
-                                      ),
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      splashRadius: 20,
-                                    ),
-                                  ),
-                                ],
+                              Builder(
+                                builder: (context) {
+                                  // Show edit/delete buttons only if the callbacks are provided and user is the owner
+                                  bool isOwner = widget.goal.createdBy == widget.currentUserId;
+                                  if (widget.onEdit != null && widget.onDelete != null && isOwner) {
+                                    return Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        SizedBox(
+                                          width: 24,
+                                          height: 24,
+                                          child: IconButton(
+                                            onPressed: () => widget.onEdit?.call(widget.goal),
+                                            icon: Icon(
+                                              Icons.edit_outlined,
+                                              size: 20,
+                                              color: Theme.of(context).brightness == Brightness.dark
+                                                  ? AppColors.darkTextColor
+                                                  : AppColors.textColor,
+                                            ),
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(),
+                                            splashRadius: 20,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8), // Increased gap
+                                        SizedBox(
+                                          width: 24,
+                                          height: 24,
+                                          child: IconButton(
+                                            onPressed: () => widget.onDelete?.call(widget.goal),
+                                            icon: Icon(
+                                              Icons.delete_outlined,
+                                              size: 20,
+                                              color: AppColors.coralRed,
+                                            ),
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(),
+                                            splashRadius: 20,
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  } else {
+                                    // For non-owner viewing shared goals or other scenarios, show no action buttons
+                                    return Container(); // Empty container
+                                  }
+                                },
                               ),
                             ],
                           ),

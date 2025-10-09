@@ -46,8 +46,22 @@ class _GoalsScreenState extends State<GoalsScreen> with TickerProviderStateMixin
               final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
               final userId = authProvider.user?.uid ?? 'unknown';
               final goal = goalsProvider.goals.firstWhere((g) => g.id == goalId);
-              // Then update the backend
-              goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, !goal.completed, updateGoalStatus: true);
+              
+              // Check if the user can toggle - either owner or linked user of a shared goal
+              bool canToggle = goal.createdBy == userId || 
+                              (goal.isShared && 
+                               authProvider.habitHeartsUser?.linkedUsers.contains(goal.createdBy) == true);
+                              
+              if (canToggle) {
+                bool isOwner = goal.createdBy == userId;
+                // For owners, update both goal document and progress; for linked users, only update progress
+                goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, !goal.completed, updateGoalStatus: isOwner);
+              } else {
+                // Show a message if user doesn't have permission to toggle
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('You do not have permission to toggle this goal.')),
+                );
+              }
             },
           );
         },
@@ -151,12 +165,41 @@ class _GoalsList extends StatelessWidget {
       for (int i = 0; i < habits.length; i++) {
         final goal = habits[i];
         items.add(
-          ModernGoalItem(
-            key: ValueKey(goal.id),
-            goal: goal,
-            onEdit: (g) => _showEditGoalModal(context, g),
-            onDelete: (g) => _showDeleteConfirmationDialog(context, g),
-            onToggle: onToggleCompletion,
+          Consumer<HabitHeartsAuthProvider>(
+            builder: (context, authProvider, child) {
+              final currentUserId = authProvider.user?.uid;
+              final isOwner = goal.createdBy == currentUserId;
+              
+              return ModernGoalItem(
+                key: ValueKey(goal.id),
+                goal: goal,
+                onEdit: (g) => isOwner ? _showEditGoalModal(context, g) : null, // Disable if not owner
+                onDelete: (g) => isOwner ? _showDeleteConfirmationDialog(context, g) : null, // Disable if not owner
+                onToggle: (goalId) {
+                  // For shared habits, allow linked users to toggle completion
+                  final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
+                  final userId = authProvider.user?.uid ?? 'unknown';
+                  final goal = goalsProvider.goals.firstWhere((g) => g.id == goalId);
+                  
+                  // Check if the user can toggle - either owner or linked user of a shared habit
+                  bool canToggle = goal.createdBy == userId || 
+                                  (goal.isShared && 
+                                   authProvider.habitHeartsUser?.linkedUsers.contains(goal.createdBy) == true);
+                                  
+                  if (canToggle) {
+                    bool isOwner = goal.createdBy == userId;
+                    // For owners, update both goal document and progress; for linked users, only update progress
+                    goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, !goal.completed, updateGoalStatus: isOwner);
+                  } else {
+                    // Show a message if user doesn't have permission to toggle
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('You do not have permission to toggle this habit.')),
+                    );
+                  }
+                },
+                currentUserId: currentUserId,
+              );
+            },
           ),
         );
         
@@ -188,13 +231,42 @@ class _GoalsList extends StatelessWidget {
       for (int i = 0; i < nonHabits.length; i++) {
         final goal = nonHabits[i];
         items.add(
-            ModernGoalItem(
-              key: ValueKey(goal.id),
-              goal: goal,
-              onEdit: (g) => _showEditGoalModal(context, g),
-              onDelete: (g) => _showDeleteConfirmationDialog(context, g),
-              onToggle: onToggleCompletion,
-            ),
+          Consumer<HabitHeartsAuthProvider>(
+            builder: (context, authProvider, child) {
+              final currentUserId = authProvider.user?.uid;
+              final isOwner = goal.createdBy == currentUserId;
+              
+              return ModernGoalItem(
+                key: ValueKey(goal.id),
+                goal: goal,
+                onEdit: (g) => isOwner ? _showEditGoalModal(context, g) : null, // Disable if not owner
+                onDelete: (g) => isOwner ? _showDeleteConfirmationDialog(context, g) : null, // Disable if not owner
+                onToggle: (goalId) {
+                  // For shared goals, allow linked users to toggle completion
+                  final authProvider = Provider.of<HabitHeartsAuthProvider>(context, listen: false);
+                  final userId = authProvider.user?.uid ?? 'unknown';
+                  final goal = goalsProvider.goals.firstWhere((g) => g.id == goalId);
+                  
+                  // Check if the user can toggle - either owner or linked user of a shared goal
+                  bool canToggle = goal.createdBy == userId || 
+                                  (goal.isShared && 
+                                   authProvider.habitHeartsUser?.linkedUsers.contains(goal.createdBy) == true);
+                                  
+                  if (canToggle) {
+                    bool isOwner = goal.createdBy == userId;
+                    // For owners, update both goal document and progress; for linked users, only update progress
+                    goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, !goal.completed, updateGoalStatus: isOwner);
+                  } else {
+                    // Show a message if user doesn't have permission to toggle
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('You do not have permission to toggle this goal.')),
+                    );
+                  }
+                },
+                currentUserId: currentUserId,
+              );
+            },
+          ),
 
         );
         
