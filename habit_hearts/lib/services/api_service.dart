@@ -665,6 +665,40 @@ class ApiService {
       return null;
     }
   }
+
+  // New endpoint for toggling shared goal completion with shared status but individual streaks
+  static Future<Map<String, dynamic>?> toggleSharedGoalCompletion(String goalId, bool completed) async {
+    try {
+      final headers = await _getHeaders();
+      final Map<String, dynamic> requestBody = {
+        'completed': completed,
+      };
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/goals/$goalId/toggle-shared-completion'),
+        headers: headers,
+        body: json.encode(requestBody),
+      );
+      
+      if (response.statusCode == 200) {
+        final result = json.decode(response.body);
+        
+        // Clear user cache
+        _clearCache('user_${result['userId']}');
+        // Clear goals cache
+        _clearCache('goals_${result['userId']}');
+        
+        return result;
+      } else if (response.statusCode == 401 || response.statusCode == 403) {
+        // Unauthorized - token might be invalid/expired
+        print('Authentication error: ${response.statusCode} - ${response.body}');
+      }
+      return null;
+    } catch (e) {
+      print('Error toggling shared goal completion: $e');
+      return null;
+    }
+  }
   
   // Get user's goal progress data
   static Future<habit_hearts_user.User?> getUserGoalProgress(String userId) async {

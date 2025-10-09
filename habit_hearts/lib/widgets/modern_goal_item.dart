@@ -35,11 +35,11 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
   void initState() {
     super.initState();
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 100),
+      duration: const Duration(milliseconds: 150), // Slightly longer for a smoother feel
       vsync: this,
     );
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
   }
 
@@ -50,12 +50,12 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
   }
 
   void _handleToggle() {
-    // Start animation
+    // Immediately call the toggle function for responsiveness
+    widget.onToggle(widget.goal.id);
+
+    // Play the animation for visual feedback
     _animationController.forward().then((_) {
-      // Reset animation
       _animationController.reverse();
-      // Call the toggle function
-      widget.onToggle(widget.goal.id);
     });
   }
 
@@ -99,11 +99,17 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                         ? Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              // Checkbox
-                              Icon(
-                                widget.goal.completed ? Icons.check_box : Icons.check_box_outline_blank,
-                                color: widget.goal.completed ? AppColors.vibrantGreen : AppColors.secondaryTextColor,
-                                size: 24,
+                              // Checkbox - use current user's progress for shared goals, otherwise use overall completion
+                              Consumer<GoalsProvider>(
+                                builder: (context, goalsProvider, child) {
+                                  final isCurrentUserCompleted = goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now());
+                                  
+                                  return Icon(
+                                    isCurrentUserCompleted ? Icons.check_box : Icons.check_box_outline_blank,
+                                    color: isCurrentUserCompleted ? AppColors.vibrantGreen : AppColors.secondaryTextColor,
+                                    size: 24,
+                                  );
+                                },
                               ),
                               const SizedBox(width: 12),
 
@@ -121,19 +127,25 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                   children: [
                                     Row(
                                       children: [
-                                        Flexible(
-                                          child: Text(
-                                            widget.goal.text,
-                                            style: TextStyle(
-                                              decoration: widget.goal.completed ? TextDecoration.lineThrough : null,
-                                              color: widget.goal.completed
-                                                  ? (Theme.of(context).brightness == Brightness.dark ? AppColors.darkSecondaryTextColor : AppColors.secondaryTextColor)
-                                                  : (Theme.of(context).brightness == Brightness.dark ? AppColors.darkTextColor : AppColors.textColor),
-                                              fontWeight: widget.goal.completed ? FontWeight.normal : FontWeight.w600,
-                                              fontSize: 16,
-                                            ),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
+                                        Consumer<GoalsProvider>(
+                                          builder: (context, goalsProvider, child) {
+                                            final isCurrentUserCompleted = goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now());
+                                            
+                                            return Flexible(
+                                              child: Text(
+                                                widget.goal.text,
+                                                style: TextStyle(
+                                                  decoration: isCurrentUserCompleted ? TextDecoration.lineThrough : null,
+                                                  color: isCurrentUserCompleted
+                                                      ? (Theme.of(context).brightness == Brightness.dark ? AppColors.darkSecondaryTextColor : AppColors.secondaryTextColor)
+                                                      : (Theme.of(context).brightness == Brightness.dark ? AppColors.darkTextColor : AppColors.textColor),
+                                                  fontWeight: isCurrentUserCompleted ? FontWeight.normal : FontWeight.w600,
+                                                  fontSize: 16,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            );
+                                          },
                                         ),
                                         if (widget.goal.isShared) ...[
                                           const SizedBox(width: 8),
@@ -157,8 +169,8 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                       visible: widget.goal.creatorName.isNotEmpty,
                                       child: Padding(
                                         padding: const EdgeInsets.only(top: 2),
-                                        child: Consumer<HabitHeartsAuthProvider>(
-                                          builder: (context, authProvider, child) {
+                                        child: Consumer2<HabitHeartsAuthProvider, GoalsProvider>(
+                                          builder: (context, authProvider, goalsProvider, child) {
                                             String displayText;
                                             final currentUserId = authProvider.user?.uid;
                                             
@@ -175,11 +187,15 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                               }
                                             }
                                             
-                                            // For completed goals, show completion status
-                                            // Note: The current system doesn't track who specifically completed the goal,
-                                            // so we show the completion status without attribution
-                                            if (widget.goal.completed) {
-                                              displayText = '$displayText • completed';
+                                            final isCurrentUserCompleted = goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now());
+                                                
+                                            if (isCurrentUserCompleted) {
+                                              // Check if this is the current user's completion for shared goals
+                                              if (widget.goal.isShared && currentUserId != null) {
+                                                displayText = '$displayText • completed by you';
+                                              } else {
+                                                displayText = '$displayText • completed';
+                                              }
                                             }
                                             
                                             return Text(
@@ -258,11 +274,17 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                         : Row( // Full layout for goals with progress
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              // Checkbox
-                              Icon(
-                                widget.goal.completed ? Icons.check_box : Icons.check_box_outline_blank,
-                                color: widget.goal.completed ? AppColors.vibrantGreen : AppColors.secondaryTextColor,
-                                size: 24,
+                              // Checkbox - use current user's progress for shared goals, otherwise use overall completion
+                              Consumer<GoalsProvider>(
+                                builder: (context, goalsProvider, child) {
+                                  final isCurrentUserCompleted = goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now());
+                                  
+                                  return Icon(
+                                    isCurrentUserCompleted ? Icons.check_box : Icons.check_box_outline_blank,
+                                    color: isCurrentUserCompleted ? AppColors.vibrantGreen : AppColors.secondaryTextColor,
+                                    size: 24,
+                                  );
+                                },
                               ),
                               const SizedBox(width: 12),
                               // Emoji if available
@@ -279,19 +301,25 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                   children: [
                                     Row(
                                       children: [
-                                        Flexible(
-                                          child: Text(
-                                            widget.goal.text,
-                                            style: TextStyle(
-                                              decoration: widget.goal.completed ? TextDecoration.lineThrough : null,
-                                              color: widget.goal.completed
-                                                  ? (Theme.of(context).brightness == Brightness.dark ? AppColors.darkSecondaryTextColor : AppColors.secondaryTextColor)
-                                                  : (Theme.of(context).brightness == Brightness.dark ? AppColors.darkTextColor : AppColors.textColor),
-                                              fontWeight: widget.goal.completed ? FontWeight.normal : FontWeight.w600,
-                                              fontSize: 16,
-                                            ),
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
+                                        Consumer<GoalsProvider>(
+                                          builder: (context, goalsProvider, child) {
+                                            final isCurrentUserCompleted = goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now());
+                                            
+                                            return Flexible(
+                                              child: Text(
+                                                widget.goal.text,
+                                                style: TextStyle(
+                                                  decoration: isCurrentUserCompleted ? TextDecoration.lineThrough : null,
+                                                  color: isCurrentUserCompleted
+                                                      ? (Theme.of(context).brightness == Brightness.dark ? AppColors.darkSecondaryTextColor : AppColors.secondaryTextColor)
+                                                      : (Theme.of(context).brightness == Brightness.dark ? AppColors.darkTextColor : AppColors.textColor),
+                                                  fontWeight: isCurrentUserCompleted ? FontWeight.normal : FontWeight.w600,
+                                                  fontSize: 16,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            );
+                                          },
                                         ),
                                         if (widget.goal.isShared) ...[
                                           const SizedBox(width: 8),
@@ -315,8 +343,8 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                       visible: widget.goal.creatorName.isNotEmpty,
                                       child: Padding(
                                         padding: const EdgeInsets.only(top: 2),
-                                        child: Consumer<HabitHeartsAuthProvider>(
-                                          builder: (context, authProvider, child) {
+                                        child: Consumer2<HabitHeartsAuthProvider, GoalsProvider>(
+                                          builder: (context, authProvider, goalsProvider, child) {
                                             String displayText;
                                             final currentUserId = authProvider.user?.uid;
                                             
@@ -333,11 +361,15 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                               }
                                             }
                                             
-                                            // For completed goals, show completion status
-                                            // Note: The current system doesn't track who specifically completed the goal,
-                                            // so we show the completion status without attribution
-                                            if (widget.goal.completed) {
-                                              displayText = '$displayText • completed';
+                                            final isCurrentUserCompleted = goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now());
+                                                
+                                            if (isCurrentUserCompleted) {
+                                              // Check if this is the current user's completion for shared goals
+                                              if (widget.goal.isShared && currentUserId != null) {
+                                                displayText = '$displayText • completed by you';
+                                              } else {
+                                                displayText = '$displayText • completed';
+                                              }
                                             }
                                             
                                             return Text(

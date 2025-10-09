@@ -427,6 +427,8 @@ class GoalsProvider with ChangeNotifier {
       final isLinkedUser = _authProvider?.habitHeartsUser?.linkedUsers.contains(goal.createdBy) == true;
       final isSharedGoal = goal.isShared;
       
+      print('Toggle attempt - UserId: $userId, GoalCreatedBy: ${goal.createdBy}, IsOwner: $isOwner, IsLinkedUser: $isLinkedUser, IsSharedGoal: $isSharedGoal');
+      
       // Allow toggle if user is the owner OR if it's a shared goal and the user is linked to the owner
       final canToggle = isOwner || (isSharedGoal && isLinkedUser);
       
@@ -436,7 +438,7 @@ class GoalsProvider with ChangeNotifier {
       }
 
       // If user is owner and wants to update the goal status, allow it
-      // If user is linked user and goal is shared, only update progress, not the goal itself
+      // If user is linked user and goal is shared, update the shared completion status
       if (updateGoalStatus && isOwner) {
         // Owner can update the goal document
         final originalCompletedStatus = goal.completed; // Store original status for rollback
@@ -456,8 +458,8 @@ class GoalsProvider with ChangeNotifier {
             print('Failed to update goal status, reverted UI.');
           } else {
             // If goal status update is successful, also update goal progress for heatmap
-            // Use the goal owner's ID for progress tracking
-            String progressUserId = isOwner ? userId : goal.createdBy;
+            // Use the current user's ID for progress tracking
+            String progressUserId = userId; // Use current user's ID for their progress tracking
             await toggleGoalProgressForUser(progressUserId, goalId, completed);
           }
         } catch (e) {
@@ -467,16 +469,38 @@ class GoalsProvider with ChangeNotifier {
           notifyListeners();
           print('Error updating goal status, reverted UI: $e');
         }
+      } else if (isSharedGoal && isLinkedUser) {
+        // For linked users of shared goals, use the shared completion endpoint
+        // This updates both the shared status and the individual streaks
+        print('Linked user $userId updating shared goal $goalId with completed: $completed');
+        final result = await ApiService.toggleSharedGoalCompletion(goalId, completed);
+        if (result != null) {
+          // Update local state with new data for proper UI display
+          if (result['currentStreak'] != null) {
+            _currentStreaks[goalId] = result['currentStreak'];
+          }
+          if (result['longestStreak'] != null) {
+            _longestStreaks[goalId] = result['longestStreak'];
+          }
+          
+          // Force a reload of the goal's progress to ensure correct UI display
+          await loadGoals(); // This will refresh all data and UI
+          print('Successfully updated shared goal for linked user $userId and reloaded goals');
+        } else {
+          print('Failed to update shared goal for linked user $userId');
+        }
       } else {
-        // For linked users or progress-only updates, just update the progress
-        // Use the goal owner's ID for progress tracking when updating someone else's goal
-        String progressUserId = isOwner ? userId : goal.createdBy;
+        // For non-shared goals or other progress-only updates, just update the progress
+        // Use the current user's ID for progress tracking, not the goal owner's ID
+        String progressUserId = userId; // Use the current user's ID for their own progress tracking
+        print('User $userId updating progress for goal $goalId with completed: $completed');
         final success = await toggleGoalProgressForUser(progressUserId, goalId, completed);
         if (success) {
-          // For linked users, we shouldn't change the main goal's completed status in the UI
-          // The main goal's status should remain as set by the owner
-          // Only reload if needed to sync with server state
-          // await loadGoals();
+          // Force a reload of the goal's progress to ensure correct UI display
+          await loadGoals(); // This will refresh all data and UI
+          print('Successfully updated progress for user $userId and reloaded goals');
+        } else {
+          print('Failed to update progress for user $userId');
         }
       }
     } catch (e) {
