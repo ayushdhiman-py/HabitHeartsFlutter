@@ -22,8 +22,11 @@ class GoalsProvider with ChangeNotifier {
   Map<String, Map<String, String>> _userGoalProgress = {}; // goalId -> {yearMonth -> bitString}
   Map<String, int> _currentStreaks = {}; // goalId -> streak count
   Map<String, int> _longestStreaks = {}; // goalId -> streak count
+  // Map to track ongoing toggle operations to prevent duplicate requests
+  final Map<String, bool> _toggleOperations = {};
 
   HabitHeartsAuthProvider? _authProvider;
+  List<String>? _previousLinkedUsers;
 
   List<Goal> get goals => _goals;
   bool get isLoading => _isLoading;
@@ -32,13 +35,62 @@ class GoalsProvider with ChangeNotifier {
   Map<String, int> get longestStreaks => _longestStreaks;
 
   void update(HabitHeartsAuthProvider authProvider) {
+    // Remove previous listener if exists
+    _removeAuthListener();
+    
     _authProvider = authProvider;
+    
+    // Add listener to detect when linked users change
+    _addAuthListener();
+    
     if (_authProvider != null && _authProvider!.isAuthenticated) {
       loadGoals();
     } else {
       _goals = [];
       notifyListeners();
     }
+  }
+
+  void _addAuthListener() {
+    _authProvider?.addListener(_handleAuthChange);
+    // Store the initial linked users
+    _previousLinkedUsers = List.from(_authProvider?.habitHeartsUser?.linkedUsers ?? []);
+  }
+
+  void _removeAuthListener() {
+    _authProvider?.removeListener(_handleAuthChange);
+  }
+
+  void _handleAuthChange() {
+    // Check if linked users have changed
+    final currentLinkedUsers = _authProvider?.habitHeartsUser?.linkedUsers ?? [];
+    final previous = _previousLinkedUsers ?? [];
+    
+    bool linkedUsersChanged = false;
+    
+    if (currentLinkedUsers.length != previous.length) {
+      linkedUsersChanged = true;
+    } else {
+      // Check if elements are the same
+      Set<String> currentSet = currentLinkedUsers.toSet();
+      Set<String> previousSet = previous.toSet();
+      
+      if (currentSet.difference(previousSet).isNotEmpty || previousSet.difference(currentSet).isNotEmpty) {
+        linkedUsersChanged = true;
+      }
+    }
+    
+    if (linkedUsersChanged) {
+      _previousLinkedUsers = List.from(currentLinkedUsers);
+      // Reload goals to reflect the change in linked users
+      loadGoals();
+    }
+  }
+
+  @override
+  void dispose() {
+    _removeAuthListener();
+    super.dispose();
   }
 
   // Load goals and progress from API
@@ -413,6 +465,18 @@ class GoalsProvider with ChangeNotifier {
 
   // Optimistically toggle entire goal completion status (used by goal items)
   Future<void> optimisticallyToggleGoalProgress(String userId, String goalId, bool completed, {bool updateGoalStatus = true}) async {
+    // Create a key for tracking operations (userId-goalId) to prevent duplicates
+    String operationKey = "$goalId-$userId";
+    
+    // Prevent duplicate toggle operations for the same goal-user combination
+    if (_toggleOperations[operationKey] == true) {
+      print('Toggle operation already in progress for goal $goalId and user $userId, skipping duplicate request');
+      return;
+    }
+    
+    // Mark this operation as in progress
+    _toggleOperations[operationKey] = true;
+
     try {
       final goalIndex = _goals.indexWhere((g) => g.id == goalId);
       if (goalIndex == -1) {
@@ -484,6 +548,16 @@ class GoalsProvider with ChangeNotifier {
             _goals[goalIndex] = _goals[goalIndex].copyWith(
               completed: result['completed'] ?? completed  // Use result value, fallback to intended value
             );
+            
+            // Refresh the user's individual goal progress from the API response
+            // The result from toggleSharedGoalCompletion should contain updated progress data
+            if (result['monthlyData'] != null && result['monthlyData'] is Map<String, String>) {
+              if (!_userGoalProgress.containsKey(goalId)) {
+                _userGoalProgress[goalId] = {};
+              }
+              _userGoalProgress[goalId]!.addAll(Map<String, String>.from(result['monthlyData']));
+            }
+            
             notifyListeners();
             print('Successfully updated shared goal for linked user $userId, completed: ${result['completed']}');
           } else {
@@ -526,6 +600,9 @@ class GoalsProvider with ChangeNotifier {
       }
     } catch (e) {
       print('Error toggling goal progress: $e');
+    } finally {
+      // Always clear the operation flag in the finally block
+      _toggleOperations[operationKey] = false;
     }
   }
 

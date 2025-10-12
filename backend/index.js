@@ -260,6 +260,39 @@ app.post('/api/users/batch', authenticateToken, async (req, res) => {
   }
 });
 
+// Function to generate a unique code that doesn't already exist
+async function generateUniqueCode() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let uniqueCode;
+  let codeExists = true;
+  
+  // Try up to 10 times to generate a unique code
+  for (let attempts = 0; attempts < 10; attempts++) {
+    // Generate a random 8-character code
+    uniqueCode = '';
+    for (let i = 0; i < 8; i++) {
+      uniqueCode += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    
+    // Check if this code already exists in the database
+    const existingUserSnapshot = await db.collection('users')
+      .where('uniqueCode', '==', uniqueCode)
+      .limit(1)
+      .get();
+    
+    if (existingUserSnapshot.empty) {
+      codeExists = false;
+      break; // Found a unique code
+    }
+  }
+  
+  if (codeExists) {
+    throw new Error('Unable to generate unique code after multiple attempts');
+  }
+  
+  return uniqueCode;
+}
+
 app.post('/api/users', authenticateToken, async (req, res) => {
   try {
     const userData = req.body;
@@ -308,6 +341,22 @@ app.post('/api/users', authenticateToken, async (req, res) => {
       await db.collection('users').doc(sanitizedUserData.uid).set(updateData, { merge: true });
     } else {
       // For new users, allow setting everything including uniqueCode and createdAt
+      if (!sanitizedUserData.uniqueCode) {
+        // No unique code provided, generate one automatically
+        sanitizedUserData.uniqueCode = await generateUniqueCode();
+        console.log(`Generated unique code ${sanitizedUserData.uniqueCode} for new user ${sanitizedUserData.uid}`);
+      } else {
+        // If a uniqueCode is provided, verify it doesn't already exist
+        const existingUserWithCode = await db.collection('users')
+          .where('uniqueCode', '==', sanitizedUserData.uniqueCode)
+          .limit(1)
+          .get();
+        
+        if (!existingUserWithCode.empty) {
+          return res.status(409).json({ message: 'Unique code already exists, please try again' });
+        }
+      }
+      
       // If no createdAt provided, set it to current timestamp
       if (!sanitizedUserData.createdAt) {
         sanitizedUserData.createdAt = admin.firestore.FieldValue.serverTimestamp();
@@ -885,10 +934,12 @@ app.put('/api/tasks/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ message: 'Task not found' });
     }
     
-    // Check if the task belongs to the authenticated user
     const task = taskDoc.data();
-    if (task.createdBy !== req.user.uid) {
-      return res.status(403).json({ message: 'Unauthorized to update this task' });
+    const isCreator = task.createdBy === req.user.uid;
+    
+    // Check if the task belongs to the authenticated user (creator)
+    if (!isCreator) {
+      return res.status(403).json({ message: 'Unauthorized to update this task - only creator can modify task details' });
     }
     
     // Sanitize input
@@ -951,10 +1002,12 @@ app.delete('/api/tasks/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ message: 'Task not found' });
     }
     
-    // Check if the task belongs to the authenticated user
     const task = taskDoc.data();
-    if (task.createdBy !== req.user.uid) {
-      return res.status(403).json({ message: 'Unauthorized to delete this task' });
+    const isCreator = task.createdBy === req.user.uid;
+    
+    // Only creator can delete the task
+    if (!isCreator) {
+      return res.status(403).json({ message: 'Unauthorized to delete this task - only creator can delete tasks' });
     }
     
     await db.collection('tasks').doc(taskId).delete();
@@ -1894,24 +1947,45 @@ app.post('/api/calendarEvents', async (req, res) => {
   }
 });
 
-app.put('/api/calendarEvents/:id', async (req, res) => {
+app.put('/api/calendarEvents/:id', authenticateToken, async (req, res) => {
   try {
     const eventData = req.body;
-    // Convert milliseconds to Firestore Timestamps
-    if (eventData.createdAt) {
-      eventData.createdAt = admin.firestore.Timestamp.fromMillis(eventData.createdAt);
-    }
-    if (eventData.updatedAt) {
-      eventData.updatedAt = admin.firestore.Timestamp.fromMillis(eventData.updatedAt);
-    }
-    if (eventData.date) {
-      eventData.date = admin.firestore.Timestamp.fromMillis(eventData.date);
-    }
-    if (eventData.endDate) {
-      eventData.endDate = admin.firestore.Timestamp.fromMillis(eventData.endDate);
+    const eventId = req.params.id;
+    
+    // Check if the event document exists before updating
+    const eventDoc = await db.collection('calendarEvents').doc(eventId).get();
+    if (!eventDoc.exists) {
+      return res.status(404).json({ message: 'Calendar event not found' });
     }
     
-    await db.collection('calendarEvents').doc(req.params.id).update(eventData);
+    const event = eventDoc.data();
+    
+    // Check if the event belongs to the authenticated user (creator)
+    if (event.createdBy !== req.user.uid) {
+      return res.status(403).json({ message: 'Unauthorized to update this calendar event - only creator can modify events' });
+    }
+    
+    // Sanitize input - only allow updating specific fields
+    const allowedFields = ['title', 'description', 'date', 'endDate', 'startTime', 'endTime', 'completed', 'creatorName', 'status', 'emoji', 'updatedAt'];
+    const sanitizedEventData = {};
+    for (const field of allowedFields) {
+      if (eventData[field] !== undefined) {
+        sanitizedEventData[field] = eventData[field];
+      }
+    }
+    
+    // Convert milliseconds to Firestore Timestamps
+    if (sanitizedEventData.updatedAt) {
+      sanitizedEventData.updatedAt = admin.firestore.Timestamp.fromMillis(sanitizedEventData.updatedAt);
+    }
+    if (sanitizedEventData.date) {
+      sanitizedEventData.date = admin.firestore.Timestamp.fromMillis(sanitizedEventData.date);
+    }
+    if (sanitizedEventData.endDate) {
+      sanitizedEventData.endDate = admin.firestore.Timestamp.fromMillis(sanitizedEventData.endDate);
+    }
+    
+    await db.collection('calendarEvents').doc(eventId).update(sanitizedEventData);
     res.status(200).json({ message: 'Calendar event updated successfully' });
   } catch (error) {
     console.error('Error updating calendar event:', error);
@@ -1919,9 +1993,24 @@ app.put('/api/calendarEvents/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/calendarEvents/:id', async (req, res) => {
+app.delete('/api/calendarEvents/:id', authenticateToken, async (req, res) => {
   try {
-    await db.collection('calendarEvents').doc(req.params.id).delete();
+    const eventId = req.params.id;
+    
+    // Check if the event document exists before deleting
+    const eventDoc = await db.collection('calendarEvents').doc(eventId).get();
+    if (!eventDoc.exists) {
+      return res.status(404).json({ message: 'Calendar event not found' });
+    }
+    
+    const event = eventDoc.data();
+    
+    // Only creator can delete the event
+    if (event.createdBy !== req.user.uid) {
+      return res.status(403).json({ message: 'Unauthorized to delete this calendar event - only creator can delete events' });
+    }
+    
+    await db.collection('calendarEvents').doc(eventId).delete();
     res.status(200).json({ message: 'Calendar event deleted successfully' });
   } catch (error) {
     console.error('Error deleting calendar event:', error);
@@ -1979,24 +2068,29 @@ app.post('/api/goals/:goalId/toggle-shared-completion', authenticateToken, async
       return res.status(403).json({ message: 'Unauthorized to toggle completion for this goal' });
     }
 
-    // Update the MAIN GOAL's completion status
-    const updateData = {
-      completed: completed,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    };
-    
-    // Only update completedBy if the goal is being completed (not uncompleted)
-    if (completed) {
-      updateData.completedBy = requestUserId;
-    } else {
-      // When uncompleting, set completedBy to null if the current user was the one who completed it
-      if (goalData.completedBy === requestUserId) {
-        updateData.completedBy = null;
+    // Update the MAIN GOAL's completion status only if the requesting user is the creator
+    // For linked users, only update their individual progress for streak tracking
+    if (goalData.createdBy === requestUserId) {
+      const updateData = {
+        completed: completed,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+      
+      // Only update completedBy if the goal is being completed (not uncompleted)
+      if (completed) {
+        updateData.completedBy = requestUserId;
+      } else {
+        // When uncompleting, set completedBy to null if the current user was the one who completed it
+        if (goalData.completedBy === requestUserId) {
+          updateData.completedBy = null;
+        }
       }
+      
+      console.log(`DEBUG: Updating main goal ${goalId} with data:`, updateData);
+      await db.collection('goals').doc(goalId).update(updateData);
+    } else {
+      console.log(`DEBUG: Linked user ${requestUserId} updating only their individual progress for goal ${goalId}`);
     }
-    
-    console.log(`DEBUG: Updating goal ${goalId} with data:`, updateData);
-    await db.collection('goals').doc(goalId).update(updateData);
 
     // Also update the user-specific progress for streak tracking
     // This will maintain individual streaks while sharing the completion status
@@ -2098,6 +2192,7 @@ app.post('/api/goals/:goalId/toggle-shared-completion', authenticateToken, async
       completedByName: completedByDisplayName,
       currentStreak: goalProgress[goalId].currentStreak,
       longestStreak: goalProgress[goalId].longestStreak,
+      monthlyData: goalProgress[goalId].monthlyData, // Include monthly data for the frontend to update individual progress
       goalId: goalId,
       userId: requestUserId
     });
@@ -2600,22 +2695,27 @@ app.post('/api/tasks/:taskId/toggle-shared-completion', async (req, res) => {
       return res.status(403).json({ message: 'Unauthorized to toggle completion for this task' });
     }
     
-    // Update the MAIN TASK's completion status
-    console.log('DEBUG: Updating main task completion status to:', completed, 'for user:', requestUserId);
-    const updateData = {
-      completed: completed,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    };
-    
-    // Only update completedBy if the task is being completed (not uncompleted)
-    if (completed) {
-      updateData.completedBy = requestUserId;
+    // Update the MAIN TASK's completion status only if the requesting user is the creator
+    // For linked users, only update their individual completion status
+    if (taskData.createdBy === requestUserId) {
+      console.log('DEBUG: Updating main task completion status to:', completed, 'for creator:', requestUserId);
+      const updateData = {
+        completed: completed,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+      
+      // Only update completedBy if the task is being completed (not uncompleted)
+      if (completed) {
+        updateData.completedBy = requestUserId;
+      } else {
+        // When uncompleting, set completedBy to null
+        updateData.completedBy = null;
+      }
+      
+      await db.collection('tasks').doc(taskId).update(updateData);
     } else {
-      // When uncompleting, set completedBy to null
-      updateData.completedBy = null;
+      console.log('DEBUG: Linked user updating only their individual completion status for task:', taskId);
     }
-    
-    await db.collection('tasks').doc(taskId).update(updateData);
     
     // Also update the user-specific completion status (for consistency with existing design)
     const requestUserDoc = await db.collection('users').doc(requestUserId).get();
@@ -2753,22 +2853,27 @@ app.post('/api/user/:userId/task/:taskId/toggle', async (req, res) => {
       return res.status(403).json({ message: 'Unauthorized to toggle completion for this task' });
     }
     
-    // Update the MAIN TASK's completion status
-    console.log('DEBUG: Updating main task completion status to:', completed, 'for user:', requestUserId);
-    const updateData = {
-      completed: completed,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    };
-    
-    // Only update completedBy if the task is being completed (not uncompleted)
-    if (completed) {
-      updateData.completedBy = requestUserId;
+    // Update the MAIN TASK's completion status only if the requesting user is the creator
+    // For linked users, only update their individual completion status
+    if (taskData.createdBy === requestUserId) {
+      console.log('DEBUG: Updating main task completion status to:', completed, 'for creator:', requestUserId);
+      const updateData = {
+        completed: completed,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+      
+      // Only update completedBy if the task is being completed (not uncompleted)
+      if (completed) {
+        updateData.completedBy = requestUserId;
+      } else {
+        // When uncompleting, set completedBy to null
+        updateData.completedBy = null;
+      }
+      
+      await db.collection('tasks').doc(taskId).update(updateData);
     } else {
-      // When uncompleting, set completedBy to null
-      updateData.completedBy = null;
+      console.log('DEBUG: Linked user updating only their individual completion status for task:', taskId);
     }
-    
-    await db.collection('tasks').doc(taskId).update(updateData);
     
     // Also update the user-specific completion status (for consistency with existing design)
     const userDoc = await db.collection('users').doc(userId).get();

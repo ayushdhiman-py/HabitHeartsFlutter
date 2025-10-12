@@ -16,6 +16,71 @@ class ApiService {
   }
   
   static String get baseUrl => _baseUrl;
+  
+  // Cache management methods
+  // Cache expiry duration (1 minute for frequently changing data like tasks, 5 minutes for user data)
+  static const Duration _userCacheExpiry = Duration(minutes: 5);
+  static const Duration _tasksCacheExpiry = Duration(minutes: 1);
+  static const Duration _goalsCacheExpiry = Duration(minutes: 1);
+  static const Duration _calendarEventsCacheExpiry = Duration(minutes: 2);
+  static const Duration _defaultCacheExpiry = Duration(minutes: 5);
+  
+  static String _createCacheKey(String endpoint, String userId, [String? additionalParams]) {
+    return '$endpoint:$userId${additionalParams != null ? ':$additionalParams' : ''}';
+  }
+  
+  static bool _isCacheValid(String cacheKey, Duration? expiryDuration) {
+    if (!_cacheTimestamps.containsKey(cacheKey)) return false;
+    final timestamp = _cacheTimestamps[cacheKey]!;
+    
+    // Use passed expiryDuration or compute based on data type
+    Duration actualExpiryDuration = expiryDuration ?? _defaultCacheExpiry;
+    
+    // If no expiryDuration was passed, compute based on key prefix
+    if (expiryDuration == null) {
+      if (cacheKey.startsWith('task_')) {
+        actualExpiryDuration = _tasksCacheExpiry; // 1 minute for tasks (frequently changing)
+      } else if (cacheKey.startsWith('goal_')) {
+        actualExpiryDuration = _goalsCacheExpiry; // 1 minute for goals (frequently changing)
+      } else if (cacheKey.startsWith('calendarEvent_')) {
+        actualExpiryDuration = _calendarEventsCacheExpiry; // 2 minutes for calendar events
+      } else if (cacheKey.startsWith('user_')) {
+        actualExpiryDuration = _userCacheExpiry; // 5 minutes for user data (less frequently changing)
+      } else if (cacheKey.startsWith('goalProgress_')) {
+        actualExpiryDuration = _tasksCacheExpiry; // 1 minute for goal progress (frequently changing)
+      }
+    }
+    
+    return DateTime.now().isBefore(timestamp.add(actualExpiryDuration));
+  }
+  
+  static T? _getCachedValue<T>(String cacheKey) {
+    if (_isCacheValid(cacheKey, null)) { // Use smart timeout logic
+      return _cache[cacheKey] as T?;
+    }
+    return null;
+  }
+  
+  static void _setCacheValue<T>(String cacheKey, T value) {
+    _cache[cacheKey] = value;
+    _cacheTimestamps[cacheKey] = DateTime.now();
+  }
+  
+  static void _clearCache(String key) {
+    _cache.remove(key);
+    _cacheTimestamps.remove(key);
+  }
+  
+  static void clearAllCache() {
+    _cache.clear();
+    _cacheTimestamps.clear();
+  }
+  
+  static void clearCacheForUser(String userId) {
+    _cache.removeWhere((key, value) => key.contains(userId));
+    _cacheTimestamps.removeWhere((key, value) => key.contains(userId));
+  }
+  
   static const String usersEndpoint = '/api/users';
   static const String tasksEndpoint = '/api/tasks';
   static const String goalsEndpoint = '/api/goals';
@@ -57,47 +122,12 @@ class ApiService {
   static final Map<String, dynamic> _cache = {};
   static final Map<String, DateTime> _cacheTimestamps = {};
 
-  // Cache timeout (5 minutes)
-  static const Duration _cacheTimeout = Duration(minutes: 5);
 
-  // Helper method to check if cache is valid
-  static bool _isCacheValid(String key) {
-    if (!_cache.containsKey(key)) return false;
-    final timestamp = _cacheTimestamps[key];
-    if (timestamp == null) return false;
-    return DateTime.now().difference(timestamp) < _cacheTimeout;
-  }
-
-  // Helper method to get cached data
-  static T? _getCachedData<T>(String key) {
-    if (_isCacheValid(key)) {
-      return _cache[key] as T?;
-    }
-    return null;
-  }
-
-  // Helper method to set cached data
-  static void _setCachedData<T>(String key, T data) {
-    _cache[key] = data;
-    _cacheTimestamps[key] = DateTime.now();
-  }
-
-  // Helper method to clear cache for a specific key
-  static void _clearCache(String key) {
-    _cache.remove(key);
-    _cacheTimestamps.remove(key);
-  }
-
-  // Helper method to clear all cache
-  static void clearAllCache() {
-    _cache.clear();
-    _cacheTimestamps.clear();
-  }
 
   // User endpoints
   static Future<habit_hearts_user.User?> getUser(String uid) async {
     final cacheKey = 'user_$uid';
-    final cached = _getCachedData<habit_hearts_user.User>(cacheKey);
+    final cached = _getCachedValue<habit_hearts_user.User>(cacheKey);
     if (cached != null) {
       return cached;
     }
@@ -117,7 +147,7 @@ class ApiService {
         
         final jsonData = json.decode(response.body);
         final user = habit_hearts_user.User.fromJson(jsonData);
-        _setCachedData(cacheKey, user);
+        _setCacheValue(cacheKey, user);
         return user;
       } else if (response.statusCode == 404) {
         // User not found - this is not an error, just means the user document doesn't exist yet
@@ -146,6 +176,10 @@ class ApiService {
         // Clear cache when creating new user
         _clearCache('user_${user.uid}');
         return true;
+      } else if (response.statusCode == 409) {
+        // Conflict - unique code already exists, user should retry
+        print('Conflict creating user: ${response.body}');
+        return false;
       } else {
         print('Error creating user: ${response.statusCode} - ${response.body}');
         if (response.statusCode == 401 || response.statusCode == 403) {
@@ -177,6 +211,9 @@ class ApiService {
         if (response.statusCode == 401 || response.statusCode == 403) {
           // Unauthorized - token might be invalid/expired
           print('Authentication error: ${response.statusCode} - ${response.body}');
+        } else if (response.statusCode == 400) {
+          // Bad request - might be validation error
+          print('Validation error updating user: ${response.body}');
         }
       }
       return false;
@@ -234,7 +271,7 @@ class ApiService {
   static Future<List<Task>> getTasksForDate(String userId, DateTime date) async {
     final dateString = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     final cacheKey = 'tasks_${userId}_$dateString';
-    final cached = _getCachedData<List<Task>>(cacheKey);
+    final cached = _getCachedValue<List<Task>>(cacheKey);
     if (cached != null) {
       return cached;
     }
@@ -249,7 +286,7 @@ class ApiService {
       if (response.statusCode == 200) {
         final List<dynamic> jsonData = json.decode(response.body);
         final tasks = jsonData.map((item) => Task.fromJson(item)).toList();
-        _setCachedData(cacheKey, tasks);
+        _setCacheValue(cacheKey, tasks);
         return tasks;
       } else if (response.statusCode == 401 || response.statusCode == 403) {
         // Unauthorized - token might be invalid/expired
@@ -354,7 +391,7 @@ class ApiService {
   // Goal endpoints
   static Future<List<Goal>> getGoals(String userId) async {
     final cacheKey = 'goals_$userId';
-    final cached = _getCachedData<List<Goal>>(cacheKey);
+    final cached = _getCachedValue<List<Goal>>(cacheKey);
     if (cached != null) {
       return cached;
     }
@@ -369,7 +406,7 @@ class ApiService {
       if (response.statusCode == 200) {
         final List<dynamic> jsonData = json.decode(response.body);
         final goals = jsonData.map((item) => Goal.fromJson(item)).toList();
-        _setCachedData(cacheKey, goals);
+        _setCacheValue(cacheKey, goals);
         return goals;
       } else if (response.statusCode == 401 || response.statusCode == 403) {
         // Unauthorized - token might be invalid/expired
@@ -487,7 +524,7 @@ class ApiService {
     final startString = '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}';
     final endString = '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}';
     final cacheKey = 'calendar_${userId}_${startString}_${endString}';
-    final cached = _getCachedData<List<CalendarEvent>>(cacheKey);
+    final cached = _getCachedValue<List<CalendarEvent>>(cacheKey);
     if (cached != null) {
       return cached;
     }
@@ -502,7 +539,7 @@ class ApiService {
       if (response.statusCode == 200) {
         final List<dynamic> jsonData = json.decode(response.body);
         final events = jsonData.map((item) => CalendarEvent.fromJson(item)).toList();
-        _setCachedData(cacheKey, events);
+        _setCacheValue(cacheKey, events);
         return events;
       } else if (response.statusCode == 401 || response.statusCode == 403) {
         // Unauthorized - token might be invalid/expired

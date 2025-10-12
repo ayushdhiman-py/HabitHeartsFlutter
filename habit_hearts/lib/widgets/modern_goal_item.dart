@@ -99,16 +99,21 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                         ? Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              // Checkbox - for shared goals/habits, use the shared completion status; otherwise use individual progress for habits and overall completion for goals
-                              Consumer<GoalsProvider>(
-                                builder: (context, goalsProvider, child) {
-                                  // For shared goals/habits, use the shared completion status
-                                  // For non-shared goals/habits, use individual progress for habits and shared status for goals
-                                  bool displayCompleted = widget.goal.isShared 
-                                      ? widget.goal.completed  // Use shared status for shared goals/habits
-                                      : (widget.goal.isHabit 
-                                          ? goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now()) // Use individual progress for non-shared habits
-                                          : widget.goal.completed); // Use shared status for non-shared goals
+                              // Checkbox - for habits, use individual progress; for goals, use shared completion status
+                              Consumer2<GoalsProvider, HabitHeartsAuthProvider>(
+                                builder: (context, goalsProvider, authProvider, child) {
+                                  bool displayCompleted;
+                                  
+                                  // Determine the current user ID
+                                  final currentUserId = authProvider.user?.uid;
+                                  
+                                  if (widget.goal.isHabit) {
+                                    // For habits (shared or non-shared), use individual progress for the current user
+                                    displayCompleted = goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now());
+                                  } else {
+                                    // For goals (shared or non-shared), use the shared completion status
+                                    displayCompleted = widget.goal.completed;
+                                  }
                                   
                                   return Icon(
                                     displayCompleted ? Icons.check_box : Icons.check_box_outline_blank,
@@ -135,13 +140,15 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                       children: [
                                         Consumer<GoalsProvider>(
                                           builder: (context, goalsProvider, child) {
-                                            // For shared goals/habits, use the shared completion status
-                                            // For non-shared goals/habits, use individual progress for habits and shared status for goals
-                                            bool displayCompleted = widget.goal.isShared 
-                                                ? widget.goal.completed  // Use shared status for shared goals/habits
-                                                : (widget.goal.isHabit 
-                                                    ? goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now()) // Use individual progress for non-shared habits
-                                                    : widget.goal.completed); // Use shared status for non-shared goals
+                                            bool displayCompleted;
+                                            
+                                            if (widget.goal.isHabit) {
+                                              // For habits (shared or non-shared), use individual progress for the current user
+                                              displayCompleted = goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now());
+                                            } else {
+                                              // For goals (shared or non-shared), use the shared completion status
+                                              displayCompleted = widget.goal.completed;
+                                            }
                                             
                                             return Flexible(
                                               child: Text(
@@ -199,9 +206,17 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                               }
                                             }
                                             
-                                            final isCurrentUserCompleted = goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now());
-                                                
-                                            if (isCurrentUserCompleted) {
+                                            bool isCompleted;
+                                            
+                                            if (widget.goal.isHabit) {
+                                              // For habits, show if the current user completed it today
+                                              isCompleted = goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now());
+                                            } else {
+                                              // For goals, show if the goal is completed (shared status)
+                                              isCompleted = widget.goal.completed;
+                                            }
+                                               
+                                            if (isCompleted) {
                                               // Check if this is the current user's completion for shared goals
                                               if (widget.goal.isShared && currentUserId != null) {
                                                 displayText = '$displayText • completed by you';
@@ -286,16 +301,21 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                         : Row( // Full layout for goals with progress
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              // Checkbox - for shared goals/habits, use the shared completion status; otherwise use individual progress for habits and overall completion for goals
-                              Consumer<GoalsProvider>(
-                                builder: (context, goalsProvider, child) {
-                                  // For shared goals/habits, use the shared completion status
-                                  // For non-shared goals/habits, use individual progress for habits and shared status for goals
-                                  bool displayCompleted = widget.goal.isShared 
-                                      ? widget.goal.completed  // Use shared status for shared goals/habits
-                                      : (widget.goal.isHabit 
-                                          ? goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now()) // Use individual progress for non-shared habits
-                                          : widget.goal.completed); // Use shared status for non-shared goals
+                              // Checkbox - for habits, use individual progress; for goals, use shared completion status
+                              Consumer2<GoalsProvider, HabitHeartsAuthProvider>(
+                                builder: (context, goalsProvider, authProvider, child) {
+                                  bool displayCompleted;
+                                  
+                                  // Determine the current user ID
+                                  final currentUserId = authProvider.user?.uid;
+                                  
+                                  if (widget.goal.isHabit) {
+                                    // For habits (shared or non-shared), use individual progress for the current user
+                                    displayCompleted = goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now());
+                                  } else {
+                                    // For goals (shared or non-shared), use the shared completion status
+                                    displayCompleted = widget.goal.completed;
+                                  }
                                   
                                   return Icon(
                                     displayCompleted ? Icons.check_box : Icons.check_box_outline_blank,
@@ -321,13 +341,15 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                       children: [
                                         Consumer<GoalsProvider>(
                                           builder: (context, goalsProvider, child) {
-                                            // For shared goals/habits, use the shared completion status
-                                            // For non-shared goals/habits, use individual progress for habits and shared status for goals
-                                            bool displayCompleted = widget.goal.isShared 
-                                                ? widget.goal.completed  // Use shared status for shared goals/habits
-                                                : (widget.goal.isHabit 
-                                                    ? goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now()) // Use individual progress for non-shared habits
-                                                    : widget.goal.completed); // Use shared status for non-shared goals
+                                            bool displayCompleted;
+                                            
+                                            if (widget.goal.isHabit) {
+                                              // For habits (shared or non-shared), use individual progress for the current user
+                                              displayCompleted = goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now());
+                                            } else {
+                                              // For goals (shared or non-shared), use the shared completion status
+                                              displayCompleted = widget.goal.completed;
+                                            }
                                             
                                             return Flexible(
                                               child: Text(
@@ -385,9 +407,17 @@ class _ModernGoalItemState extends State<ModernGoalItem> with SingleTickerProvid
                                               }
                                             }
                                             
-                                            final isCurrentUserCompleted = goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now());
-                                                
-                                            if (isCurrentUserCompleted) {
+                                            bool isCompleted;
+                                            
+                                            if (widget.goal.isHabit) {
+                                              // For habits, show if the current user completed it today
+                                              isCompleted = goalsProvider.isGoalCompletedForDate(widget.goal.id, DateTime.now());
+                                            } else {
+                                              // For goals, show if the goal is completed (shared status)
+                                              isCompleted = widget.goal.completed;
+                                            }
+                                               
+                                            if (isCompleted) {
                                               // Check if this is the current user's completion for shared goals
                                               if (widget.goal.isShared && currentUserId != null) {
                                                 displayText = '$displayText • completed by you';

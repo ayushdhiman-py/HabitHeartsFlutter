@@ -7,6 +7,7 @@ import '../providers/goals_provider.dart';
 import '../providers/habit_hearts_auth_provider.dart';
 import '../models/goal.dart';
 import '../theme/app_theme.dart';
+import '../widgets/loading_skeleton.dart';
 import '../widgets/modern_goal_item.dart'; // Changed from swipeable_goal_item.dart
 import '../widgets/emoji_selector.dart'; // Added for emoji selection in goal modals
 import 'package:intl/intl.dart';
@@ -81,15 +82,27 @@ class _GoalsLoadingSkeleton extends StatelessWidget {
       separatorBuilder: (_, __) => const SizedBox(height: 16),
       itemBuilder: (_, __) => Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(
+          color: Theme.of(context).brightness == Brightness.dark 
+              ? Colors.grey[850] 
+              : Colors.grey[100],
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(height: 20, width: 200, color: Colors.grey[300]),
+            LoadingSkeleton(height: 20, width: 200, borderRadius: BorderRadius.circular(8)),
             const SizedBox(height: 10),
-            Container(height: 16, width: 150, color: Colors.grey[300]),
+            LoadingSkeleton(height: 16, width: 150, borderRadius: BorderRadius.circular(6)),
             const SizedBox(height: 15),
-            Container(height: 8, width: double.infinity, color: Colors.grey[300]),
+            LoadingSkeleton(height: 8, borderRadius: BorderRadius.circular(4)),
           ],
         ),
       ),

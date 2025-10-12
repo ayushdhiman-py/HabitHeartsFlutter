@@ -912,20 +912,27 @@ class _TaskListSkeleton extends StatelessWidget {
         color: Theme.of(context).brightness == Brightness.dark 
             ? AppColors.darkCardBackground 
             : AppColors.lightCardBackground,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: Theme.of(context).brightness == Brightness.dark 
               ? AppColors.darkBorderColor 
               : AppColors.borderColor,
           width: 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: const Column(
         children: [
           _TaskItemSkeleton(),
-          SizedBox(height: 10),
+          SizedBox(height: 12),
           _TaskItemSkeleton(),
-          SizedBox(height: 10),
+          SizedBox(height: 12),
           _TaskItemSkeleton(),
         ],
       ),
@@ -944,29 +951,36 @@ class _TaskItemSkeleton extends StatelessWidget {
         color: Theme.of(context).brightness == Brightness.dark 
             ? AppColors.darkCardBackground 
             : AppColors.lightCardBackground,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: Theme.of(context).brightness == Brightness.dark 
               ? AppColors.darkBorderColor 
               : AppColors.borderColor,
           width: 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
       ),
       child: const Row(
         children: [
-          LoadingSkeleton(width: 24, height: 24),
+          LoadingSkeleton(width: 24, height: 24, borderRadius: BorderRadius.all(Radius.circular(12))),
           SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                LoadingSkeleton(height: 16, width: 150),
-                SizedBox(height: 5),
-                LoadingSkeleton(height: 12, width: 100),
+                LoadingSkeleton(height: 16, width: 150, borderRadius: BorderRadius.all(Radius.circular(8))),
+                SizedBox(height: 8),
+                LoadingSkeleton(height: 12, width: 100, borderRadius: BorderRadius.all(Radius.circular(6))),
               ],
             ),
           ),
-          LoadingSkeleton(width: 24, height: 24),
+          LoadingSkeleton(width: 24, height: 24, borderRadius: BorderRadius.all(Radius.circular(12))),
         ],
       ),
     );
@@ -1467,22 +1481,29 @@ class _GoalsSectionSkeleton extends StatelessWidget {
         color: Theme.of(context).brightness == Brightness.dark 
             ? AppColors.darkCardBackground 
             : AppColors.lightCardBackground,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: Theme.of(context).brightness == Brightness.dark 
               ? AppColors.darkBorderColor 
               : AppColors.borderColor,
           width: 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: const Column(
         children: [
           // Heatmap skeleton
-          LoadingSkeleton(height: 60),
-          SizedBox(height: 10),
+          LoadingSkeleton(height: 60, borderRadius: BorderRadius.all(Radius.circular(8))),
+          SizedBox(height: 16),
           // Goal items skeleton
           _GoalItemSkeleton(),
-          SizedBox(height: 10),
+          SizedBox(height: 12),
           _GoalItemSkeleton(),
         ],
       ),
@@ -1501,29 +1522,36 @@ class _GoalItemSkeleton extends StatelessWidget {
         color: Theme.of(context).brightness == Brightness.dark 
             ? AppColors.darkCardBackground 
             : AppColors.lightCardBackground,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: Theme.of(context).brightness == Brightness.dark 
               ? AppColors.darkBorderColor 
               : AppColors.borderColor,
           width: 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
       ),
       child: const Row(
         children: [
-          LoadingSkeleton(width: 24, height: 24),
+          LoadingSkeleton(width: 24, height: 24, borderRadius: BorderRadius.all(Radius.circular(12))),
           SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                LoadingSkeleton(height: 16, width: 150),
-                SizedBox(height: 5),
-                LoadingSkeleton(height: 12, width: 100),
+                LoadingSkeleton(height: 16, width: 150, borderRadius: BorderRadius.all(Radius.circular(8))),
+                SizedBox(height: 8),
+                LoadingSkeleton(height: 12, width: 100, borderRadius: BorderRadius.all(Radius.circular(6))),
               ],
             ),
           ),
-          LoadingSkeleton(width: 40, height: 20),
+          LoadingSkeleton(width: 40, height: 20, borderRadius: BorderRadius.all(Radius.circular(10))),
         ],
       ),
     );

@@ -244,6 +244,10 @@ class _EventList extends StatelessWidget {
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         final event = events[index];
+        // Get the current user ID to check ownership
+        final currentUserId = Provider.of<HabitHeartsAuthProvider>(context, listen: false).user?.uid;
+        final isOwner = event.createdBy == currentUserId;
+        
         return Container(
           key: ValueKey(event.id),
           decoration: BoxDecoration(
@@ -296,11 +300,83 @@ class _EventList extends StatelessWidget {
             title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  event.title,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        event.title,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
                       ),
+                    ),
+                    if (isOwner) ...[
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined, size: 20),
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? AppColors.darkTextColor
+                            : AppColors.textColor,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        splashRadius: 20,
+                        onPressed: () => onShowEditModal(event),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outlined, size: 20),
+                        color: AppColors.coralRed,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        splashRadius: 20,
+                        onPressed: () {
+                          // Show confirmation dialog before deletion
+                          showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return AlertDialog(
+                                title: const Text('Delete Event'),
+                                content: const Text('Are you sure you want to delete this event?'),
+                                actions: <Widget>[
+                                  TextButton(
+                                    child: const Text('Cancel'),
+                                    onPressed: () {
+                                      Navigator.of(context).pop();
+                                    },
+                                  ),
+                                  TextButton(
+                                    child: const Text('Delete'),
+                                    onPressed: () {
+                                      Navigator.of(context).pop();
+                                      // Call the calendar provider to delete the event
+                                      final calendarProvider = Provider.of<CalendarProvider>(context, listen: false);
+                                      calendarProvider.deleteEvent(context, event.id).then((_) {
+                                        // Show success message
+                                        final messenger = ScaffoldMessenger.of(context);
+                                        messenger.showSnackBar(
+                                          SnackBar(
+                                            content: Text('Event deleted'),
+                                            duration: Duration(seconds: 2),
+                                          ),
+                                        );
+                                      }).catchError((error) {
+                                        // Show error message
+                                        final messenger = ScaffoldMessenger.of(context);
+                                        messenger.showSnackBar(
+                                          SnackBar(
+                                            content: Text('Failed to delete event'),
+                                            duration: Duration(seconds: 2),
+                                          ),
+                                        );
+                                      });
+                                    },
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ],
+                  ],
                 ),
                 Visibility(
                   visible: event.creatorName.isNotEmpty && event.creatorName != 'You',
@@ -326,7 +402,8 @@ class _EventList extends StatelessWidget {
                     style: Theme.of(context).textTheme.bodySmall,
                   )
                 : null,
-            onTap: () => onShowEditModal(event),
+            // Only allow tapping to edit if the user is the owner
+            onTap: isOwner ? () => onShowEditModal(event) : null,
           ),
         );
       },

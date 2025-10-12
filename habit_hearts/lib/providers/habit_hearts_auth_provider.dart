@@ -34,38 +34,94 @@ class HabitHeartsAuthProvider with ChangeNotifier {
     if (_user == null) return;
 
     try {
+      // First, try to get existing user document
       habit_hearts_user.User? user = await _userService.getUser(uid);
+      
       if (user != null) {
         // User document exists, use it
         _habitHeartsUser = user;
         print(
             'HabitHeartsAuthProvider - Loaded user document for $uid with unique code: ${user.uniqueCode}');
       } else {
-        // User document doesn't exist, create it
+        // User document doesn't exist, create it with a new unique code
         print(
             'HabitHeartsAuthProvider - No user document found for $uid, creating new one');
-        String newUniqueCode = _userService.generateUniqueCode();
-        habit_hearts_user.User newUser = habit_hearts_user.User(
-          uid: _user!.uid,
-          email: _user!.email,
-          displayName: _user!.displayName,
-          photoURL: _user!.photoURL,
-          uniqueCode: newUniqueCode,
-          linkedUsers: [],
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-          status: 'active',
-          subscription: 'free',
-          zodiacSign: null,
-        );
-        await _userService.setUser(newUser);
-        _habitHeartsUser = newUser;
-        print(
-            'HabitHeartsAuthProvider - Created new user document for $uid with unique code: $newUniqueCode');
+        
+        // Verify that the user document doesn't exist by trying to get it again
+        // This is to handle potential race conditions or caching issues
+        final freshCheck = await _userService.getUser(uid);
+        if (freshCheck != null) {
+          // User document already exists, use the existing one with its unique code
+          _habitHeartsUser = freshCheck;
+          print(
+              'HabitHeartsAuthProvider - User document already exists (race condition), using existing unique code: ${freshCheck.uniqueCode}');
+        } else {
+          // Generate and attempt to create user with unique code
+          // Try up to 3 times in case of unique code conflicts
+          bool creationSuccess = false;
+          int attempts = 0;
+          habit_hearts_user.User? createdUser;
+          
+          while (!creationSuccess && attempts < 3) {
+            attempts++;
+            String newUniqueCode = _userService.generateUniqueCode();
+            habit_hearts_user.User newUser = habit_hearts_user.User(
+              uid: _user!.uid,
+              email: _user!.email,
+              displayName: _user!.displayName,
+              photoURL: _user!.photoURL,
+              uniqueCode: newUniqueCode,
+              linkedUsers: [],
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+              status: 'active',
+              subscription: 'free',
+              zodiacSign: null,
+            );
+            
+            bool success = await _userService.setUser(newUser);
+            if (success) {
+              creationSuccess = true;
+              createdUser = newUser;
+              print(
+                  'HabitHeartsAuthProvider - Created new user document for $uid with unique code: $newUniqueCode (attempt $attempts)');
+            } else {
+              print(
+                  'HabitHeartsAuthProvider - Failed to create user document (attempt $attempts), possibly due to unique code conflict');
+            }
+          }
+          
+          if (creationSuccess && createdUser != null) {
+            _habitHeartsUser = createdUser;
+          } else {
+            // If all attempts failed, try to fetch the user again to see if it was created despite errors
+            final fallbackUser = await _userService.getUser(uid);
+            if (fallbackUser != null) {
+              _habitHeartsUser = fallbackUser;
+              print(
+                  'HabitHeartsAuthProvider - Fallback: Found existing user document for $uid with unique code: ${fallbackUser.uniqueCode}');
+            } else {
+              print('HabitHeartsAuthProvider - Failed to create user document for $uid after $attempts attempts');
+              return;
+            }
+          }
+        }
       }
       notifyListeners();
     } catch (e) {
       print('Error loading or creating user document: $e');
+      
+      // As a fallback, try to get the user one more time
+      try {
+        final fallbackUser = await _userService.getUser(uid);
+        if (fallbackUser != null) {
+          _habitHeartsUser = fallbackUser;
+          notifyListeners();
+          print('HabitHeartsAuthProvider - Successfully fetched user after error: $uid');
+        }
+      } catch (fallbackError) {
+        print('HabitHeartsAuthProvider - Fallback also failed: $fallbackError');
+      }
     }
   }
   
