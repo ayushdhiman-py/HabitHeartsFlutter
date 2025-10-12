@@ -54,9 +54,16 @@ class _GoalsScreenState extends State<GoalsScreen> with TickerProviderStateMixin
                                authProvider.habitHeartsUser?.linkedUsers.contains(goal.createdBy) == true);
                               
               if (canToggle) {
-                bool isOwner = goal.createdBy == userId;
-                // For owners, update both goal document and progress; for linked users, only update progress
-                goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, !goal.completed, updateGoalStatus: isOwner);
+                if (goal.isHabit) {
+                  // For habits, toggle the completion for today
+                  bool currentCompletionStatus = goalsProvider.isGoalCompletedForDate(goalId, DateTime.now());
+                  goalsProvider.toggleHeatmapDayCompletion(goalId, DateTime.now(), !currentCompletionStatus);
+                } else {
+                  // For goals, update the overall completion status
+                  bool isOwner = goal.createdBy == userId;
+                  // For owners, update both goal document and progress; for linked users, only update progress
+                  goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, !goal.completed, updateGoalStatus: isOwner);
+                }
               } else {
                 // Show a message if user doesn't have permission to toggle
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -200,9 +207,16 @@ class _GoalsList extends StatelessWidget {
                                    authProvider.habitHeartsUser?.linkedUsers.contains(goal.createdBy) == true);
                                   
                   if (canToggle) {
-                    bool isOwner = goal.createdBy == userId;
-                    // For owners, update both goal document and progress; for linked users, only update progress
-                    goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, !goal.completed, updateGoalStatus: isOwner);
+                    if (goal.isHabit) {
+                      // For habits, toggle the completion for today
+                      bool currentCompletionStatus = goalsProvider.isGoalCompletedForDate(goalId, DateTime.now());
+                      goalsProvider.toggleHeatmapDayCompletion(goalId, DateTime.now(), !currentCompletionStatus);
+                    } else {
+                      // For goals, update the overall completion status
+                      bool isOwner = goal.createdBy == userId;
+                      // For owners, update both goal document and progress; for linked users, only update progress
+                      goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, !goal.completed, updateGoalStatus: isOwner);
+                    }
                   } else {
                     // Show a message if user doesn't have permission to toggle
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -266,9 +280,16 @@ class _GoalsList extends StatelessWidget {
                                    authProvider.habitHeartsUser?.linkedUsers.contains(goal.createdBy) == true);
                                   
                   if (canToggle) {
-                    bool isOwner = goal.createdBy == userId;
-                    // For owners, update both goal document and progress; for linked users, only update progress
-                    goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, !goal.completed, updateGoalStatus: isOwner);
+                    if (goal.isHabit) {
+                      // For habits, toggle the completion for today
+                      bool currentCompletionStatus = goalsProvider.isGoalCompletedForDate(goalId, DateTime.now());
+                      goalsProvider.toggleHeatmapDayCompletion(goalId, DateTime.now(), !currentCompletionStatus);
+                    } else {
+                      // For goals, update the overall completion status
+                      bool isOwner = goal.createdBy == userId;
+                      // For owners, update both goal document and progress; for linked users, only update progress
+                      goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, !goal.completed, updateGoalStatus: isOwner);
+                    }
                   } else {
                     // Show a message if user doesn't have permission to toggle
                     ScaffoldMessenger.of(context).showSnackBar(

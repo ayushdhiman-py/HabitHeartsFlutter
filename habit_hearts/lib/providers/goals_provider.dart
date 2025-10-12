@@ -465,27 +465,34 @@ class GoalsProvider with ChangeNotifier {
 
   // Optimistically toggle entire goal completion status (used by goal items)
   Future<void> optimisticallyToggleGoalProgress(String userId, String goalId, bool completed, {bool updateGoalStatus = true}) async {
-    // Create a key for tracking operations (userId-goalId) to prevent duplicates
-    String operationKey = "$goalId-$userId";
-    
-    // Prevent duplicate toggle operations for the same goal-user combination
-    if (_toggleOperations[operationKey] == true) {
-      print('Toggle operation already in progress for goal $goalId and user $userId, skipping duplicate request');
+    // Check if goal exists first
+    final goalIndex = _goals.indexWhere((g) => g.id == goalId);
+    if (goalIndex == -1) {
+      print('Goal $goalId not found');
       return;
     }
     
-    // Mark this operation as in progress
+    // Optimistically update the UI immediately for responsive feel
+    final goal = _goals[goalIndex];
+    final originalGoal = goal;
+    final optimisticGoal = goal.copyWith(completed: completed);
+    _goals[goalIndex] = optimisticGoal;
+    notifyListeners();
+
+    // Create a key for tracking operations (userId-goalId) to prevent duplicate API calls
+    String operationKey = "$goalId-$userId";
+    
+    // If API call is already in progress, just update UI and return
+    // This allows rapid toggles to update UI immediately but prevents multiple API calls
+    if (_toggleOperations[operationKey] == true) {
+      print('Toggle operation already in progress for goal $goalId and user $userId, UI updated but skipping duplicate API request.');
+      return;
+    }
+    
+    // Mark this operation as in progress for API calls
     _toggleOperations[operationKey] = true;
 
     try {
-      final goalIndex = _goals.indexWhere((g) => g.id == goalId);
-      if (goalIndex == -1) {
-        print('Goal $goalId not found');
-        return;
-      }
-      
-      final goal = _goals[goalIndex];
-      
       // Check if the current user has permission to toggle this goal
       final isOwner = goal.createdBy == userId;
       final isLinkedUser = _authProvider?.habitHeartsUser?.linkedUsers.contains(goal.createdBy) == true;
@@ -498,18 +505,11 @@ class GoalsProvider with ChangeNotifier {
       
       if (!canToggle) {
         print('User $userId does not have permission to toggle goal $goalId');
-        return; // Don't perform the toggle
+        // Revert UI since user doesn't have permission
+        _goals[goalIndex] = originalGoal;
+        notifyListeners();
+        return; // Don't perform the API operation
       }
-
-      // Store original values for potential rollback
-      final originalCompletedStatus = goal.completed;
-      final originalGoal = goal;
-
-      // Optimistically update the UI for immediate feedback (like tasks do)
-      // For shared goals, we update the main completion status
-      final optimisticGoal = goal.copyWith(completed: completed);
-      _goals[goalIndex] = optimisticGoal;
-      notifyListeners();
 
       try {
         // If user is owner and wants to update the goal status, allow it
@@ -600,6 +600,9 @@ class GoalsProvider with ChangeNotifier {
       }
     } catch (e) {
       print('Error toggling goal progress: $e');
+      // In case of general error, also revert the UI
+      _goals[goalIndex] = originalGoal;
+      notifyListeners();
     } finally {
       // Always clear the operation flag in the finally block
       _toggleOperations[operationKey] = false;
