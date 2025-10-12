@@ -376,6 +376,26 @@ class GoalsProvider with ChangeNotifier {
     final userId = _authProvider?.user?.uid;
     if (userId == null) return;
 
+    // Find the goal to check permissions
+    final goalIndex = _goals.indexWhere((g) => g.id == goalId);
+    if (goalIndex == -1) {
+      print('Goal not found: $goalId');
+      return;
+    }
+    
+    final goal = _goals[goalIndex];
+    final isOwner = goal.createdBy == userId;
+    final isLinkedUser = _authProvider?.habitHeartsUser?.linkedUsers.contains(goal.createdBy) == true;
+    final isSharedGoal = goal.isShared;
+    
+    // Allow toggle if user is the owner OR if it's a shared goal and the user is linked to the owner
+    final canToggle = isOwner || (isSharedGoal && isLinkedUser);
+    
+    if (!canToggle) {
+      print('User $userId does not have permission to toggle progress for goal $goalId');
+      return;
+    }
+
     // Store original progress for rollback
     final originalProgress = Map<String, Map<String, String>>.from(_userGoalProgress);
 

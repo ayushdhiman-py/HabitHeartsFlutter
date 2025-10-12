@@ -141,9 +141,15 @@ class TasksProvider with ChangeNotifier {
     final isOwner = originalTask.createdBy == _userId;
     final intendedCompletionState = !originalTask.completed;
 
-    // Permission check for shared tasks
-    if (originalTask.isShared && !isOwner && originalTask.completed && originalTask.completedBy != _userId) {
-      print('User does not have permission to untoggle task $taskId');
+    // Check if the current user has permission to toggle this task
+    final isLinkedUser = _authProvider?.habitHeartsUser?.linkedUsers.contains(originalTask.createdBy) == true;
+    final isSharedTask = originalTask.isShared;
+    
+    // Allow toggle if user is the owner OR if it's a shared task and the user is linked to the owner
+    final canToggle = isOwner || (isSharedTask && isLinkedUser);
+    
+    if (!canToggle) {
+      print('User $_userId does not have permission to toggle task $taskId');
       // Optionally, show a snackbar to the user here
       return;
     }

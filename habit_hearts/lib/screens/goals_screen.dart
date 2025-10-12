@@ -61,8 +61,11 @@ class _GoalsScreenState extends State<GoalsScreen> with TickerProviderStateMixin
                 } else {
                   // For goals, update the overall completion status
                   bool isOwner = goal.createdBy == userId;
-                  // For owners, update both goal document and progress; for linked users, only update progress
-                  goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, !goal.completed, updateGoalStatus: isOwner);
+                  bool isLinkedUser = goal.isShared && authProvider.habitHeartsUser?.linkedUsers.contains(goal.createdBy) == true;
+                  
+                  // For both owners and linked users of shared goals, allow updating the shared status
+                  bool updateGoalStatus = isOwner || isLinkedUser;
+                  goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, !goal.completed, updateGoalStatus: updateGoalStatus);
                 }
               } else {
                 // Show a message if user doesn't have permission to toggle
@@ -214,8 +217,11 @@ class _GoalsList extends StatelessWidget {
                     } else {
                       // For goals, update the overall completion status
                       bool isOwner = goal.createdBy == userId;
-                      // For owners, update both goal document and progress; for linked users, only update progress
-                      goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, !goal.completed, updateGoalStatus: isOwner);
+                      bool isLinkedUser = goal.isShared && authProvider.habitHeartsUser?.linkedUsers.contains(goal.createdBy) == true;
+                      
+                      // For both owners and linked users of shared goals, allow updating the shared status
+                      bool updateGoalStatus = isOwner || isLinkedUser;
+                      goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, !goal.completed, updateGoalStatus: updateGoalStatus);
                     }
                   } else {
                     // Show a message if user doesn't have permission to toggle
@@ -287,8 +293,11 @@ class _GoalsList extends StatelessWidget {
                     } else {
                       // For goals, update the overall completion status
                       bool isOwner = goal.createdBy == userId;
-                      // For owners, update both goal document and progress; for linked users, only update progress
-                      goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, !goal.completed, updateGoalStatus: isOwner);
+                      bool isLinkedUser = goal.isShared && authProvider.habitHeartsUser?.linkedUsers.contains(goal.createdBy) == true;
+                      
+                      // For both owners and linked users of shared goals, allow updating the shared status
+                      bool updateGoalStatus = isOwner || isLinkedUser;
+                      goalsProvider.optimisticallyToggleGoalProgress(userId, goalId, !goal.completed, updateGoalStatus: updateGoalStatus);
                     }
                   } else {
                     // Show a message if user doesn't have permission to toggle

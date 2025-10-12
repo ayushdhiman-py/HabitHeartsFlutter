@@ -2068,9 +2068,10 @@ app.post('/api/goals/:goalId/toggle-shared-completion', authenticateToken, async
       return res.status(403).json({ message: 'Unauthorized to toggle completion for this goal' });
     }
 
-    // Update the MAIN GOAL's completion status only if the requesting user is the creator
-    // For linked users, only update their individual progress for streak tracking
+    // Update the MAIN GOAL's completion status for shared goals when toggled by linked users
+    // For shared goals, any linked user should be able to update the shared completion status
     if (goalData.createdBy === requestUserId) {
+      // Goal owner can always update the main goal status
       const updateData = {
         completed: completed,
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -2088,8 +2089,25 @@ app.post('/api/goals/:goalId/toggle-shared-completion', authenticateToken, async
       
       console.log(`DEBUG: Updating main goal ${goalId} with data:`, updateData);
       await db.collection('goals').doc(goalId).update(updateData);
-    } else {
-      console.log(`DEBUG: Linked user ${requestUserId} updating only their individual progress for goal ${goalId}`);
+    } else if (goalData.isShared) {
+      // For shared goals, linked users can also update the main goal status
+      const updateData = {
+        completed: completed,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+      
+      // Only update completedBy if the goal is being completed (not uncompleted)
+      if (completed) {
+        updateData.completedBy = requestUserId;
+      } else {
+        // When uncompleting, set completedBy to null if the current user was the one who completed it
+        if (goalData.completedBy === requestUserId) {
+          updateData.completedBy = null;
+        }
+      }
+      
+      console.log(`DEBUG: Updating main goal ${goalId} for linked user with data:`, updateData);
+      await db.collection('goals').doc(goalId).update(updateData);
     }
 
     // Also update the user-specific progress for streak tracking
