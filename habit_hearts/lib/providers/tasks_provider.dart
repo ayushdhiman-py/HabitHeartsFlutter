@@ -131,19 +131,9 @@ class TasksProvider with ChangeNotifier {
   Future<void> toggleTaskCompletion(String taskId) async {
     if (_userId == null) return;
 
-    // Prevent duplicate toggle operations for the same task
-    if (_toggleOperations[taskId] == true) {
-      print('Toggle operation already in progress for task $taskId, skipping duplicate request');
-      return;
-    }
-    
-    // Mark this task as being toggled
-    _toggleOperations[taskId] = true;
-
     final taskIndex = _tasks.indexWhere((t) => t.id == taskId);
     if (taskIndex == -1) {
       print('Task not found: $taskId');
-      _toggleOperations[taskId] = false;
       return;
     }
 
@@ -154,23 +144,31 @@ class TasksProvider with ChangeNotifier {
     // Permission check for shared tasks
     if (originalTask.isShared && !isOwner && originalTask.completed && originalTask.completedBy != _userId) {
       print('User does not have permission to untoggle task $taskId');
-      _toggleOperations[taskId] = false;
       // Optionally, show a snackbar to the user here
       return;
     }
 
-    try {
-      // Optimistically update the UI
-      final optimisticTask = originalTask.copyWith(
-        completed: intendedCompletionState,
-        completedBy: intendedCompletionState ? _userId : null,
-        completedByName: intendedCompletionState ? (_authProvider?.habitHeartsUser?.displayName ?? 'You') : null,
-        isCompletedByLinkedUser: intendedCompletionState ? !isOwner : false,
-      );
-      _tasks[taskIndex] = optimisticTask;
-      _sortTasks();
-      notifyListeners();
+    // Optimistically update the UI immediately for responsive feel
+    final optimisticTask = originalTask.copyWith(
+      completed: intendedCompletionState,
+      completedBy: intendedCompletionState ? _userId : null,
+      completedByName: intendedCompletionState ? (_authProvider?.habitHeartsUser?.displayName ?? 'You') : null,
+      isCompletedByLinkedUser: intendedCompletionState ? !isOwner : false,
+    );
+    _tasks[taskIndex] = optimisticTask;
+    _sortTasks();
+    notifyListeners();
 
+    // Prevent duplicate API calls for the same task
+    if (_toggleOperations[taskId] == true) {
+      print('Toggle operation already in progress for task $taskId, UI updated but skipping duplicate API request');
+      return;
+    }
+    
+    // Mark this task as being toggled for API calls
+    _toggleOperations[taskId] = true;
+
+    try {
       // Send the update to the backend
       final result = await ApiService.toggleSharedTaskCompletion(taskId, intendedCompletionState);
 
